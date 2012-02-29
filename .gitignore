@@ -2,3 +2,4 @@
 todo.org
 grammar.txt
 .#*
+*.egg-info/*

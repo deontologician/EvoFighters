@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(name='EvoFighters',
       version='0.1',
@@ -8,5 +8,5 @@ setup(name='EvoFighters',
       author='Josh Kuhn',
       license='GPLv3',
       author_email='habitue@gmail.com',
-      packages=['distutils', 'distutils.command'],
+      packages=find_packages()
      )

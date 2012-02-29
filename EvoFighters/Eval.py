@@ -1,8 +1,29 @@
 '''This module handles evaluating the parse trees that Parsing creates'''
 
-from collections import namedtuple
+from Parsing import dmg_repr, sig_repr
 
-PerformableAction = namedtuple('PerformableAction', 'typ arg')
+class PerformableAction(object):
+    def __init__(self, typ, arg):
+        self.typ = typ
+        self.arg = arg
+    def __str__(self):
+        if self.typ == 'take':
+            return "take something from his opponent"
+        elif self.typ == 'use':
+            return "use an item in his inventory"
+        elif self.typ == 'wait':
+            return "wait"
+        elif self.typ == 'signal':
+            return "signal with the color {0}".format(sig_repr(self.arg))
+        elif self.typ == 'attack':
+            return "attack with damage type: {}".format(dmg_repr(self.arg))
+        elif self.typ == 'defend':
+            return "defend against damage type: {}".format(dmg_repr(self.arg))
+        else:
+            return "Unknown action: ({}, {})".format(self.typ, self.arg)
+
+
+
 
 class InvalidInstructionError(Exception):
     pass
@@ -105,3 +126,4 @@ def eval_act(self, tree):
     else:
         raise InvalidInstructionError("Didn't understand action: {0}".
                                       format(act_typ))
+

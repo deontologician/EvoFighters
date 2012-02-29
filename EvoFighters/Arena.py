@@ -2,40 +2,45 @@
 
 import random as rand
 from random import randint
-from itertools import count, cycle, izip, takewhile
-from collections import namedtuple
+from itertools import cycle, takewhile
 from math import ceil, floor
-from base64 import b64encode
-from hashlib import md5
+from struct import pack
 
-import Eval as E
-from Parsing import parse_condition, TooMuchThinkingError
-import Parsing as P
+from Eval import evaluate, PerformableAction
+from Parsing import parse_condition, TooMuchThinkingError, Item
 
 mutation_rate = 0.05 # higher = more mutations
 thinking_penalty = 20.0 # higher = more thinking allowed
-
-PerformableAction = namedtuple('PerformableAction', 'typ arg')
 
 def fight(p1, p2):
     p1.target = p2
     p2.target = p1
     while randint(0, 200) != 200:
         p1act = p1.next_action
+        #print '{} decides to {}'.format(p1.name, p1act)
         p2act = p2.next_action
+        #print '{} decides to {}'.format(p2.name, p2act)
         carryout(p1, p1act, p2, p2act)
         if p2.dead and p1.alive:
+            #print '{0.name} has won.'.format(p1)
             p1.inv.extend(p2.inv)
             p2.energy += randint(1,6)
             p1.target = None
             p1.fights_survived += 1
             return
         elif p1.dead and p2.alive:
+            #print '{0.name} has won.'.format(p2)
             p2.inv.extend(p1.inv)
             p2.energy += randint(1,6)
             p2.target = None
             p2.fights_survived += 1
             return
+        elif p1.dead and p2.dead:
+            #print 'Both {0.name} and {1.name} have died.'.format(p1, p2)
+            p1.target = None # garbage collection
+            p2.target = None
+            return
+        p1,p2 = p2,p1
     p1.fights_survived += 1
     p2.fights_survived += 1
     p1.target = None
@@ -99,7 +104,7 @@ def attacking(p1, p1_act, p2, p2_act):
 class Creature(object):
     def __init__(self, dna = None):
         if dna is None:
-            self.dna = [randint(-1,9) for _ in xrange(0,25)]
+            self.dna = [randint(-1,9) for _ in xrange(0,50)]
         else:
             self.dna = dna
         self.dna_cycler = cycle(self.dna)
@@ -121,10 +126,12 @@ class Creature(object):
 
     @property
     def name(self):
-        'A simple short name that creates a summary value for each gene with xor'
-        _xor = lambda y: reduce(lambda x,acc: x ^ acc, y, 0)
-        return '|'.join([b64encode(str(_xor(gene))) for gene in \
-                             takewhile(lambda x:x, gene_primer(self.dna))])
+        'A simple short name that is probably unique'
+        def sum_and_encode(gene):
+            return pack('b',sum(gene) % 256 - 128)\
+                  .encode('base_64').rstrip('=\n')
+        return ''.join([ sum_and_encode(gene) for gene in \
+                            takewhile(lambda x:x, gene_primer(self.dna))])
 
     @property
     def dead(self):
@@ -143,13 +150,13 @@ class Creature(object):
             self.energy -= 5
             return PerformableAction('wait', None)
         self.energy -= int(floor(instructions / thinking_penalty))
-        return E.evaluate(self, thought_process)
+        return evaluate(self, thought_process)
     
     def use(self):
         'Does something with inventory items'
         if self.inv:
             item = self.inv.pop()
-            if 0 <= item <= len(P.Item):
+            if 0 <= item <= len(Item):
                 mult = item + 1
             else:
                 mult = 0
@@ -280,7 +287,7 @@ def mating_season(creatures):
 def feeding_time(creatures):
     '''Gives random amounts of food to all of the creatures'''
     for x in xrange(0, int(len(creatures) * 1.5)):
-        creatures[randint(0,len(creatures))].inv.append(item['food'])
+        creatures[randint(0,len(creatures))].inv.append(randint(0, len(Item) - 1))
 
 
 

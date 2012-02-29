@@ -181,3 +181,136 @@ def get_next_valid(typ, dna_iter, count, mini = 0, maxi = 10):
         if count > MAX_THINKING_STEPS:
             raise TooMuchThinkingError('Thought too much :/')
     return next_val, count
+
+def ind(i):
+    return ' '*i
+
+def explain_plan(tree):
+    cond_repr(tree)
+
+def _cond_helper(thenTree, elseTree, indent = 0):
+    p = ':\n{thenTree}\n{i}else:\n{elseTree}'\
+        .format(i = ind(indent), thenTree = act_repr(thenTree, indent + 4),
+                elseTree = act_repr(elseTree, indent + 4))
+    return p
+                                                          
+
+def cond_repr(tree, indent = 0):
+    cond_typ = tree[0]
+    if cond_typ == 'always':
+        return "{i}Always:\n{i}{}".format(act_repr(tree[1], indent + 4),
+                                          i = ind(indent) )
+    elif cond_typ == 'enemy_has':
+        return "{i}if the enemy has {}{}".format(item_repr(tree[1]), 
+                                           _cond_helper(tree[2],tree[3],indent),
+                                           i = ind(indent))
+    elif cond_typ == 'me_has':
+        return "{i}if I have {}{}".format(item_repr(tree[1]),
+                                          _cond_helper(tree[2], tree[3],indent),
+                                          i = ind(indent))
+    elif cond_typ == 'enemy_energy':
+        return "{i}if the enemy has an energy that is {}{}"\
+            .format(comp_repr(tree[1]), _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    elif cond_typ == 'me_energy':
+        return "{i}if I have an energy that is {}{}"\
+            .format(comp_repr(tree[1]), _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    elif cond_typ == 'enemy_signal':
+        return "{i}if the enemy's signal is {}{}"\
+            .format(comp_repr(tree[1], sig_repr),
+                    _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    elif cond_typ == 'me_signal':
+        return "{i}if my signal is {}{}"\
+            .format(comp_repr(tree[1], sig_repr),
+                    _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    elif cond_typ == 'enemy_last_act':
+        return "{i}if the enemy's last action was {}{}"\
+            .format(act_repr(tree[1]),
+                    _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    elif cond_typ == 'me_last_act':
+        return "{i}if my last action was {}{}"\
+            .format(act_repr(tree[1]),
+                    _cond_helper(tree[2],tree[3], indent),
+                    i = ind(indent))
+    else:
+        return '{i}Unknown Condition({})'.format(cond_typ, i = ind(indent))
+
+def comp_repr(tree, formatter = lambda x:x):
+    comp_typ = tree[0]
+    if comp_typ == 'inrange':
+        low = min(tree[1], tree[2])
+        high = max(tree[1], tree[2])
+        return 'from {} to {}'.format(formatter(low), formatter(high))
+    elif comp_typ == 'lessthan':
+        return 'less than {}'.format(formatter(tree[1]))
+    elif comp_typ == 'greaterthan':
+        return 'greater than {}'.format(formatter(tree[1]))
+    elif comp_typ == 'equalto':
+        return '{}'.format(formatter(tree[1]))
+    elif comp_typ == 'notequalto':
+        return 'not {}'.format(formatter(tree[1]))
+    else:
+        return 'Unknown Comparison ({})'.format(comp_typ)
+
+
+def item_repr(item):
+    if item == Item.food:
+        return "a regular food"
+    elif item == Item.ice_food:
+        return "an ice food"
+    elif item == Item.fire_food:
+        return "a fire food"
+    elif item == Item.electric_food:
+        return "an electric food"
+    else:
+        return "an unknown item({})".format(item)
+
+def act_repr(tree, indent = 0):
+    act_typ = tree[0]
+    if act_typ == 'subcondition':
+        return cond_repr(tree[1], indent)
+    elif act_typ == 'take':
+        return '{}take enemy item'.format(ind(indent))
+    elif act_typ == 'attack':
+        return '{}attack with {}'.format(ind(indent), dmg_repr(tree[1]))
+    elif act_typ == 'defend':
+        return '{}defend against {}'.format(ind(indent), dmg_repr(tree[1]))
+    elif act_typ == 'use':
+        return '{}use top inventory item'.format(ind(indent))
+    elif act_typ == 'signal':
+        return '{}signal {}'.format(ind(indent), sig_repr(tree[1]))
+    elif act_typ == 'wait':
+        return '{}wait'.format(ind(indent))
+    else:
+        return '{}Unknown action ({})'.format(ind(indent), tree[1])
+    
+def dmg_repr(damage):
+    if damage == Damage.fire:
+        return 'Fire'
+    elif damage == Damage.ice:
+        return 'Ice'
+    elif damage == Damage.electricity:
+        return 'Electricity'
+    else:
+        return 'Unknown Damage Type({})'.format(damage)
+
+
+def sig_repr(signal):
+    if signal == Signal.red:
+        return 'Red'
+    elif signal == Signal.yellow:
+        return 'Yellow'
+    elif signal == Signal.blue:
+        return 'Blue'
+    elif signal == Signal.purple:
+        return 'Purple'
+    elif signal == Signal.orange:
+        return 'Orange'
+    elif signal == Signal.green:
+        return 'Green'
+    else:
+        return 'Unknown Signal({})'.format(signal)
