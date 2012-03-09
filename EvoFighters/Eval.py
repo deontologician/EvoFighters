@@ -20,7 +20,7 @@ class PerformableAction(object):
         elif self.typ == 'defend':
             return "defend against damage type: {}".format(dmg_repr(self.arg))
         else:
-            return "Unknown action: ({}, {})".format(self.typ, self.arg)
+            return "do unknown action: ({}, {})".format(self.typ, self.arg)
 
 
 
