@@ -3,7 +3,7 @@ modules'''
 
 from __future__ import print_function
 
-import cStringIO as StringIO
+from cStringIO import StringIO
 import sys
 
 __all__ = ['print1', 'print2', 'print3', 'set_verbosity', 'get_verbosity', 'progress_bar']
@@ -14,7 +14,7 @@ def set_verbosity(lvl):
     global _verbosity
     _verbosity = lvl
 
-def get_verbosity(lvl):
+def get_verbosity():
     return _verbosity
 
 def print1(*args, **kwargs):
