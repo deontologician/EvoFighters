@@ -1,41 +1,34 @@
 '''Contains Creature class and all genetic related functionality'''
 
-from collections import namedtuple
 from random import randint
 from itertools import cycle, takewhile
-from math import floor
 
-import cPickle as pickle
 import Parsing as P
 import struct
 import random as rand
+import cPickle as pickle
 
 from Eval import PerformableAction, evaluate
 from Utils import print1, print2, print3
 
-#this is just temporarily here because thinking penalty is going away
-thinking_penalty = 20.0 # higher = more thinking allowed
 # need to move this into a config file
 mutation_rate = 0.05 # higher = more mutations
 
-CreatureTuple = namedtuple('CreatureTuple', 
-                           'dna inv energy age survived won used skipped')
 class Creature(object):
     def __init__(self, dna = None):
         if dna is None:
             self.dna = [randint(-1,9) for _ in xrange(0,50)]
         else:
             self.dna = dna
-        self.dna_cycler = cycle(self.dna)
         self.inv = []
         self.energy = 40
         self.target = None
         self.age = 0
         self.signal = -1
-        self.fights_survived = 0
-        self.fights_won = 0
-        self.instructions_used = 0
-        self.instructions_skipped = 0
+        self.survived = 0
+        self.won = 0
+        self.instr_used = 0
+        self.instr_skipped = 0
         self.last_action = PerformableAction('wait', None)
 
     def __str__(self):
@@ -48,38 +41,15 @@ DNA: {0.fullname}
 Inventory: {inv}
 Energy: {0.energy}
 Age: {0.age}
-Survived: {0.fights_survived}
-Won: {0.fights_won}
-Instructions used/skipped: {0.instructions_used}/{0.instructions_skipped}
+Survived: {0.survived}
+Won: {0.won}
+Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 []{equals}[]'''.format(self, inv = ','.join([str(i) for i in self.inv]),
                        equals = '='*76)
     
     @property
-    def pickled(self):
-        '''A pickled form of this creature that can be used to reconstruct him
-        later with the static method :func: `from_pickle`'''
-        c = CreatureTuple(self.dna, self.inv, self.energy, self.age, 
-                          self.fights_survived, self.fights_won, 
-                          self.instructions_used, self.instructions_skipped)
-        return pickle.dumps(c, 2)
-
-    @staticmethod
-    def from_pickle(pickled):
-        '''Returns a Creature from a pickled creature'''
-        c = pickle.loads(pickled)
-        nc = Creature(c.dna)
-        nc.inv = c.inv
-        nc.energy = c.energy
-        nc.age = c.age
-        nc.fights_survived = c.survived
-        nc.fights_won = c.won
-        nc.instructions_used = c.used
-        nc.instructions_skipped = c.skipped
-        return nc
-
-    @property
     def copy(self):
-        return Creature.from_pickle(self.pickled)
+        return pickle.loads(pickle.dumps(self,2))
 
     @property
     def fullname(self):
@@ -102,45 +72,80 @@ Instructions used/skipped: {0.instructions_used}/{0.instructions_skipped}
     def alive(self):
         return self.energy > 0
 
-    @property
-    def next_action(self):
+    def decision_generator(self):
         '''Reads dna to decide next course of action. Outputs verbiage'''
-        try: 
-            thought_process, (icount, skipped) = P.parse_condition(self.dna_cycler)
-            print3("{0.name}'s thought process:".format(self))
-            print3(P.explain_plan(thought_process))
-            print3('which required', icount, 'instructions.',
-                   'and', skipped, 'instructions skipped over')
-            self.instructions_used += icount
-            self.instructions_skipped += skipped
-        except P.TooMuchThinkingError:
-            self.energy -= 5
-            return PerformableAction('wait', None)
-            print1(self.name,'got caught thinking too much!')
-            print2(self.name,'loses 5 life!')
-        energy_loss = int(floor(skipped / thinking_penalty))
-        if energy_loss > 0:
-            print1(self.name,'lost', energy_loss, 'energy due to thinking')
-            self.energy -= energy_loss
-        decision = evaluate(self, thought_process)
-        print2(self.name, 'decided to', decision)
-        return decision
+        dna_cycle = cycle(self.dna)
+        while self.alive:
+            try: 
+                thought_process, (icount, skipped) = P.parse_condition(dna_cycle)
+                print3("{0.name}'s thought process:".format(self))
+                print3(P.explain_plan(thought_process))
+                print3('which required', icount, 'instructions.',
+                       'and', skipped, 'instructions skipped over')
+                self.instr_used += icount
+                self.instr_skipped += skipped
+            except P.TooMuchThinkingError as tmt:
+                print1(self.name,'got caught thinking too much!')
+                self.instr_used = tmt.icount
+                self.instr_skipped += tmt.skipped
+                yield PerformableAction('wait', None), tmt.icount + tmt.skipped
+                continue
+            decision = evaluate(self, thought_process)
+            print2(self.name, 'decided to', decision)
+            yield decision, icount + skipped
+        raise CreatureDied()
 
-    def reset_cycle(self):
-        self.dna_cycler = cycle(self.dna)
-        
+    def carryout(self, act):
+        '''Carries out an action, possibly on the current target'''
+        # take an item from the other's inventory
+        if act.typ == P.Action.str.take:
+            if self.target.inv:
+                item = self.target.inv.pop()
+                print1("{0.name} takes {1} from {2.name}"\
+                           .format(self, P.item_repr(item), self.target))
+                self.inv.append(item)
+            else:
+                print2("{0.name} tries to take an item from {1.name}, "\
+                           "but there's nothing to take.".format(self,
+                                                                 self.target))
+        #using an item
+        elif act.typ == P.Action.str.use:
+            if self.inv:
+                print1(self.name, 'uses', P.item_repr(self.inv[-1]))
+                self.use()
+            else:
+                print2(self.name, "tries to use an item, but doesn't have one")
+        #signalling
+        elif act.typ == P.Action.str.signal:
+            print1(self.name, 'signals with color', P.sig_repr(act.arg))
+            self.signal = act.arg
+        # waiting 
+        elif act.typ == P.Action.str.wait:
+            print2(self.name, 'waits')
+        # defending with no corresponding attack
+        elif act.typ == P.Action.str.defend:
+            print2(self.name, 'defends, but no one is attacking')
+        else:
+            print1(self.name, 'did', act.typ, 'with magnitude:', act.arg)
+            assert False
+        self.last_action = act
+
     def use(self):
-        'Does something with inventory items'
+        'Uses the top inventory item'
         if self.inv:
             item = self.inv.pop()
             if 0 <= item <= len(P.Item):
                 mult = item + 1
             else:
                 mult = 0
-            energy_gain = min(40 - self.energy, self.dna_cycler.next() * mult)
+            energy_gain = 3 * mult
             print2(self.name, 'gains', energy_gain, 'life from', P.item_repr(item))
             self.energy += energy_gain
 
+class CreatureDied(StopIteration):
+    '''A semantic way to stop iterating because your creature is no longer
+    alive'''
+    pass
 
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''

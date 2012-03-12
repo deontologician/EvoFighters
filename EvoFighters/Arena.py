@@ -3,93 +3,62 @@ from __future__ import print_function
 
 import random as rand
 from random import randint
-from itertools import count
-from math import ceil
+from itertools import count, izip
+from contextlib import contextmanager
+from collections import namedtuple
 import cPickle as pickle
 import sys, os.path
 
 import Parsing as P
-from Utils import print1, print2, progress_bar, get_verbosity, set_verbosity
+from Utils import print1, print2, print3, progress_bar, get_verbosity, set_verbosity
 from Creatures import Creature, mate
 
 mate_mult = 1.5
 optimal_generation_size = 500.0
 
-def fight(p1, p2):
-    p1.target = p2
-    p2.target = p1
-    rounds = 0
-    while randint(0, 200) != 200:
-        rounds += 1
+def encounter(p1, p2):
+    # these numbers were very carefully tuned to pretty much never go less than
+    # 10 rounds
+    max_rounds = abs(int(rand.gauss(200, 30)))
+    print1('Max rounds: {}'.format(max_rounds))
+    for rounds, (p1act, c1), (p2act, c2) in izip(xrange(max_rounds),
+                                                 p1.decision_generator(),
+                                                 p2.decision_generator()):
         print2('Round {}'.format(rounds))
-        p1act = p1.last_action = p1.next_action
-        p2act = p2.last_action = p2.next_action
         if p1act.typ == P.Action.str.attack or p2act.typ == P.Action.str.attack:
-            attacking(p1, p1act, p2, p2act)
+            if c1 > c2:
+                attacking(p2, p2act, p1, p1act)
+            else:
+                attacking(p1, p1act, p2, p2act)
         else:
-            carryout(p1, p1act, p2)
-            carryout(p2, p2act, p1)
-        if p2.dead and p1.alive:
-            print1(p1.name, 'has won.')
-            p1.inv.extend(p2.inv)
-            p1.energy += min(40 - p2.energy, randint(1,6))
-            p1.target = None
-            p1.fights_survived += 1
-            p1.fights_won += 1
-            return
-        elif p1.dead and p2.alive:
-            print1(p2.name, 'has won')
-            p2.inv.extend(p1.inv)
-            p2.energy += min(40 - p2.energy, randint(1,6))
-            p2.target = None
-            p2.fights_survived += 1
-            p2.fights_won += 1
-            return
-        elif p1.dead and p2.dead:
-            print1('Both {0.name} and {1.name} have died.'.format(p1, p2))
-            p1.target = None # garbage collection
-            p2.target = None
-            return
-        p1, p2 = p2, p1
-    print1('Both combatants survived after {} rounds'.format(rounds))
-    p1.fights_survived += 1
-    p2.fights_survived += 1
-    p1.target = None
-    p2.target = None
+            if c1 > c2:
+                print3('{0.name} is going first'.format(p2))
+                p2.carryout(p2act)
+                p1.carryout(p1act)
+            else:
+                print3('{0.name} is going first'.format(p1))
+                p1.carryout(p1act)
+                p2.carryout(p2act)
+    if p2.dead and p1.alive:
+        print1(p1.name, 'has won.')
+        p1.inv.extend(p2.inv)
+        p1.energy = min(40, p1.energy + randint(1,6))
+        p1.survived += 1
+        p1.won += 1
+        return
+    elif p1.dead and p2.alive:
+        print1(p2.name, 'has won')
+        p2.inv.extend(p1.inv) #looting the corpse
+        p2.energy = min(40, p2.energy + randint(1,6))
+        p2.survived += 1
+        p2.won += 1
+        return
+    elif p1.dead and p2.dead:
+        print1('Both {0.name} and {1.name} have died.'.format(p1, p2))
+        return
+    p1.survived += 1
+    p2.survived += 1
 
-def carryout(p1, act, p2):
-    '''p1 acts, possibly on p2'''
-    # take an item from the other's inventory
-    if act.typ == P.Action.str.take:
-        if p2.inv:
-            item = p2.inv.pop()
-            print1("{0.name} takes {1} from {2.name}"\
-                       .format(p1, P.item_repr(item), p2))
-            p1.inv.append(item)
-        else:
-            print2("{0.name} tries to take an item from {1.name}, "\
-                       "but there's nothing to take.".format(p1, p2))
-    #using an item
-    elif act.typ == P.Action.str.use:
-        if p1.inv:
-            print1(p1.name, 'uses', P.item_repr(p1.inv[-1]))
-            p1.use()
-        else:
-            print2(p1.name, "tries to use an item, but doesn't have one")
-    #signalling
-    elif act.typ == P.Action.str.signal:
-        print1(p1.name, 'signals with color', P.sig_repr(act.arg))
-        p1.signal = act.arg
-    # waiting 
-    elif act.typ == P.Action.str.wait:
-        print2(p1.name, 'waits')
-    # defending with no corresponding attack
-    elif act.typ == P.Action.str.defend:
-        print2(p1.name, 'defends, but no one is attacking')
-    else:
-        print1(p1.name, 'did', act.typ, 'with magnitude:', act.arg)
-        assert False
-       
 
 def attacking(p1, p1_act, p2, p2_act):
     '''Handles attacking and defending. Call this only if either p1 or p2 is
@@ -119,7 +88,7 @@ def attacking(p1, p1_act, p2, p2_act):
         else:
             print1(p1.name, 'is attacking, but',p2.name,'is not concerned.')
             p2_dmg = randint(1,4)
-            carryout(p2, p2_act, p1)
+            p2.carryout(p2_act)
             p2.energy -= p2_dmg
             print1(p2.name, 'takes', p2_dmg, 'damage. Down to:', p2.energy)
     elif p2_att:
@@ -135,10 +104,10 @@ def attacking(p1, p1_act, p2, p2_act):
                 
         else: #p1 cannot be attacking, we already dealt with that
             print1(p2.name, 'is attacking, but', p1.name, 'is not concerned.')
-            p1_dmg = randint(1,4)
-            carryout(p1, p1_act, p2)
-            p1.energy -= p1_dmg
-            print1(p1.name, 'takes',p1_dmg, 'damage. Down to:', p1.energy)
+            dmg_to_p1 = randint(1,4)
+            p1.carryout(p1_act)
+            p1.energy -= dmg_to_p1
+            print1(p1.name, 'takes', dmg_to_p1, 'damage. Down to:', p1.energy)
     else:
         # this function should only be called when either p1 or p2 are attacking
         #print1(p1_act.typ, P.Action.str.attack, p2_act.typ, P.Action.str.attack)
@@ -149,14 +118,6 @@ def clear_dead(creatures):
     '''Return a new list with all dead creatures removed'''
     return [creature for creature in creatures if not creature.dead]
 
-def famine(creatures):
-    '''Damages everyone by a random amount'''
-    avg_energy = int(ceil(sum(map(lambda c: c.energy, creatures)) / \
-                            float(len(creatures))))
-    def _subenergy(creature, value):
-        creature.energy -= value
-        return creature
-    return clear_dead([_subenergy(x, randint(0, avg_energy)) for x in creatures])
 
 def feeding_time(creatures):
     '''Gives random amounts of food to the creatures randomly'''
@@ -165,27 +126,21 @@ def feeding_time(creatures):
         creatures[randint(0, len(creatures) - 1)].inv.append(randint(0, len(P.Item) - 1))
 
 
-def mating_phase(creatures, gen_nbr, progress):
+def mating_phase(creatures, gen_nbr, progress, children = None):
     print('Mating now')
-    if len(creatures) < 10:
-        print('Dangerously low population. Maximizing variation!')
-        # mate everyone to everyone, including themselves
-        creatures.extend([mate(a,b) for a in creatures for b in creatures])
-    else:
-        maxmatings = randint(0, int(len(creatures) * mate_mult * (1.0 - progress)))
-        mate_progress = progress_bar(maxmatings, 'Doing {} matings...')
-        for i in xrange(0, maxmatings):
-            try:
-                next(mate_progress)
-                a = randint(0, len(creatures) - 1)
-                b = randint(0, len(creatures) - 1)
-                while a == b:
-                    a = randint(0, len(creatures) - 1)
-                am, bm = creatures[a], creatures[b]
-                creatures.append(mate(am, bm))
-            except (KeyboardInterrupt, EOFError):
-                mate_progress.send(True) # quit progress bar
-                raise NotDoneError(i, maxmatings)
+    maxmatings = randint(0, int(len(creatures) * mate_mult * (1.0 - progress)))
+    mate_progress = progress_bar(maxmatings, 'Doing {} matings...')
+    children = children or []
+    for i in xrange(maxmatings):
+        try:
+            next(mate_progress)
+            with random_encounter(creatures) as (m1, m2):
+                children.append(mate(m1, m2))
+        except (KeyboardInterrupt, EOFError):
+            mate_progress.send(True) # quit progress bar
+            raise NotDoneError(i, maxmatings, children)
+
+    creatures.extend(children)
     print('Creatures after repopulating: {}'.format(len(creatures)))
 
 
@@ -195,24 +150,11 @@ def fighting_phase(creatures, gen_nbr, progress):
     print('Fight multiplier is {}'.format(fight_mult))
     maxfights = int(len(creatures) * fight_mult * (1.0 - progress))
     fight_progress = progress_bar(maxfights, 'Doing {} fights...')
-    for i in xrange(0, maxfights):
+    for i in xrange(maxfights):
         try:
             next(fight_progress)
-            if len(creatures) == 1:
-                print('Your last dude is doomed to extinction! ',
-                      'Here is your forever alone creature for posterity:')
-                print(repr(creatures[0]))
-                return
-            a = randint(0, len(creatures) - 1)
-            b = randint(0, len(creatures) - 1)
-            while a == b: # don't fight yourself!
-                a = randint(0, len(creatures) - 1)
-            af, bf = creatures[a], creatures[b]
-            fight(creatures[a], creatures[b])
-            if af.dead:
-                creatures.remove(af)
-            if bf.dead:
-                creatures.remove(bf)
+            with random_encounter(creatures) as (a, b):
+                encounter(a, b)
             if not creatures:
                 print('All creatures died! This is improbable!')
                 return
@@ -224,10 +166,45 @@ def fighting_phase(creatures, gen_nbr, progress):
         creature.age += 1
 
 class NotDoneError(Exception):
-    def __init__(self, current, total):
+    def __init__(self, current, total, children = []):
         self.progress = float(current) / total
+        self.children = children
 
-def generationer(creatures, gen_nbr, phase, progress):
+@contextmanager
+def random_encounter(creatures, copy = False):
+    '''A context manager that handles selecting two random creatures from the
+    creature list, setting them as targets of each other, and then yielding to
+    the actual encounter code.'''
+    if len(creatures) <= 1:
+        raise NotEnoughCreatures('Need at least two creatures to have an'\
+                                     ' encounter')
+    p1_index = randint(0, len(creatures) - 1)
+    p2_index = randint(0, len(creatures) - 1)
+    while p1_index == p2_index:
+        p2_index = randint(0, len(creatures) - 1)
+    p1 = creatures[p1_index]
+    p2 = creatures[p2_index]
+    if copy:
+        p1 = p1.copy
+        p2 = p2.copy
+    p1.target = p2
+    p2.target = p1
+    try:
+        yield p1, p2
+    finally:
+        p1.target = None
+        p2.target = None
+        if p1.dead and not copy:
+            creatures.remove(p1)
+        if p2.dead and not copy:
+            creatures.remove(p2)
+
+def NotEnoughCreatures(ValueError):
+    '''Raised when not enough creatures are in the creature list to perform an
+    operation'''
+    pass
+
+def generationer(creatures, gen_nbr, phase, progress, children = []):
     '''Runs the generation calculation'''
     for gen_nbr in count(gen_nbr):
         try:
@@ -239,14 +216,16 @@ def generationer(creatures, gen_nbr, phase, progress):
                 phase, progress = 'mating', 0.0
                 save(creatures, gen_nbr, phase, progress)
             if phase == 'mating':
-                mating_phase(creatures, gen_nbr, progress)
+                mating_phase(creatures, gen_nbr, progress, children)
                 phase, progress = 'fighting', 0.0
                 save(creatures, gen_nbr, phase, progress)
         except NotDoneError as nde:
-            save(creatures, gen_nbr, phase, nde.progress)
-            print('Was {0:.2f}% done with {1}'.format(nde.progress * 100,
+            save(creatures, gen_nbr, phase, nde.progress, nde.children)
+            print('Was {0:.2f}% done with {1}.'.format(nde.progress * 100,
                                                       phase))
-            return creatures, gen_nbr, phase, nde.progress
+            if nde.children:
+                print('{} children born so far'.format(len(nde.children)))
+            return creatures, gen_nbr, phase, nde.progress, nde.children
             
         
 
@@ -257,35 +236,41 @@ damage_mult = [[ 0,  1, -1],
 
 savefilename = 'evofighters.save'
 
-def save(creatures, generation, phase, progress):
+
+SaveData = namedtuple('SaveData', 'creatures gen_nbr phase progress children')
+
+def save(creatures, gen_nbr, phase, progress, children = []):
     '''Saves a generation to a file, with the generation number for starting up
     again'''
-    print('Saving Generation to file...')
+    print1('Saving Generation to file...')
     with open(savefilename, 'w') as savefile:
-        savefile.write(pickle.dumps(([i.pickled for i in creatures],
-                                     generation,
-                                     phase,
-                                     progress)))
+        save = SaveData(creatures = creatures, 
+                        gen_nbr = gen_nbr,
+                        phase = phase,
+                        progress = progress,
+                        children = children)
+        pickle.dump(save, file = savefile, protocol = 2)
+
+def load(savefile):
+    '''Loads savedata from `savefile`'''
+    savedata = pickle.load(savefile)
+    return (savedata.creatures, savedata.gen_nbr,
+            savedata.phase, savedata.progress, 
+            savedata.children)
       
-def random_fight(creatures):
+def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
-    a = randint(0, len(creatures) - 1)
-    b = randint(0, len(creatures) - 1)
-    while a == b:
-        a = randint(0, len(creatures) - 1)
-    af = creatures[a].copy
-    bf = creatures[b].copy
-    print(repr(af))
-    print(repr(bf))
-    print1('{0.name} is fighting {1.name}'.format(af, bf))
-    fight(af, bf)
+    with random_encounter(creatures, copy = True) as (p1, p2):
+        print(repr(p1))
+        print(repr(p2))
+        print1('{0.name} is fighting {1.name}'.format(p1, p2))
+        encounter(p1, p2)
 
 if __name__ == '__main__':
     if os.path.isfile(savefilename):
         with open(savefilename, 'r') as savefile:
             try:
-                _creatures, gen_nbr, phase, progress = pickle.loads(savefile.read())
-                creatures = [Creature.from_pickle(i) for i in _creatures]
+                creatures, gen_nbr, phase, progress, children = load(savefile)
             except:
                 print('Invalid save file!', file=sys.stdin)
                 sys.exit(1)
@@ -295,14 +280,16 @@ if __name__ == '__main__':
                   'with {phase}'.format(gen_size = len(creatures), 
                                         gen_nbr = gen_nbr, 
                                         progress = progress * 100, 
-                                        phase = phase))
+                                        phase = phase,
+                                        children = children))
     else:
         print('No save file found, creating a new generation!')
         creatures = [Creature() for _ in xrange(0, 100)]
         gen_nbr = 0
         phase = 'mating'
         progress = 0.0
-        save(creatures, gen_nbr, phase, progress)
+        children = []
+        save(creatures, gen_nbr, phase, progress, children)
     
     while True:
         try:
@@ -311,15 +298,16 @@ if __name__ == '__main__':
             print('Bye!')
             break
         if userin == 'watch fight':
-            random_fight(creatures)
+            random_encounter(creatures)
         elif userin == 'exit':
             print('Bye!')
             break
         elif userin == 'simulate':
-            creatures, gen_nbr, phase, progress = generationer(creatures,
-                                                               gen_nbr, 
-                                                               phase, 
-                                                               progress)
+            creatures, gen_nbr, phase, progress, children = \
+                generationer(creatures,
+                             gen_nbr, 
+                             phase, 
+                             progress)
         elif userin == 'v0':
             set_verbosity(0)
             print('Verbosity level is {}'.format(get_verbosity()))
@@ -337,15 +325,15 @@ if __name__ == '__main__':
         elif userin == 'show random':
             print(repr(rand.choice(creatures)))
         elif userin == 'show most wins':
-            print(repr(max(creatures, key = lambda c: c.fights_won)))
+            print(repr(max(creatures, key = lambda c: c.won)))
         elif userin == 'show oldest':
             print(repr(max(creatures, key = lambda c: c.age)))
         elif userin == 'show survivalist':
-            print(repr(max(creatures, key = lambda c: c.fights_survived)))
+            print(repr(max(creatures, key = lambda c: c.survived)))
         elif userin == 'show most skillful':
             def _skill(c):
-                if c.fights_survived > 0:
-                    return (float(c.fights_won ** 2) / c.fights_survived)
+                if c.survived > 0:
+                    return (float(c.won ** 2) / c.survived)
                 else:
                     return 0
             print(repr(max(creatures, key = _skill)))
@@ -366,7 +354,7 @@ if __name__ == '__main__':
                 fighter2 = rand.choice(creatures).copy
             else:
                 fighter2 = filter(getname(fighter2), creatures)[0].copy
-            fight(fighter1, fighter2)
+            encounter(fighter1, fighter2)
         elif userin == 'gene survey':
             # split up dna by genes, throw in bucket and count them, then show
             # summary here

@@ -62,7 +62,10 @@ class ParseError(Exception):
 
 
 class TooMuchThinkingError(Exception):
-    pass
+    def __init__(self, msg, icount, skipped):
+        Exception.__init__(self, msg)
+        self.icount = icount
+        self.skipped = skipped
 
 class CantCountError(Exception):
     pass
@@ -169,12 +172,12 @@ def parse_comparison(dna_iter, (count, skipped)):
     else:
         raise ParseError("Compare didn't match")
 
-def get_next_valid(typ, dna_iter, (count, skipped), mini = 0, maxi = 10):
+def get_next_valid(typ, dna_iter, (icount, skipped), mini = 0, maxi = 10):
     '''Gets the next valid integer in the range allowed by the given type. Adds
     on to the `count` passed in. mini and maxi allow one to restrict the range
     further than `typ` does'''
     next_val = dna_iter.next()
-    count += 1
+    icount += 1
     minimum, maximum = max(0, mini), min(len(typ), maxi)
     # we want to return a count 1 less than the number required, since we dont
     # want to penalize for required parser symbols. Therefore if the while
@@ -182,9 +185,9 @@ def get_next_valid(typ, dna_iter, (count, skipped), mini = 0, maxi = 10):
     while not( minimum <= next_val < maximum ):
         next_val = dna_iter.next()
         skipped += 1
-        if count + skipped > MAX_THINKING_STEPS:
-            raise TooMuchThinkingError('Thought too much :/')
-    return next_val, (count, skipped)
+        if icount + skipped > MAX_THINKING_STEPS:
+            raise TooMuchThinkingError('Thought too much :/', icount, skipped)
+    return next_val, (icount, skipped)
 
 def ind(i):
     return ' '*i
