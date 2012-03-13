@@ -129,45 +129,49 @@ def feeding_time(creatures):
 def mating_phase(creatures, gen_nbr, progress, children = None):
     print('Mating now')
     maxmatings = randint(0, int(len(creatures) * mate_mult * (1.0 - progress)))
-    mate_progress = progress_bar(maxmatings, 'Doing {} matings...')
+    mate_progress = progress_bar()
     children = children or []
-    for i in xrange(maxmatings):
-        try:
-            next(mate_progress)
+    print('Doing {} matings...'.format(maxmatings))
+    try:
+        for i in xrange(maxmatings):
+            mate_progress.send(float(i) / maxmatings)
             with random_encounter(creatures) as (m1, m2):
                 children.append(mate(m1, m2))
-        except (KeyboardInterrupt, EOFError):
-            mate_progress.send(True) # quit progress bar
-            raise NotDoneError(i, maxmatings, children)
-
+        mate_progress.send(1.0)
+    except (KeyboardInterrupt, EOFError):
+        mate_progress.send(True) # quit progress bar
+        raise NotDoneError(float(i) / maxmatings, children)
     creatures.extend(children)
     print('Creatures after repopulating: {}'.format(len(creatures)))
 
-
-def fighting_phase(creatures, gen_nbr, progress):
-    print('Fighting now')
-    fight_mult = (len(creatures) ** 2) / (optimal_generation_size * 1000.0)
-    print('Fight multiplier is {}'.format(fight_mult))
-    maxfights = int(len(creatures) * fight_mult * (1.0 - progress))
-    fight_progress = progress_bar(maxfights, 'Doing {} fights...')
-    for i in xrange(maxfights):
-        try:
-            next(fight_progress)
+def maxencounters(creatures):
+        '''Number of encounters required for a given population based on size'''
+        return round((len(creatures) ** 3) / (optimal_generation_size * 1000.0))
+       
+def encounter_phase(creatures, gen_nbr, progress = 0.0):
+    '''Calculates how many encounters need to be done and carries them out'''
+    encounter_progress = progress_bar()
+    total_encounters = 0
+    print('Doing encounters...')
+    try:
+        while progress < 1.0:
+            encounter_progress.send(progress)
             with random_encounter(creatures) as (a, b):
                 encounter(a, b)
-            if not creatures:
-                print('All creatures died! This is improbable!')
-                return
-        except (KeyboardInterrupt, EOFError):
-            fight_progress.send(True) # quit progress bar
-            raise NotDoneError(i, maxfights)
-    print('Creatures left: {}'.format(len(creatures)))
+            total_encounters += 1
+            progress += 1 / maxencounters(creatures)
+        encounter_progress.send(1.0)
+    except (KeyboardInterrupt, EOFError):
+        raise NotDoneError(progress)
+    finally:
+        print() # clear the progress bar line
+    print('Creatures left after {} encounters: {}'.format(total_encounters, len(creatures)))
     for creature in creatures:
         creature.age += 1
 
 class NotDoneError(Exception):
-    def __init__(self, current, total, children = []):
-        self.progress = float(current) / total
+    def __init__(self, progress, children = []):
+        self.progress = progress
         self.children = children
 
 @contextmanager
@@ -212,7 +216,7 @@ def generationer(creatures, gen_nbr, phase, progress, children = []):
             if phase == 'fighting':
                 print('Feeding time!')
                 feeding_time(creatures)
-                fighting_phase(creatures, gen_nbr, progress)
+                encounter_phase(creatures, gen_nbr, progress)
                 phase, progress = 'mating', 0.0
                 save(creatures, gen_nbr, phase, progress)
             if phase == 'mating':
