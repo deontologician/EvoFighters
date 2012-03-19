@@ -45,8 +45,8 @@ class Creature(object):
         return "<]Creature {0.name}[>".format(self)
     
     def __repr__(self):
-        return \
-'''[]{0.name:=^76}[]
+        return '''\
+[]{0.name:=^76}[]
 DNA: {0.fullname}
 Inventory: {inv}
 Energy: {0.energy}
@@ -55,8 +55,9 @@ Children: {0.num_children}
 Survived: {0.survived}
 Kills: {0.kills}
 Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
-[]{equals}[]'''.format(self, inv = ','.join([str(i) for i in self.inv]),
-                       equals = '='*76)
+[]{bar}[]'''.format(self, 
+                    inv = ','.join([str(i) for i in self.inv]),
+                    bar = ''.center(76, '='))
     
     @property
     def copy(self):
@@ -74,6 +75,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             xs = str(x) if x != -1 else '|'
             if len(xs) > 1:
                 xs = '({xs})'.format(xs = xs)
+            return xs
         return ''.join([stringify(x) for x in self.dna])
 
     def _get_name(self):

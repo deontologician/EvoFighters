@@ -244,7 +244,7 @@ def generationer(creatures, gen_nbr, phase, progress, children = None):
                                                       phase))
             if nde.children:
                 print('{} children born so far'.format(len(nde.children)))
-            return creatures, gen_nbr, phase, nde.progress, nde.children
+            return SaveData(creatures, gen_nbr, phase, nde.progress, nde.children)
             
         
 
@@ -273,9 +273,9 @@ def save(creatures, gen_nbr, phase, progress, children = None):
 def load(savefile):
     '''Loads savedata from `savefile`'''
     savedata = pickle.load(savefile)
-    return (savedata.creatures, savedata.gen_nbr,
-            savedata.phase, savedata.progress, 
-            savedata.children)
+    return SaveData(savedata.creatures, savedata.gen_nbr,
+                    savedata.phase, savedata.progress, 
+                    savedata.children)
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
@@ -289,26 +289,28 @@ if __name__ == '__main__':
     if os.path.isfile(savefilename):
         with open(savefilename, 'r') as savefile:
             try:
-                creatures, gen_nbr, phase, progress, children = load(savefile)
+                sd = load(savefile)
             except:
                 print('Invalid save file!', file=sys.stdin)
                 sys.exit(1)
 
         print('Loaded an existing save file with {gen_size} creatures of '\
                   'generation {gen_nbr} in it who who are {progress:.2f}% done'\
-                  ' with {phase}'.format(gen_size = len(creatures), 
-                                         gen_nbr = gen_nbr, 
-                                         progress = progress * 100, 
-                                         phase = phase,
-                                         children = children))
+                  ' with {phase}'.format(gen_size = len(sd.creatures), 
+                                         gen_nbr = sd.gen_nbr, 
+                                         progress = sd.progress * 100, 
+                                         phase = sd.phase,
+                                         children = sd.children))
     else:
         print('No save file found, creating a new generation!')
-        creatures = [Creature() for _ in xrange(0, 100)]
-        gen_nbr = 0
-        phase = 'mating'
-        progress = 0.0
-        children = []
-        save(creatures, gen_nbr, phase, progress, children)
+        SaveData(
+            creatures = [Creature() for _ in xrange(0, 100)],
+            gen_nbr = 0,
+            phase = 'mating',
+            progress = 0.0,
+            children = [],
+            )
+        save(sd.creatures, sd.gen_nbr, sd.phase, sd.progress, sd.children)
     
     while True:
         try:
@@ -318,16 +320,14 @@ if __name__ == '__main__':
             break
         try:
             if userin == 'watch fight':
-                random_encounter(creatures)
+                random_encounter(sd.creatures)
             elif userin == 'exit':
                 print('\nBye!')
                 break
             elif userin == 'simulate':
-                creatures, gen_nbr, phase, progress, children = \
-                    generationer(creatures,
-                                 gen_nbr, 
-                                 phase, 
-                                 progress)
+                sd = generationer(sd.gen_nbr, 
+                                  sd.phase, 
+                                  sd.progress)
             elif userin == 'v0':
                 set_verbosity(0)
                 print('Verbosity level is {}'.format(get_verbosity()))
@@ -343,13 +343,13 @@ if __name__ == '__main__':
             elif userin == 'echo verbosity':
                 print('Verbosity level is {}'.format(get_verbosity()))
             elif userin == 'show random':
-                print(repr(rand.choice(creatures)))
+                print(repr(rand.choice(sd.creatures)))
             elif userin == 'show most wins':
-                print(repr(max(creatures, key = lambda c: c.kills)))
+                print(repr(max(sd.creatures, key = lambda c: c.kills)))
             elif userin == 'show oldest':
-                print(repr(max(creatures, key = lambda c: c.generation)))
+                print(repr(max(sd.creatures, key = lambda c: c.generation)))
             elif userin == 'show survivalist':
-                print(repr(max(creatures, key = lambda c: c.survived)))
+                print(repr(max(sd.creatures, key = lambda c: c.survived)))
             elif userin == 'show most skillful':
                 def _skill(c):
                     'Determine skill number'
@@ -357,9 +357,9 @@ if __name__ == '__main__':
                         return (float(c.kills ** 2) / c.survived)
                     else:
                         return 0
-                print(repr(max(creatures, key = _skill)))
+                print(repr(max(sd.creatures, key = _skill)))
             elif userin == 'show most items':
-                print(repr(max(creatures, key = lambda c: len(c.inv))))
+                print(repr(max(sd.creatures, key = lambda c: len(c.inv))))
             elif userin.split()[0] == 'fight':
                 fighter1, fighter2 = ('random',)*2
                 if len(userin.split()) > 1:
@@ -368,14 +368,14 @@ if __name__ == '__main__':
                     fighter2 = userin.split()[2]
                 getname = lambda name : lambda x: x.name == name
                 if fighter1 == 'random':
-                    fighter1 = rand.choice(creatures).copy
+                    fighter1 = rand.choice(sd.creatures).copy
                 else:
-                    fighter1 = [c for c in creatures 
+                    fighter1 = [c for c in sd.creatures 
                                 if c.name == fighter1][0].copy
                 if fighter2 == 'random':
-                    fighter2 = rand.choice(creatures).copy
+                    fighter2 = rand.choice(sd.creatures).copy
                 else:
-                    fighter2 = [c for c in creatures if c.name == fighter2][0].copy
+                    fighter2 = [c for c in sd.creatures if c.name == fighter2][0].copy
                 encounter(fighter1, fighter2)
             elif userin == 'gene survey':
                 # split up dna by genes, throw in bucket and count them, then show
