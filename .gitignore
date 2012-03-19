@@ -4,3 +4,6 @@ grammar.txt
 .#*
 *.egg-info/*
 *.save
+*.emacs.desktop*
+*.coverage
+*htmlcov*

@@ -1,0 +1,54 @@
+This is not a code file, just documentation of the grammar
+My best guess is that this is an LL0 grammar
+
+CONDITIONAL :: always ACT
+            |  in_range VAL VAL VAL ACT ACT
+            |  less_than    VAL VAL ACT ACT
+            |  greater_than VAL VAL ACT ACT
+            |  equal_to     VAL VAL ACT ACT
+            |  not_equal_to VAL VAL ACT ACT
+            |  me_last_act    ACT ACT ACT #Note: 1st ACT cannot be "subcondition"
+            |  target_last_act ACT ACT ACT #Note: 1st ACT cannot be "subcondition"
+
+VAL :: literal INT
+     | random
+     | me    ATTR
+     | target ATTR
+
+ACT :: subcondition CONDITIONAL
+    |  attack DMG
+    |  defend DMG
+    |  signal SIG
+    |  use
+    |  take
+    |  wait
+    |  flee
+    |  mate
+
+# ATTR is all terminal
+ATTR :: energy
+     |  signal
+     |  generation
+     |  kills
+     |  survived
+     |  num_children
+     |  top_item
+
+# ITEM is all terminal
+ITEM  :: food
+      |  good_food
+      |  better_food
+      |  excellent_food
+
+# SIG is all terminal
+SIG :: red
+    |  yellow
+    |  blue
+    |  purple
+    |  orange
+    |  green
+
+# DMG is all terminal       
+DMG :: fire
+    |  ice
+    |  electricity

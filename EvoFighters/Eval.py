@@ -1,129 +1,143 @@
 '''This module handles evaluating the parse trees that Parsing creates'''
 
-from Parsing import dmg_repr, sig_repr
+from Parsing import dmg_repr, sig_repr, COND, ACT, ATTR, VAL
+import operator as Op
+from random import randint
 
 class PerformableAction(object):
+    '''Represents a concrete, comparable action that a creature intends to carry
+    out'''
     def __init__(self, typ, arg):
         self.typ = typ
         self.arg = arg
+
+    def __eq__(self, other):
+        return self.typ == other.typ and self.arg == other.arg
+
     def __str__(self):
-        if self.typ == 'take':
-            return "take something from his opponent"
-        elif self.typ == 'use':
-            return "use an item in his inventory"
-        elif self.typ == 'wait':
-            return "wait"
-        elif self.typ == 'signal':
-            return "signal with the color {0}".format(sig_repr(self.arg))
-        elif self.typ == 'attack':
+        if self.typ == ACT.attack:
             return "attack with damage type: {}".format(dmg_repr(self.arg))
-        elif self.typ == 'defend':
+        elif self.typ == ACT.defend:
             return "defend against damage type: {}".format(dmg_repr(self.arg))
+        elif self.typ == ACT.signal:
+            return "signal with the color {0}".format(sig_repr(self.arg))
+        elif self.typ == ACT.use:
+            return "use an item in his inventory"
+        elif self.typ == ACT.take:
+            return "take something from target"
+        elif self.typ == ACT.wait:
+            return "wait"
+        elif self.typ == ACT.flee:
+            return "flee the encounter"
+        elif self.typ == ACT.mate:
+            return "mate with target"
         else:
             return "do unknown action: ({}, {})".format(self.typ, self.arg)
 
 
-
-
 class InvalidInstructionError(Exception):
+    '''Thrown whenever an invalid instruction is evaluated'''
     pass
 
-def evaluate(self, tree):
-    '''Eval takes information from the creature and returns an action to perform'''
-    instr = tree[0]
-    if instr == 'always':
-        return eval_act(self, tree[1])
-    elif instr == 'enemy_has':
-        if tree[1] in self.target.inv:
-            return eval_act(self, tree[2])
+
+def evaluate(me, tree):
+    '''Eval takes information from the creature and a thought and returns an
+    action to perform'''
+    cond_typ = tree[0]
+    if cond_typ == COND.always:
+        return eval_act(me, tree[1])
+    elif cond_typ == COND.in_range:
+        check_val = get_val(me, tree[1])
+        val1 = get_val(me, tree[2])
+        val2 = get_val(me, tree[3])
+        if min(val1, val2) <= check_val <= max(val1, val2):
+            return eval_act(me, tree[4])
         else:
-            return eval_act(self, tree[3])
-    elif instr == 'me_has':
-        if tree[1] in self.inv:
-            return eval_act(self, tree[2])
+            return eval_act(me, tree[5])
+    elif COND.less_than <= cond_typ <= COND.not_equal_to:
+        if cond_typ == COND.less_than:
+            op = Op.lt
+        elif cond_typ == COND.greater_than:
+            op = Op.gt
+        elif cond_typ == COND.equal_to:
+            op = Op.eq
+        elif cond_typ == COND.not_equal_to:
+            op = Op.ne
+        val1 = get_val(me, tree[1])
+        val2 = get_val(me, tree[2])
+        if op(val1, val2):
+            return eval_act(me, tree[3])
         else:
-            return eval_act(self, tree[3])
-    elif instr == 'enemy_energy':
-        if eval_comp(self.target.energy, tree[1]):
-            return eval_act(self, tree[2])
+            return eval_act(me, tree[4])
+    elif cond_typ in [COND.me_last_act, COND.target_last_act]:
+        if cond_typ == COND.me_last_act:
+            actor = me
         else:
-            return eval_act(self, tree[3])
-    elif instr == 'me_energy':
-        if eval_comp(self.energy, tree[1]):
-            return eval_act(self, tree[2])
+            actor = me.target
+        act1 = eval_act(me, tree[1])
+        if act1 == actor.last_action:
+            return eval_act(me, tree[2])
         else:
-            return eval_act(self, tree[3])
-    elif instr == 'enemy_signal':
-        if eval_comp(self.target.signal, tree[1]):
-            return eval_act(self, tree[2])
-        else:
-            return eval_act(self, tree[3])
-    elif instr == 'me_signal':
-        if eval_comp(self.signal, tree[1]):
-            return eval_act(self, tree[2])
-        else:
-            return eval_act(self, tree[3])
-    elif instr == 'enemy_last_act':
-        if self.target.last_action.typ == tree[1][0]: # action type matches
-            if tree[1][0] in ['attack', 'defend', 'signal']:
-                if tree[1][1] == self.target.last_action.arg:
-                    return eval_act(self, tree[2])
-                else:
-                    return eval_act(self, tree[3])
-            else:
-                # use, take, and wait all have no arguments and so match if
-                # their type matches
-                return eval_act(self, tree[2])
-        else:
-            return eval_act(self, tree[3])
-    elif instr == 'me_last_act':
-        if self.last_action.typ == tree[1][0]: # action type matches
-            if tree[1][0] in ['attack', 'defend', 'signal']:
-                if tree[1][1] == self.last_action.arg:
-                    return eval_act(self, tree[2])
-                else:
-                    return eval_act(self, tree[3])
-            else:
-                # use, take, and wait all have no arguments and so match if
-                # their type matches
-                return eval_act(self, tree[2])
-        else:
-            return eval_act(self, tree[3])
+            return eval_act(me, tree[3])
     else:
         raise InvalidInstructionError("Couldn't understand condition: {0}".
-                                      format(instr))
-        
+                                      format(cond_typ))
 
+def get_val(me, tree):
+    '''Evaluates a VAL node in a thought tree'''
+    val_typ = tree[0]
+    if val_typ == VAL.literal:
+        return tree[1]
+    elif val_typ == VAL.random:
+        return randint(-1, 9)
+    elif val_typ == VAL.me:
+        return get_attr(me, tree[1])
+    elif val_typ == VAL.target:
+        return get_attr(me.target, tree[1])
 
-def eval_comp(value, tree):
-    '''Evaluates whether value matches the comparison represented by tree'''
-    comp_typ = tree[0]
-    if comp_typ == 'inrange':
-        low = min(tree[1], tree[2])
-        high = max(tree[1], tree[2])
-        return low <= value <= high
-    elif comp_typ == 'lessthan':
-        return value < tree[1]
-    elif comp_typ == 'greaterthan':
-        return value > tree[1]
-    elif comp_typ == 'equalto':
-        return value == tree[1]
-    elif comp_typ == 'notequalto':
-        return value != tree[1]
-    else:
-        raise InvalidInstructionError("Couldn't understand comparison: {0}".
-                                      format(comp_typ))
+def get_attr(who, attr_typ):
+    '''Returns the value of the attribute on "who" '''
+    if attr_typ == ATTR.energy:
+        return who.energy
+    elif attr_typ == ATTR.signal:
+        return who.signal
+    elif attr_typ == ATTR.generation:
+        return who.generation
+    elif attr_typ == ATTR.kills:
+        return who.kills
+    elif attr_typ == ATTR.survived:
+        return who.survived
+    elif attr_typ == ATTR.num_children:
+        return who.num_children
+    elif attr_typ == ATTR.top_item:
+        return who.inv[-1] if who.inv else -1
 
-def eval_act(self, tree):
+def eval_act(me, tree):
     '''Returns an action suitable for performing (PerformableAction)'''
     act_typ = tree[0]
-    if act_typ in ['attack', 'defend', 'signal']:
+    if ACT.attack <= act_typ <= ACT.signal:
         return PerformableAction(act_typ, tree[1])
-    elif act_typ in ['use', 'take', 'wait']:
+    elif ACT.use <= act_typ <= ACT.mate:
         return PerformableAction(act_typ, None)
-    elif act_typ == 'subcondition':
-        return evaluate(self, tree[1])
+    elif act_typ == ACT.subcondition:
+        return evaluate(me, tree[1])
     else:
-        raise InvalidInstructionError("Didn't understand action: {0}".
-                                      format(act_typ))
+        raise InvalidInstructionError("Didn't understand action: {0}"\
+                                      .format(act_typ))
 
+if __name__ == '__main__':
+    from Parsing import Parser, TooMuchThinkingError
+    from Creatures import Creature
+    last_action = PerformableAction(ACT.wait, None)
+    for _ in xrange(1000):
+        a = Creature()
+        b = Creature()
+        a.target = b
+        a.last_action = last_action
+        try:
+            p = Parser(a.dna)
+            last_action = evaluate(a, next(p).tree)
+            str(last_action)
+        except TooMuchThinkingError:
+            continue
+    
