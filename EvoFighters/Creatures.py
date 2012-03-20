@@ -39,7 +39,7 @@ class Creature(object):
         self.instr_used = 0
         self.instr_skipped = 0
         self.last_action = PerformableAction('wait', None)
-        self.name = self._get_name()
+        self.name = self._name()
 
     def __str__(self):
         return "<]Creature {0.name}[>".format(self)
@@ -78,7 +78,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             return xs
         return ''.join([stringify(x) for x in self.dna])
 
-    def _get_name(self):
+    def _name(self):
         'A simple short name that is probably unique'
         def sum_and_encode(gene):
             'Helper for _get_name'
@@ -149,8 +149,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 print2("{0.name} tries to take an item from {1.name}, "\
                            "but there's nothing to take.".format(self,
                                                                  self.target))
-
-        # waiting 
+        # waiting
         elif act.typ == ACT.wait:
             print2(self.name, 'waits')
         # defending with no corresponding attack

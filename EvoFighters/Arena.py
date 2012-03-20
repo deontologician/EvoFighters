@@ -222,29 +222,31 @@ class NotEnoughCreatures(ValueError):
     operation'''
     pass
 
-def generationer(creatures, gen_nbr, phase, progress, children = None):
+def generationer(sd):
     '''Runs the generation calculation'''
-    _children = children if children else []
-    for gen_nbr in count(gen_nbr):
+    children = sd.children if sd.children else []
+    for gen in count(sd.gen_nbr):
         try:
-            print('Generation {}'.format(gen_nbr))
-            if phase == 'fighting':
+            print('Generation {}'.format(gen))
+            if sd.phase == 'fighting':
                 print('Feeding time!')
-                feeding_time(creatures)
-                encounter_phase(creatures, progress)
-                phase, progress = 'mating', 0.0
-                save(creatures, gen_nbr, phase, progress)
-            if phase == 'mating':
-                mating_phase(creatures, progress, _children)
-                phase, progress = 'fighting', 0.0
-                save(creatures, gen_nbr, phase, progress)
+                feeding_time(sd.creatures)
+                encounter_phase(sd.creatures, sd.progress)
+                sd.phase, sd.progress = 'mating', 0.0
+                save(sd)
+            if sd.phase == 'mating':
+                mating_phase(sd.creatures, sd.progress, children)
+                sd.phase, sd.progress = 'fighting', 0.0
+                save(sd)
         except NotDoneError as nde:
-            save(creatures, gen_nbr, phase, nde.progress, nde.children)
+            sd = SaveData(sd.creatures, sd.gen_nbr, sd.phase,
+                          nde.progress, nde.children)
+            save(sd)
             print('Was {0:.2f}% done with {1}.'.format(nde.progress * 100,
-                                                      phase))
+                                                      sd.phase))
             if nde.children:
                 print('{} children born so far'.format(len(nde.children)))
-            return SaveData(creatures, gen_nbr, phase, nde.progress, nde.children)
+            return sd
             
         
 
@@ -273,9 +275,7 @@ def save(creatures, gen_nbr, phase, progress, children = None):
 def load(savefile):
     '''Loads savedata from `savefile`'''
     savedata = pickle.load(savefile)
-    return SaveData(savedata.creatures, savedata.gen_nbr,
-                    savedata.phase, savedata.progress, 
-                    savedata.children)
+    return SaveData(*savedata)
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
@@ -303,14 +303,13 @@ if __name__ == '__main__':
                                          children = sd.children))
     else:
         print('No save file found, creating a new generation!')
-        SaveData(
-            creatures = [Creature() for _ in xrange(0, 100)],
-            gen_nbr = 0,
-            phase = 'mating',
-            progress = 0.0,
-            children = [],
-            )
-        save(sd.creatures, sd.gen_nbr, sd.phase, sd.progress, sd.children)
+        sd = SaveData(creatures = [Creature() for _ in xrange(0, 100)],
+                      gen_nbr = 0,
+                      phase = 'mating',
+                      progress = 0.0,
+                      children = [],
+                      )
+        save(sd)
     
     while True:
         try:
@@ -325,9 +324,7 @@ if __name__ == '__main__':
                 print('\nBye!')
                 break
             elif userin == 'simulate':
-                sd = generationer(sd.gen_nbr, 
-                                  sd.phase, 
-                                  sd.progress)
+                sd = generationer(sd)
             elif userin == 'v0':
                 set_verbosity(0)
                 print('Verbosity level is {}'.format(get_verbosity()))
