@@ -258,7 +258,14 @@ damage_mult = [[ 0,  1, -1],
 savefilename = 'evofighters.save'
 
 
-SaveData = namedtuple('SaveData', 'creatures gen_nbr phase progress children')
+class SaveData(object):
+    __slots__ = 'creatures', 'gen_nbr', 'phase', 'progress', 'children'
+    def __init__(self, creatures, gen_nbr, phase, progress, children):
+        self.creatures = creatures
+        self.gen_nbr = gen_nbr
+        self.phase = phase
+        self.progress = progress
+        self.children = children
 
 def save(sd):
     '''Saves a generation to a file, with the generation number for starting up
