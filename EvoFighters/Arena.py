@@ -276,8 +276,7 @@ def save(sd):
 
 def load(savefile):
     '''Loads savedata from `savefile`'''
-    savedata = pickle.load(savefile)
-    return SaveData(*savedata)
+    return pickle.load(savefile)
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
@@ -292,8 +291,8 @@ if __name__ == '__main__':
         with open(savefilename, 'r') as savefile:
             try:
                 sd = load(savefile)
-            except:
-                print('Invalid save file!', file=sys.stdin)
+            except Exception as e:
+                print('Invalid save file!', e, file=sys.stdin)
                 sys.exit(1)
 
         print('Loaded an existing save file with {gen_size} creatures of '\
