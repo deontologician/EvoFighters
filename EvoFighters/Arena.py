@@ -173,7 +173,7 @@ def encounter_phase(creatures, progress = 0.0):
             progress += 1 / maxencounters(creatures)
         encounter_progress.send(1.0)
     except (KeyboardInterrupt, EOFError):
-        raise NotDoneError(progress)
+        raise NotDoneError('Keyboard Interrupt', progress)
     finally:
         print() # clear the progress bar line
     print('Creatures left after {} encounters: {}'.format(total_encounters, 
@@ -260,17 +260,12 @@ savefilename = 'evofighters.save'
 
 SaveData = namedtuple('SaveData', 'creatures gen_nbr phase progress children')
 
-def save(creatures, gen_nbr, phase, progress, children = None):
+def save(sd):
     '''Saves a generation to a file, with the generation number for starting up
     again'''
     print1('Saving Generation to file...')
     with open(savefilename, 'w') as savefile:
-        save = SaveData(creatures = creatures, 
-                        gen_nbr = gen_nbr,
-                        phase = phase,
-                        progress = progress,
-                        children = children if children else [])
-        pickle.dump(save, file = savefile, protocol = 2)
+        pickle.dump(sd, file = savefile, protocol = 2)
 
 def load(savefile):
     '''Loads savedata from `savefile`'''
