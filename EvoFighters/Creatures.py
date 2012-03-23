@@ -1,12 +1,11 @@
 '''Contains Creature class and all genetic related functionality'''
 
 from random import randint
-from itertools import takewhile
 
 import Parsing as P
-import struct
 import random as rand
 import cPickle as pickle
+from uuid import uuid4 as uuid
 
 from Parsing import ACT, ITEM
 from Eval import PerformableAction, evaluate
@@ -14,6 +13,8 @@ from Utils import print1, print2, print3
 
 # need to move this into a config file
 mutation_rate = 0.05 # higher = more mutations
+# cost in energy of mating. May be taken out of items in inventory
+MATING_COST = 40
 
 class Creature(object):
     '''Represents a creature'''
@@ -21,7 +22,7 @@ class Creature(object):
     # efficiency
     __slots__ = ('dna', 'inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
-                 'last_action', 'name')
+                 'last_action', 'name', '_id')
     
     def __init__(self, dna = None):
         if dna is None:
@@ -39,7 +40,7 @@ class Creature(object):
         self.instr_used = 0
         self.instr_skipped = 0
         self.last_action = PerformableAction('wait', None)
-        self.name = self._name()
+        self.name = uuid().bytes.encode('base64')[:10]
 
     def __str__(self):
         return "<]Creature {0.name}[>".format(self)
@@ -78,15 +79,6 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             return xs
         return ''.join([stringify(x) for x in self.dna])
 
-    def _name(self):
-        'A simple short name that is probably unique'
-        def sum_and_encode(gene):
-            'Helper for _get_name'
-            return struct.pack('b', sum(gene) % 256 - 128)\
-                  .encode('base_64').rstrip('=\n')
-        return ''.join([ sum_and_encode(gene) for gene in \
-                            takewhile(lambda x:x, gene_primer(self.dna))])
-
     @property
     def dead(self):
         '''Whether the creature is dead'''
@@ -118,16 +110,17 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             decision = evaluate(self, thought.tree)
             print2(self.name, 'decided to', decision)
             yield decision, thought.icount + thought.skipped
-        raise CreatureDied()
+        raise StopIteration('{} died.'.format(self.name))
 
     def carryout(self, act):
         '''Carries out any actions that unlike mating and fighting, don't depend
         on what the target's current action is. Nothing will be done if the
-        creature is dead.'''
+        creature is dead. Return value is whether the fight should end.'''
+        fight_is_over = False
         if self.dead:
-            return
+            fight_is_over = True
         #signalling
-        if act.typ == ACT.signal:
+        elif act.typ == ACT.signal:
             print1(self.name, 'signals with color', P.sig_repr(act.arg))
             self.signal = act.arg
         #using an item
@@ -154,22 +147,21 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             print2(self.name, 'waits')
         # defending with no corresponding attack
         elif act.typ == ACT.defend:
-            print2(self.name, 'defends, but no one is attacking')
+            print2(self.name, 'defends')
         elif act.typ == ACT.flee:
             enemy_roll = randint(0, 100) * (self.target.energy / 40.0)
             my_roll = randint(0, 100) * (self.energy / 40.0)
             if enemy_roll < my_roll:
                 print1(self.name, 'flees the encounter!')
-                raise CreatureFlees()
+                fight_is_over = True
             else:
                 print1(self.name, 'tries to flee, but', self.target.name, 
                        'prevents it')
-        elif act.typ == ACT.mate:
-            print1(self.name, 'attempts to mate with', self.target.name)
         else:
             raise RuntimeError("{0.name} did {1.typ} with magnitude {1.arg}"\
                                    .format(self, act))
         self.last_action = act
+        return fight_is_over
 
     def use(self):
         'Uses the top inventory item'
@@ -184,15 +176,6 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                        .format(self, energy_gain, P.item_repr(item)))
             self.energy += energy_gain
 
-class CreatureDied(StopIteration):
-    '''A semantic way to stop iterating because your creature is no longer
-    alive'''
-    pass
-
-class CreatureFlees(StopIteration):
-    '''A semantic way to stop iterating because a creature has successfully fled
-    the encounter'''
-    pass
 
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''
@@ -210,6 +193,32 @@ def gene_primer(dna):
         #just keep yielding empty chunks rather than raising StopIteration
         yield chunk
 
+
+def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
+    '''Takes a chance of mating, two creatures to mate, and the relative
+    proportion of costs each creature must pay, mates two creatures to create a
+    third.'''
+    if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
+        return None
+    print2('Attempting to mate')
+
+    def pay_cost(p, share):
+        cost = int(round(MATING_COST * (share / 100.0)))
+        while cost > 0:
+            if first_mate.inv:
+                item = first_mate.inv.pop()
+                cost -= item + 1
+            else:
+                first_mate.energy -= cost
+                break
+
+    pay_cost(first_mate, fm_share)
+    if first_mate.dead: return None
+    pay_cost(second_mate, sm_share)
+    if second_mate.dead: return None
+    return mate(first_mate, second_mate)
+
+
 def mate(p1, p2):
     '''Takes in two creatures, splices their dna together randomly by chunks,
     possibly mutates it, then spits out a new creature. Mutation rate is the
@@ -217,30 +226,23 @@ def mate(p1, p2):
     # chunkify the dna
     dna1_primer = gene_primer(p1.dna)
     dna2_primer = gene_primer(p2.dna)
-    baby_genes = []
+    child_genes = []
     while True:
         gene1 = next(dna1_primer)
         gene2 = next(dna2_primer)
         if gene1 == [] and gene2 == []:
             break
         gene3 = rand.choice([gene1, gene2])
-        baby_genes.append(gene3)
+        child_genes.append(gene3)
     if rand.uniform(0, 1) < mutation_rate:
-        mutate(baby_genes)
-    baby = Creature([base for gene in baby_genes for base in gene])
-    baby.generation = max(p1.generation, p2.generation) + 1
+        mutate(child_genes)
+    child = Creature([base for gene in child_genes for base in gene])
+    child.generation = max(p1.generation, p2.generation) + 1
     p1.num_children += 1
     p2.num_children += 1
-    #pay for mating
-    if p1.inv:
-        p1.inv.pop()
-    else:
-        p1.energy -= 2
-    if p2.inv:
-        p2.inv.pop()
-    else:
-        p2.energy -= 2
-    return baby
+    return child
+
+
 def mutate(dna):
     '''Mutates the dna on either the genome or gene level'''
     if randint(0, 2) == 0:

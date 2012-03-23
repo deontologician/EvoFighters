@@ -3,199 +3,140 @@ from __future__ import print_function
 
 import random as rand
 from random import randint
-from itertools import count, izip
+from itertools import izip
 from contextlib import contextmanager
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import cPickle as pickle
 import sys, os.path
 
-from Parsing import ACT, ITEM
+from Parsing import ACT
 from Utils import print1, print2, print3, progress_bar, get_verbosity, \
     set_verbosity
-from Creatures import Creature, CreatureFlees, mate
+from Creatures import Creature, try_to_mate
 
-mate_mult = 1.5
-optimal_generation_size = 500.0
+OPTIMAL_GEN_SIZE = 500
+    
+SAVE_FILENAME = 'evofighters.save'
+
 
 def encounter(p1, p2):
     '''Carries out an encounter between two creatures'''
     # these numbers were very carefully tuned to pretty much never go less than
     # 10 rounds
     max_rounds = abs(int(rand.gauss(200, 30)))
+    children = []
     print1('Max rounds: {}'.format(max_rounds))
-    try:
-        for rounds, (p1act, c1), (p2act, c2) in izip(xrange(max_rounds),
-                                                     p1.decision_generator(),
-                                                     p2.decision_generator()):
-            print2('Round {}'.format(rounds))
-            if p1act.typ == ACT.attack or p2act.typ == ACT.attack:
-                if c1 > c2:
-                    attacking(p2, p2act, p1, p1act)
-                else:
-                    attacking(p1, p1act, p2, p2act)
-            else:
-                if c1 > c2:
-                    print3('{0.name} is going first'.format(p2))
-                    p2.carryout(p2act)
-                    p1.carryout(p1act)
-                else:
-                    print3('{0.name} is going first'.format(p1))
-                    p1.carryout(p1act)
-                    p2.carryout(p2act)
-    except CreatureFlees:
-        pass
+    for rounds, (p1act, c1), (p2act, c2) in izip(xrange(max_rounds),
+                                                 p1.decision_generator(),
+                                                 p2.decision_generator()):
+        print2('Round {}'.format(rounds))
+        if c1 > c2:
+            print3('{0.name} is going first'.format(p2))
+            child = do_round(p1, p1act, p2, p2act)
+        else:
+            print3('{0.name} is going first'.format(p1))
+            child = do_round(p2, p2act, p1, p1act)
+        if child is not None:
+            children.append(child)
+        if p1.dead or p2.dead:
+            break
+
+    def _victory(winner, loser):
+        print1(winner.name, 'has killed', loser.name)
+        winner.inv.extend(loser.inv)
+        winner.energy = min(40, winner.energy + randint(1, 6))
+        winner.survived += 1
+        winner.kills += 1
     if p2.dead and p1.alive:
-        print1(p1.name, 'has won.')
-        p1.inv.extend(p2.inv)
-        p1.energy = min(40, p1.energy + randint(1, 6))
-        p1.survived += 1
-        p1.kills += 1
-        return
+        _victory(p1, p2)
     elif p1.dead and p2.alive:
-        print1(p2.name, 'has won')
-        p2.inv.extend(p1.inv) #looting the corpse
-        p2.energy = min(40, p2.energy + randint(1, 6))
-        p2.survived += 1
-        p2.kills += 1
-        return
+        _victory(p2, p1)
     elif p1.dead and p2.dead:
         print1('Both {0.name} and {1.name} have died.'.format(p1, p2))
-        return
-    p1.survived += 1
-    p2.survived += 1
-
-
-def attacking(p1, p1_act, p2, p2_act):
-    '''Handles attacking and defending. Call this only if either p1 or p2 is
-    attacking'''
-    p1_att = p1_act.typ == ACT.attack
-    p2_att = p2_act.typ == ACT.attack
-    p1_def = p1_act.typ == ACT.defend
-    p2_def = p2_act.typ == ACT.defend
-    if p1_att:
-        if p2_att:
-            print1('Both fighters are attacking')
-            p1_dmg = randint(3, 6)
-            p1.energy -= p1_dmg
-            print1(p1.name, 'takes', p1_dmg, 'and is down to', p1.energy,
-                   'energy')
-            p2_dmg = randint(3, 6)
-            p2.energy -= p2_dmg
-            print1(p2.name, 'takes', p2_dmg, 'and is down to', p2.energy,
-                   'energy')
-        elif p2_def:
-            print1(p1.name, 'is attacking and', p2.name, 'is defending')
-            p2_dmg = randint(2, 5) * damage_mult[p1_act.arg][p2_act.arg]
-            p2.energy -= p2_dmg
-            if p2_dmg < 0:
-                print1(p2.name, 'heals', -p2_dmg, 'energy. Up to:', p2.energy)
-            else:
-                print1(p2.name, 'takes', p2_dmg, 'damage. Down to:', p2.energy)
-            p2.energy = min(40, p2.energy)
-        else:
-            print1(p1.name, 'is attacking, but', p2.name, 'is not concerned.')
-            p2_dmg = randint(1, 4)
-            p2.carryout(p2_act)
-            p2.energy -= p2_dmg
-            print1(p2.name, 'takes', p2_dmg, 'damage. Down to:', p2.energy)
-    elif p2_att:
-        if p1_def:
-            print1(p2.name, 'is attacking and', p1.name, 'is defending')
-            p1_dmg = randint(2, 5) * damage_mult[p2_act.arg][p1_act.arg]
-            p1.energy -= p1_dmg
-            if p1_dmg < 0:
-                print1(p1.name, 'heals', -p1_dmg, 'energy. Up to:', p1.energy)
-            else:
-                print1(p1.name, 'takes', p1_dmg, 'damage. Down to:', p1.energy)
-            p1.energy = min(40, p1.energy)
-                
-        else: #p1 cannot be attacking, we already dealt with that
-            print1(p2.name, 'is attacking, but', p1.name, 'is not concerned.')
-            dmg_to_p1 = randint(1, 4)
-            p1.carryout(p1_act)
-            p1.energy -= dmg_to_p1
-            print1(p1.name, 'takes', dmg_to_p1, 'damage. Down to:', p1.energy)
     else:
-        # this function should only be called when either p1 or p2 are attacking
-        #print1(p1_act.typ, ACT.attack, p2_act.typ,
-        #ACT.attack)
-        assert False
+        p1.survived += 1
+        p2.survived += 1
+    return children
 
-      
-def clear_dead(creatures):
-    '''Return a new list with all dead creatures removed'''
-    return [creature for creature in creatures if not creature.dead]
+def do_round(p1, p1_act, p2, p2_act):
+    '''Handles carrying out the decided actions for a single round'''
+    # convenient short-hands to make code more readable
+    ATTACKING = 1
+    DEFENDING = 2
+    MATING    = 3
+    OTHER     = 4
+    # defaults to OTHER if the key is not present
+    act_kind = defaultdict(lambda: OTHER,
+                           {ACT.attack : ATTACKING,
+                            ACT.defend : DEFENDING,
+                            ACT.mate   : MATING})
+    # c2h = chance to hit
+    M = namedtuple('Multipliers', 'mate_chance p1_c2h p2_c2h '\
+                                  'dmg1_mult dmg2_mult p1_share p2_share')
+        
+    damage_matrix = {
+        (ATTACKING, ATTACKING)  :   M(  0, 75, 75, 50, 50,  0,  0),
+        (ATTACKING, DEFENDING)  :   M(  0, 25, 25, 25, 25,  0,  0),
+        (ATTACKING, MATING)     :   M( 50, 50,  0, 75,  0, 70, 30),
+        (ATTACKING, OTHER)      :   M(  0,100,  0,100,  0,  0,  0),
+        (DEFENDING, DEFENDING)  :   M(  0,  0,  0,  0,  0,  0,  0),
+        (DEFENDING, MATING)     :   M( 25,  0,  0,  0,  0, 70, 30),
+        (DEFENDING, OTHER)      :   M(  0,  0,  0,  0,  0,  0,  0),
+        (MATING,    MATING)     :   M(100,  0,  0,  0,  0, 50, 50),
+        (MATING,    OTHER)      :   M( 75,  0,  0,  0,  0,  0,100),
+        (OTHER,     OTHER)      :   M(  0,  0,  0,  0,  0,  0,  0),
+        # the rest of these are duplicates of the above with swapped order
+        (DEFENDING, ATTACKING)  :   M(  0, 25, 25, 25, 25,  0,  0),
+        (MATING,    ATTACKING)  :   M( 50,  0, 50,  0, 75, 30, 70),
+        (MATING,    DEFENDING)  :   M( 25,  0,  0,  0,  0, 30, 70),
+        (OTHER,     ATTACKING)  :   M(  0,  0,100,  0,100,  0,  0),
+        (OTHER,     DEFENDING)  :   M(  0,  0,  0,  0,  0,  0,  0),
+        (OTHER,     MATING)     :   M( 75,  0,  0,  0,  0,100,  0),
+        }
+    mults = damage_matrix[(act_kind[p1_act.typ], act_kind[p2_act.typ])]
+    def damage_fun(chance, mult):
+        '''Takes a "chance to hit" and a "damage multiplier" and returns
+        damage'''
+        if randint(1,100) <= chance:
+            return randint(1, int(round(((mult/100.0) * 6))))
+        else:
+            return 0
+    p1_dmg = damage_fun(mults.p1_c2h, mults.dmg1_mult)
+    p2_dmg = damage_fun(mults.p2_c2h, mults.dmg2_mult)
+    # TODO: take into account damage type!
+    if p1_dmg > 0:
+        print1('p1 takes', p1_dmg, 'damage')
+        p1.energy -= p1_dmg
+    if p2_dmg > 0:
+        print1('p2 takes', p2_dmg, 'damage.')
+        p2.energy -= p2_dmg
+    # we reverse the order of p1, p2 when calling try_to_mate because paying
+    # costs first in mating is worse, and in this function p1 is preferred in
+    # actions that happen to both creatures in order. Conceivably, p2 could die
+    # without p1 paying any cost at all, even if p2 initiated mating against
+    # p1's will
+    child = try_to_mate(mults.mate_chance, p2, mults.p2_share, 
+                                           p1, mults.p1_share)
+    if child:
+        print1(p1.name, 'and', p2.name, 'have a child named', child.name)
+    if act_kind[p1_act.typ] == OTHER:
+        p1.carryout(p1_act)
+    if act_kind[p2_act.typ] == OTHER:
+        p2.carryout(p2_act)
+    return child
 
-
-def feeding_time(creatures):
-    '''Gives random amounts of food to the creatures randomly'''
-    jitter = int(optimal_generation_size * 0.10)
-    for _ in xrange(0, optimal_generation_size + randint(-jitter, jitter)):
-        creatures[randint(0, len(creatures) - 1)]\
-            .inv.append(randint(0, len(ITEM) - 1))
-
-
-def mating_phase(creatures, progress, children = None):
-    '''Does mating phase (soon to be deprecated in favor of encounter based
-    mating)'''
-    print('Mating now')
-    maxmatings = randint(0, int(len(creatures) * mate_mult * (1.0 - progress)))
-    mate_progress = progress_bar()
-    children = children or []
-    print('Doing {} matings...'.format(maxmatings))
-    try:
-        for i in xrange(maxmatings):
-            mate_progress.send(float(i) / maxmatings)
-            with random_encounter(creatures) as (m1, m2):
-                children.append(mate(m1, m2))
-        mate_progress.send(1.0)
-    except (KeyboardInterrupt, EOFError):
-        mate_progress.send(True) # quit progress bar
-        raise NotDoneError(float(i) / maxmatings, children)
-    creatures.extend(children)
-    print('Creatures after repopulating: {}'.format(len(creatures)))
 
 def maxencounters(creatures):
     '''Number of encounters required for a given population based on size'''
-    return round((len(creatures) ** 3) / (optimal_generation_size * 1000.0))
+    return round((len(creatures) ** 3) / (OPTIMAL_GEN_SIZE * 1000.0))
        
-def encounter_phase(creatures, progress = 0.0):
-    '''Calculates how many encounters need to be done and carries them out'''
-    encounter_progress = progress_bar()
-    total_encounters = 0
-    print('Doing encounters...')
-    try:
-        while progress < 1.0:
-            encounter_progress.send(progress)
-            with random_encounter(creatures) as (a, b):
-                encounter(a, b)
-            total_encounters += 1
-            progress += 1 / maxencounters(creatures)
-        encounter_progress.send(1.0)
-    except (KeyboardInterrupt, EOFError):
-        raise NotDoneError('Keyboard Interrupt', progress)
-    finally:
-        print() # clear the progress bar line
-    print('Creatures left after {} encounters: {}'.format(total_encounters, 
-                                                          len(creatures)))
-    for creature in creatures:
-        creature.generation += 1
-
-class NotDoneError(Exception):
-    'Thrown when a phase is not complete'
-    def __init__(self, msg, progress, children = None):
-        Exception.__init__(self, msg)
-        self.progress = progress
-        self.children = children if children else []
-
 @contextmanager
 def random_encounter(creatures, copy = False):
     '''A context manager that handles selecting two random creatures from the
     creature list, setting them as targets of each other, and then yielding to
     the actual encounter code.'''
-    if len(creatures) <= 1:
-        raise NotEnoughCreatures('Need at least two creatures to have an'\
-                                     ' encounter')
+    if len(creatures) < 2:
+        raise RuntimeError('Not enough creatures.')
     p1_index = randint(0, len(creatures) - 1)
     p2_index = randint(0, len(creatures) - 1)
     while p1_index == p2_index:
@@ -217,62 +158,51 @@ def random_encounter(creatures, copy = False):
         if p2.dead and not copy:
             creatures.remove(p2)
 
-class NotEnoughCreatures(ValueError):
-    '''Raised when not enough creatures are in the creature list to perform an
-    operation'''
-    pass
-
-def generationer(sd):
-    '''Runs the generation calculation'''
-    children = sd.children if sd.children else []
-    for gen in count(sd.gen_nbr):
-        try:
-            print('Generation {}'.format(gen))
-            if sd.phase == 'fighting':
-                print('Feeding time!')
-                feeding_time(sd.creatures)
-                encounter_phase(sd.creatures, sd.progress)
-                sd.phase, sd.progress = 'mating', 0.0
-                save(sd)
-            if sd.phase == 'mating':
-                mating_phase(sd.creatures, sd.progress, children)
-                sd.phase, sd.progress = 'fighting', 0.0
-                save(sd)
-        except NotDoneError as nde:
-            sd = SaveData(sd.creatures, sd.gen_nbr, sd.phase,
-                          nde.progress, nde.children)
-            save(sd)
-            print('Was {0:.2f}% done with {1}.'.format(nde.progress * 100,
-                                                      sd.phase))
-            if nde.children:
-                print('{} children born so far'.format(len(nde.children)))
-            return sd
+def simulate(sd):
+    time_to_save = progress_bar()
+    try:
+        while True:
+            if len(sd.creatures) < 2:
+                raise RuntimeError('Not enough creatures')
+            sd.num_encounters += 1
+            if sd.num_encounters % 500 == 0:
+                print('Currently', len(sd.creatures), 'creatures alive.')
+                sd.save()
+            time_to_save.send((sd.num_encounters % 500) / 500.0)
+            with random_encounter(sd.creatures) as (p1, p2):
+                print1(p1.name, 'encounters', p2.name, 'in the wild')
+                sd.creatures.extend(encounter(p1, p2))
             
+    except KeyboardInterrupt:
+        print('\nOk, let me just save real quick...')
+    finally:
+        sd.save()
+        if len(sd.creatures) < 2:
+            print('You need at least two creatures in your population to have '\
+                  'an encounter. Unfortunately, this means the end for your ' \
+                  'population.')
+            if len(sd.creatures) == 1:
+                print('Here is the last of its kind:')
+                print(repr(sd.creatures.pop()))
         
 
 
-damage_mult = [[ 0,  1, -1],
-               [-1,  0,  1],
-               [ 1, -1,  0]]
-
-savefilename = 'evofighters.save'
-
-
 class SaveData(object):
-    __slots__ = 'creatures', 'gen_nbr', 'phase', 'progress', 'children'
-    def __init__(self, creatures, gen_nbr, phase, progress, children):
+    def __init__(self, creatures, num_encounters, filename = None):
         self.creatures = creatures
-        self.gen_nbr = gen_nbr
-        self.phase = phase
-        self.progress = progress
-        self.children = children
+        self.num_encounters = num_encounters
+        self.filename = filename or SAVE_FILENAME
 
-def save(sd):
-    '''Saves a generation to a file, with the generation number for starting up
-    again'''
-    print1('Saving Generation to file...')
-    with open(savefilename, 'w') as savefile:
-        pickle.dump(sd, file = savefile, protocol = 2)
+    def save(self):
+        '''Saves a generation to a file, with the generation number for starting
+        up again'''
+        print('Saving progress to file.')
+        with open(SAVE_FILENAME, 'w') as savefile:
+            pickle.dump(self, file = savefile, protocol = 2)
+        print('Finished saving.')
+    
+    def generate_snapshot(self):
+        pass
 
 def load(savefile):
     '''Loads savedata from `savefile`'''
@@ -287,30 +217,25 @@ def do_random_encounter(creatures):
         encounter(p1, p2)
 
 if __name__ == '__main__':
-    if os.path.isfile(savefilename):
-        with open(savefilename, 'r') as savefile:
+    if os.path.isfile(SAVE_FILENAME):
+        with open(SAVE_FILENAME, 'r') as savefile:
             try:
                 sd = load(savefile)
             except Exception as e:
                 print('Invalid save file!', e, file=sys.stdin)
                 sys.exit(1)
 
-        print('Loaded an existing save file with {gen_size} creatures of '\
-                  'generation {gen_nbr} in it who who are {progress:.2f}% done'\
-                  ' with {phase}'.format(gen_size = len(sd.creatures), 
-                                         gen_nbr = sd.gen_nbr, 
-                                         progress = sd.progress * 100, 
-                                         phase = sd.phase,
-                                         children = sd.children))
+        print('Loaded an existing save file with {gen_size} creatures with '\
+              '{num_encounters} encounters under their belt'\
+                  .format(gen_size = len(sd.creatures), 
+                          num_encounters = sd.num_encounters))
     else:
         print('No save file found, creating a new generation!')
         sd = SaveData(creatures = [Creature() for _ in xrange(0, 100)],
-                      gen_nbr = 0,
-                      phase = 'mating',
-                      progress = 0.0,
-                      children = [],
+                      num_encounters = 0,
+                      filename = SAVE_FILENAME
                       )
-        save(sd)
+        sd.save()
     
     while True:
         try:
@@ -320,12 +245,14 @@ if __name__ == '__main__':
             break
         try:
             if userin == 'watch fight':
-                random_encounter(sd.creatures)
+                do_random_encounter(sd.creatures)
+            elif userin == 'num creatures':
+                print(len(sd.creatures))
             elif userin == 'exit':
                 print('\nBye!')
                 break
             elif userin == 'simulate':
-                sd = generationer(sd)
+                simulate(sd)
             elif userin == 'v0':
                 set_verbosity(0)
                 print('Verbosity level is {}'.format(get_verbosity()))
@@ -379,6 +306,8 @@ if __name__ == '__main__':
                 # split up dna by genes, throw in bucket and count them, then show
                 # summary here
                 pass
+            else:
+                print('command not recognized.')
         except:
             import traceback
             traceback.print_exc()
