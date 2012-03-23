@@ -201,7 +201,7 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
         return None
     print2('Attempting to mate')
-
+    
     def pay_cost(p, share):
         cost = int(round(MATING_COST * (share / 100.0)))
         while cost > 0:
@@ -213,9 +213,13 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
                 break
 
     pay_cost(first_mate, fm_share)
-    if first_mate.dead: return None
+    if first_mate.dead:
+        print1(first_mate.name, 'died in the process of mating')
+        return None
     pay_cost(second_mate, sm_share)
-    if second_mate.dead: return None
+    if second_mate.dead:
+        print1(second_mate.name, 'died in the process of mating')
+        return None
     return mate(first_mate, second_mate)
 
 

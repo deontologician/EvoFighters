@@ -105,11 +105,11 @@ def do_round(p1, p1_act, p2, p2_act):
     p2_dmg = damage_fun(mults.p2_c2h, mults.dmg2_mult)
     # TODO: take into account damage type!
     if p1_dmg > 0:
-        print1('p1 takes', p1_dmg, 'damage')
-        p1.energy -= p1_dmg
+        print1(p1.name, 'takes', p1_dmg, 'damage')
+        p2.energy -= p1_dmg
     if p2_dmg > 0:
-        print1('p2 takes', p2_dmg, 'damage.')
-        p2.energy -= p2_dmg
+        print1(p2.name, 'p1 takes', p2_dmg, 'damage.')
+        p1.energy -= p2_dmg
     # we reverse the order of p1, p2 when calling try_to_mate because paying
     # costs first in mating is worse, and in this function p1 is preferred in
     # actions that happen to both creatures in order. Conceivably, p2 could die
