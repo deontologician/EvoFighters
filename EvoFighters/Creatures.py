@@ -82,7 +82,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
     @property
     def dead(self):
         '''Whether the creature is dead'''
-        return self.energy <= 0
+        return self.energy <= 0 or not self.dna
 
     @property
     def alive(self):
@@ -234,6 +234,10 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     proportion of costs each creature must pay, mates two creatures to create a
     third.'''
     if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
+        return None
+    if isinstance(first_mate, Feeder) or isinstance(second_mate, Feeder):
+        print1('{.name} tried to mate with {.name}!'.format(first_mate,
+                                                            second_mate))
         return None
     print2('Attempting to mate')
     

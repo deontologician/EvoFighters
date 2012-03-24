@@ -12,7 +12,7 @@ import sys, os.path, time
 
 from Parsing import ACT
 from Utils import print1, print2, print3, progress_bar, get_verbosity, \
-    set_verbosity
+    set_verbosity, term_width
 from Creatures import Creature, Feeder, try_to_mate
 
 OPTIMAL_GEN_SIZE = 500
@@ -126,6 +126,9 @@ def do_round(p1, p1_act, p2, p2_act):
                                            p1, mults.p1_share)
     if child:
         print1(p1.name, 'and', p2.name, 'have a child named', child.name)
+        if not child.dna:
+            print1('But it was stillborn as it has no dna.')
+            child = None
     try:
         if act_kind[p1_act.typ] == OTHER:
             p1.carryout(p1_act)
@@ -195,6 +198,7 @@ def simulate(sd):
                 print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
                 timestamp = time.time()
+                print()
             if sd.num_encounters % OPTIMAL_GEN_SIZE == 0:
                 if len(sd.creatures) < OPTIMAL_GEN_SIZE:
                     sd.creatures.extend([Feeder() for _ in
@@ -247,7 +251,32 @@ def do_random_encounter(creatures):
         print1('{0.name} is fighting {1.name}'.format(p1, p2))
         encounter(p1, p2)
 
-if __name__ == '__main__':
+
+def banner():
+    if term_width() >= 90:
+        return \
+"""
+'||''''|  '||'  '|'  ..|''||   '||''''|  ||          '||        .                          
+ ||  .     '|.  .'  .|'    ||   ||  .   ...    ... .  || ..   .||.    ....  ... ..   ....  
+ ||''|      ||  |   ||      ||  ||''|    ||   || ||   ||' ||   ||   .|...||  ||' '' ||. '  
+ ||          |||    '|.     ||  ||       ||    |''    ||  ||   ||   ||       ||     . '|.. 
+.||.....|     |      ''|...|'  .||.     .||.  '||||. .||. ||.  '|.'  '|...' .||.    |'..|' 
+                                             .|....'                                       
+"""
+    else:
+        return \
+"""
+ _______ _     _ _______ _______ _       _                          
+(_______|_)   (_|_______|_______|_)     | |     _                   
+ _____   _     _ _     _ _____   _  ____| |__ _| |_ _____  ____ ___ 
+|  ___) | |   | | |   | |  ___) | |/ _  |  _ (_   _) ___ |/ ___)___)
+| |_____ \ \ / /| |___| | |     | ( (_| | | | || |_| ____| |  |___ |
+|_______) \___/  \_____/|_|     |_|\___ |_| |_| \__)_____)_|  (___/ 
+                                  (_____|                           
+"""
+
+def main(argv):
+    print(banner())
     if os.path.isfile(SAVE_FILENAME):
         with open(SAVE_FILENAME, 'r') as savefile:
             try:
@@ -270,7 +299,7 @@ if __name__ == '__main__':
     
     while True:
         try:
-            userin = raw_input('command> ')
+            userin = raw_input("EVOFighters>>>> ")
         except (KeyboardInterrupt, EOFError):
             print('Bye!')
             break
@@ -324,7 +353,6 @@ if __name__ == '__main__':
                     fighter1 = userin.split()[1]
                 if len(userin.split()) > 2:
                     fighter2 = userin.split()[2]
-                getname = lambda name : lambda x: x.name == name
                 if fighter1 == 'random':
                     fighter1 = rand.choice(sd.creatures).copy
                 else:
@@ -345,3 +373,5 @@ if __name__ == '__main__':
             import traceback
             traceback.print_exc()
 
+if __name__ == '__main__':
+    main(sys.argv)

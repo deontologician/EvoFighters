@@ -101,9 +101,17 @@ class Parser(object):
         encounter decisions'''
         self._icount = 0
         self._skipped = 0
-        return Thought(tree = self._cond, 
-                       icount = self._icount,
-                       skipped = self._skipped)
+        try:
+            return Thought(tree = self._cond, 
+                           icount = self._icount,
+                           skipped = self._skipped)
+        except RuntimeError as rte:
+            if 'recursion depth exceeded' in rte.args[0]:
+                return Thought(tree = (COND.always, (ACT.wait,)),
+                               icount = 0,
+                               skipped = MAX_THINKING_STEPS)
+            else:
+                raise
 
     @property
     def _cond(self):
