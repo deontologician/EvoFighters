@@ -6,17 +6,19 @@ from random import randint
 from itertools import izip
 from contextlib import contextmanager
 from collections import namedtuple, defaultdict
+import operator as op
 import cPickle as pickle
-import sys, os.path
+import sys, os.path, time
 
 from Parsing import ACT
 from Utils import print1, print2, print3, progress_bar, get_verbosity, \
     set_verbosity
-from Creatures import Creature, try_to_mate
+from Creatures import Creature, Feeder, try_to_mate
 
 OPTIMAL_GEN_SIZE = 500
     
 SAVE_FILENAME = 'evofighters.save'
+SAVE_PERIOD = 90.0
 
 
 def encounter(p1, p2):
@@ -30,12 +32,17 @@ def encounter(p1, p2):
                                                  p1.decision_generator(),
                                                  p2.decision_generator()):
         print2('Round {}'.format(rounds))
-        if c1 > c2:
-            print3('{0.name} is going first'.format(p2))
-            child = do_round(p1, p1act, p2, p2act)
-        else:
-            print3('{0.name} is going first'.format(p1))
-            child = do_round(p2, p2act, p1, p1act)
+        try:
+            if c1 > c2:
+                print3('{0.name} is going first'.format(p2))
+                child = do_round(p1, p1act, p2, p2act)
+            else:
+                print3('{0.name} is going first'.format(p1))
+                child = do_round(p2, p2act, p1, p1act)
+        except FightOver as fo:
+            if fo.child is not None:
+                children.append(fo.child)
+            break
         if child is not None:
             children.append(child)
         if p1.dead or p2.dead:
@@ -119,12 +126,21 @@ def do_round(p1, p1_act, p2, p2_act):
                                            p1, mults.p1_share)
     if child:
         print1(p1.name, 'and', p2.name, 'have a child named', child.name)
-    if act_kind[p1_act.typ] == OTHER:
-        p1.carryout(p1_act)
-    if act_kind[p2_act.typ] == OTHER:
-        p2.carryout(p2_act)
+    try:
+        if act_kind[p1_act.typ] == OTHER:
+            p1.carryout(p1_act)
+        if act_kind[p2_act.typ] == OTHER:
+            p2.carryout(p2_act)
+    except StopIteration:
+        raise FightOver(child)
+    print3('{0.name} has {0.energy} life left'.format(p1))
+    print3('{0.name} has {0.energy} life left'.format(p2))
     return child
 
+class FightOver(StopIteration):
+    '''Thrown when a fight is over'''
+    def __init__(self, child):
+        self.child = child
 
 def maxencounters(creatures):
     '''Number of encounters required for a given population based on size'''
@@ -137,12 +153,10 @@ def random_encounter(creatures, copy = False):
     the actual encounter code.'''
     if len(creatures) < 2:
         raise RuntimeError('Not enough creatures.')
-    p1_index = randint(0, len(creatures) - 1)
-    p2_index = randint(0, len(creatures) - 1)
-    while p1_index == p2_index:
-        p2_index = randint(0, len(creatures) - 1)
-    p1 = creatures[p1_index]
-    p2 = creatures[p2_index]
+    p1 = rand.choice(only_creatures(creatures))
+    p2 = rand.choice(creatures)
+    while p1 == p2:
+        p2 = rand.choice(creatures)
     if copy:
         p1 = p1.copy
         p2 = p2.copy
@@ -158,17 +172,34 @@ def random_encounter(creatures, copy = False):
         if p2.dead and not copy:
             creatures.remove(p2)
 
+def only_creatures(creatures):
+    is_creature = lambda c: not isinstance(c, Feeder)
+    return filter(is_creature, creatures)
+
+def only_feeders(creatures):
+    is_feeder = lambda c: isinstance(c, Feeder)
+    return filter(is_feeder, creatures)
+
 def simulate(sd):
-    time_to_save = progress_bar()
+    time_to_save = progress_bar('{:3} creatures, {:3} feeders, {} total encounters',
+                                lambda: len(only_creatures(sd.creatures)),
+                                lambda: len(only_feeders(sd.creatures)),
+                                lambda: sd.num_encounters)
+    timestamp = time.time()
     try:
         while True:
             if len(sd.creatures) < 2:
                 raise RuntimeError('Not enough creatures')
             sd.num_encounters += 1
-            if sd.num_encounters % 500 == 0:
-                print('Currently', len(sd.creatures), 'creatures alive.')
+            if time.time() - timestamp > SAVE_PERIOD:
+                print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
-            time_to_save.send((sd.num_encounters % 500) / 500.0)
+                timestamp = time.time()
+            if sd.num_encounters % OPTIMAL_GEN_SIZE == 0:
+                if len(sd.creatures) < OPTIMAL_GEN_SIZE:
+                    sd.creatures.extend([Feeder() for _ in
+                                         xrange(OPTIMAL_GEN_SIZE - len(sd.creatures))])
+            time_to_save.send((time.time() - timestamp) / SAVE_PERIOD)
             with random_encounter(sd.creatures) as (p1, p2):
                 print1(p1.name, 'encounters', p2.name, 'in the wild')
                 sd.creatures.extend(encounter(p1, p2))
@@ -231,7 +262,7 @@ if __name__ == '__main__':
                           num_encounters = sd.num_encounters))
     else:
         print('No save file found, creating a new generation!')
-        sd = SaveData(creatures = [Creature() for _ in xrange(0, 100)],
+        sd = SaveData(creatures = [Creature() for _ in xrange(0, OPTIMAL_GEN_SIZE)],
                       num_encounters = 0,
                       filename = SAVE_FILENAME
                       )
@@ -270,11 +301,13 @@ if __name__ == '__main__':
             elif userin == 'show random':
                 print(repr(rand.choice(sd.creatures)))
             elif userin == 'show most wins':
-                print(repr(max(sd.creatures, key = lambda c: c.kills)))
+                print(repr(max(sd.creatures, key = op.attrgetter('kills'))))
             elif userin == 'show oldest':
-                print(repr(max(sd.creatures, key = lambda c: c.generation)))
+                print(repr(min(sd.creatures, key = op.attrgetter('generation'))))
+            elif userin == 'show youngest':
+                print(repr(max(sd.creatures, key = op.attrgetter('generation'))))
             elif userin == 'show survivalist':
-                print(repr(max(sd.creatures, key = lambda c: c.survived)))
+                print(repr(max(sd.creatures, key = op.attrgetter('survived'))))
             elif userin == 'show most skillful':
                 def _skill(c):
                     'Determine skill number'

@@ -14,6 +14,9 @@ class PerformableAction(object):
     def __eq__(self, other):
         return self.typ == other.typ and self.arg == other.arg
 
+    def __repr__(self):
+        return str(self)
+
     def __str__(self):
         if self.typ == ACT.attack:
             return "attack with damage type: {}".format(dmg_repr(self.arg))

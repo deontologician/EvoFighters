@@ -7,14 +7,14 @@ import random as rand
 import cPickle as pickle
 from uuid import uuid4 as uuid
 
-from Parsing import ACT, ITEM
+from Parsing import ACT, ITEM, SIG, MAX_THINKING_STEPS
 from Eval import PerformableAction, evaluate
 from Utils import print1, print2, print3
 
 # need to move this into a config file
 mutation_rate = 0.05 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
-MATING_COST = 40
+MATING_COST = 39
 
 class Creature(object):
     '''Represents a creature'''
@@ -105,7 +105,8 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 print1(self.name, 'got caught thinking too much!')
                 self.instr_used += tmt.icount
                 self.instr_skipped += tmt.skipped
-                yield PerformableAction(ACT.wait, None), tmt.icount + tmt.skipped
+                yield PerformableAction(ACT.wait, None), \
+                    tmt.icount + tmt.skipped
                 continue
             decision = evaluate(self, thought.tree)
             print2(self.name, 'decided to', decision)
@@ -116,9 +117,8 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         '''Carries out any actions that unlike mating and fighting, don't depend
         on what the target's current action is. Nothing will be done if the
         creature is dead. Return value is whether the fight should end.'''
-        fight_is_over = False
         if self.dead:
-            fight_is_over = True
+            return
         #signalling
         elif act.typ == ACT.signal:
             print1(self.name, 'signals with color', P.sig_repr(act.arg))
@@ -153,7 +153,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             my_roll = randint(0, 100) * (self.energy / 40.0)
             if enemy_roll < my_roll:
                 print1(self.name, 'flees the encounter!')
-                fight_is_over = True
+                raise StopIteration('{} flees the encounter'.format(self.name))
             else:
                 print1(self.name, 'tries to flee, but', self.target.name, 
                        'prevents it')
@@ -161,7 +161,6 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             raise RuntimeError("{0.name} did {1.typ} with magnitude {1.arg}"\
                                    .format(self, act))
         self.last_action = act
-        return fight_is_over
 
     def use(self):
         'Uses the top inventory item'
@@ -176,6 +175,42 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                        .format(self, energy_gain, P.item_repr(item)))
             self.energy += energy_gain
 
+
+class Feeder(Creature):
+    '''A pitiful subclass of creature, used only for eating by creatures.'''
+    def __init__(self):
+        super(Feeder, self).__init__(dna = [])
+        self.energy = 1
+        self.signal = SIG.green
+        self.name = 'Feeder'
+        self.inv = self._getinv()
+
+    def _getinv(self):
+        choices = [i for i in xrange(len(ITEM)) for _ in xrange(len(ITEM) - i)]
+        return [rand.choice(choices)]
+
+    def __str__(self):
+        return '[|Feeder|]'
+
+    def decision_generator(self):
+        '''Dummy decision generator'''
+        while self.alive:
+            # always 'wait', and always think about it for more than the max
+            # number of steps
+            self.instr_used += 0
+            self.instr_skipped += MAX_THINKING_STEPS + 1
+            yield PerformableAction(ACT.wait, None), MAX_THINKING_STEPS + 1
+        yield StopIteration('Feeder died.')
+
+    @property
+    def dead(self):
+        '''Also dies if inventory is raided'''
+        return self.energy <= 0 or not self.inv
+
+    def carryout(self, act):
+        '''Never do anything'''
+        print2('Feeder does nothing')
+        pass
 
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''
