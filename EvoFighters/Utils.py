@@ -72,6 +72,7 @@ def progress_bar(fmt_str, *args, **kwargs):
     next(val)
     return val
 
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

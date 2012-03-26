@@ -14,7 +14,7 @@ from Utils import print1, print2, print3
 # need to move this into a config file
 mutation_rate = 0.05 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
-MATING_COST = 39
+MATING_COST = 40
 
 class Creature(object):
     '''Represents a creature'''
@@ -22,7 +22,7 @@ class Creature(object):
     # efficiency
     __slots__ = ('dna', 'inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
-                 'last_action', 'name', '_id')
+                 'last_action', 'name')
     
     def __init__(self, dna = None):
         if dna is None:

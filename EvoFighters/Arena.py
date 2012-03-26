@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from collections import namedtuple, defaultdict
 import operator as op
 import cPickle as pickle
-import sys, os.path, time
+import sys, os.path, time, cmd
 
 from Parsing import ACT
 from Utils import print1, print2, print3, progress_bar, get_verbosity, \
@@ -252,9 +252,20 @@ def do_random_encounter(creatures):
         encounter(p1, p2)
 
 
-def banner():
-    if term_width() >= 90:
-        return \
+class EvoCmd(cmd.Cmd):
+    '''Command line processor for EvoFighters'''
+
+    prompt = 'EvoFighters >>>> '
+
+    def __init__(self, sd):
+        cmd.Cmd.__init__(self)
+        self.sd = sd
+    
+    @property
+    def intro(self):
+        tw = term_width()
+        if tw >= 90:
+            return \
 """
 '||''''|  '||'  '|'  ..|''||   '||''''|  ||          '||        .                          
  ||  .     '|.  .'  .|'    ||   ||  .   ...    ... .  || ..   .||.    ....  ... ..   ....  
@@ -263,20 +274,121 @@ def banner():
 .||.....|     |      ''|...|'  .||.     .||.  '||||. .||. ||.  '|.'  '|...' .||.    |'..|' 
                                              .|....'                                       
 """
-    else:
-        return \
+        elif tw >= 79 :
+            return \
 """
- _______ _     _ _______ _______ _       _                          
-(_______|_)   (_|_______|_______|_)     | |     _                   
- _____   _     _ _     _ _____   _  ____| |__ _| |_ _____  ____ ___ 
-|  ___) | |   | | |   | |  ___) | |/ _  |  _ (_   _) ___ |/ ___)___)
-| |_____ \ \ / /| |___| | |     | ( (_| | | | || |_| ____| |  |___ |
-|_______) \___/  \_____/|_|     |_|\___ |_| |_| \__)_____)_|  (___/ 
-                                  (_____|                           
+ ________                ________  _         __       _                         
+|_   __  |              |_   __  |(_)       [  |     / |_                      
+  | |_ \_|_   __   .--.   | |_ \_|__   .--./)| |--. `| |-'.---.  _ .--.  .--.  
+  |  _| _[ \ [  ]/ .'`\ \ |  _|  [  | / /'`\;| .-. | | | / /__\\[ `/'`\]( (`\]
+ _| |__/ |\ \/ / | \__. |_| |_    | | \ \._//| | | | | |,| \__., | |     `'.'. 
+|________| \__/   '.__.'|_____|  [___].',__`[___]|__]\__/ '.__.'[___]   [\__) )
+                                     ( ( __))
 """
+        elif tw >= 51:
+            return \
+"""
+  __             ___                               
+ /              /    /      /    /                 
+(___       ___ (___    ___ (___ (___  ___  ___  ___
+|     \  )|   )|    | |   )|   )|    |___)|   )|___
+|__    \/ |__/ |    | |__/ |  / |__  |__  |     __/
+                      __/                          
+"""
+        else:
+            return 'EvoFighters (You may want to widen your terminal)'
+    def default(self, line):
+        print("Sorry, that isn't a recognized command")
+
+    def doc_header(self):
+        return 'Available commands:'
+    def do_simulate(self):
+        simulate(self.sd)
+        
+    def do_show(self, arg):
+        '''Shows various things'''
+        args = arg.split()
+        if args[0] in (c.name for c in self.sd.creatures):
+            print(repr(next((c for c in self.sd.creatures if c.name == args[0]), None)))
+        elif args[0] == 'verbosity':
+            print('verbosity = {}'.format(get_verbosity()))
+        elif args[0] == 'random':
+            print(repr(rand.choice(self.sd.creatures)))
+        elif args[0] == 'max':
+            try:
+                print(repr(max(self.sd.creatures, 
+                               key = op.attrgetter(args[1]))))
+            except:
+                print("Couldn't get the maximum of that")
+        elif args[0] == 'min':
+            try:
+                print(repr(min(self.sd.creatures, 
+                               key = op.attrgetter(args[1]))))
+            except:
+                print("Couldn't get the minimum of that.")
+        elif arg == 'most skillful':
+            def _skill(c):
+                'Determine skill number'
+                if c.survived > 0:
+                    return (float(c.kills ** 2) / c.survived)
+                else:
+                    return 0
+            print(repr(max(self.sd.creatures, key = _skill)))
+        else:
+            print("Not sure what you want me to show you :(")
+
+    def do_count(self, arg):
+        '''Count either creatures or feeders'''
+        if arg == 'creatures':
+            num = len(only_creatures(self.sd.creatures))
+            print('There are {} creatures'.format(num))
+        elif arg == 'feeders':
+            num = len(only_feeders(self.sd.creatures))
+            print('There are {} feeders.'.format(num))
+        else:
+            print("Not sure what we're counting here")
+
+    def do_set(self, arg):
+        '''Set a variable'''
+        args = arg.split()
+        if args[0] == 'verbosity':
+            try:
+                set_verbosity(int(args[1]))
+            except ValueError:
+                print("That isn't a valid verbosity level.")
+                return
+        else:
+            print("I can't set that right now. Maybe soon")
+        
+    def do_fight(self, arg):
+        '''Watch a fight between two creatures'''
+        args = arg.split()
+        if len(args) >= 1:
+            fighter1 = next((c for c in self.sd.creatures 
+                             if c.name == args[0]), None)
+        else:
+            fighter1 = rand.choice(only_creatures(self.sd.creatures))
+        if len(args) >= 2:
+            fighter2 = next((c for c in self.sd.creatures
+                             if c.name == args[1]), None)
+        else:
+            fighter2 = rand.choice(only_creatures(self.sd.creatures))
+        
+        if fighter1 is None or fighter2 is None:
+            print("Invalid fighter name")
+            return
+        
+        do_random_encounter([fighter1, fighter2], copy = True)
+
+    def do_EOF(self, arg):
+        raise KeyboardInterrupt
+
+    def do_exit(self, arg):
+        'Exit evofighters'
+        raise KeyboardInterrupt
+
 
 def main(argv):
-    print(banner())
     if os.path.isfile(SAVE_FILENAME):
         with open(SAVE_FILENAME, 'r') as savefile:
             try:
@@ -291,87 +403,17 @@ def main(argv):
                           num_encounters = sd.num_encounters))
     else:
         print('No save file found, creating a new generation!')
-        sd = SaveData(creatures = [Creature() for _ in xrange(0, OPTIMAL_GEN_SIZE)],
+        sd = SaveData(creatures = [Creature() 
+                                   for _ in xrange(0, OPTIMAL_GEN_SIZE)],
                       num_encounters = 0,
                       filename = SAVE_FILENAME
                       )
         sd.save()
     
-    while True:
-        try:
-            userin = raw_input("EVOFighters>>>> ")
-        except (KeyboardInterrupt, EOFError):
-            print('Bye!')
-            break
-        try:
-            if userin == 'watch fight':
-                do_random_encounter(sd.creatures)
-            elif userin == 'num creatures':
-                print(len(sd.creatures))
-            elif userin == 'exit':
-                print('\nBye!')
-                break
-            elif userin == 'simulate':
-                simulate(sd)
-            elif userin == 'v0':
-                set_verbosity(0)
-                print('Verbosity level is {}'.format(get_verbosity()))
-            elif userin == 'v1':
-                set_verbosity(1)
-                print('Verbosity level is {}'.format(get_verbosity()))
-            elif userin == 'v2':
-                set_verbosity(2)
-                print('Verbosity level is {}'.format(get_verbosity()))
-            elif userin == 'v3':
-                set_verbosity(3)
-                print('Verbosity level is {}'.format(get_verbosity()))
-            elif userin == 'echo verbosity':
-                print('Verbosity level is {}'.format(get_verbosity()))
-            elif userin == 'show random':
-                print(repr(rand.choice(sd.creatures)))
-            elif userin == 'show most wins':
-                print(repr(max(sd.creatures, key = op.attrgetter('kills'))))
-            elif userin == 'show oldest':
-                print(repr(min(sd.creatures, key = op.attrgetter('generation'))))
-            elif userin == 'show youngest':
-                print(repr(max(sd.creatures, key = op.attrgetter('generation'))))
-            elif userin == 'show survivalist':
-                print(repr(max(sd.creatures, key = op.attrgetter('survived'))))
-            elif userin == 'show most skillful':
-                def _skill(c):
-                    'Determine skill number'
-                    if c.survived > 0:
-                        return (float(c.kills ** 2) / c.survived)
-                    else:
-                        return 0
-                print(repr(max(sd.creatures, key = _skill)))
-            elif userin == 'show most items':
-                print(repr(max(sd.creatures, key = lambda c: len(c.inv))))
-            elif userin.split()[0] == 'fight':
-                fighter1, fighter2 = ('random',)*2
-                if len(userin.split()) > 1:
-                    fighter1 = userin.split()[1]
-                if len(userin.split()) > 2:
-                    fighter2 = userin.split()[2]
-                if fighter1 == 'random':
-                    fighter1 = rand.choice(sd.creatures).copy
-                else:
-                    fighter1 = [c for c in sd.creatures 
-                                if c.name == fighter1][0].copy
-                if fighter2 == 'random':
-                    fighter2 = rand.choice(sd.creatures).copy
-                else:
-                    fighter2 = [c for c in sd.creatures if c.name == fighter2][0].copy
-                encounter(fighter1, fighter2)
-            elif userin == 'gene survey':
-                # split up dna by genes, throw in bucket and count them, then show
-                # summary here
-                pass
-            else:
-                print('command not recognized.')
-        except:
-            import traceback
-            traceback.print_exc()
-
+    try:
+        EvoCmd(sd).cmdloop()
+    except KeyboardInterrupt:
+        print('Bye')
+        
 if __name__ == '__main__':
     main(sys.argv)

@@ -1,6 +1,7 @@
 '''This module handles evaluating the parse trees that Parsing creates'''
 
-from Parsing import dmg_repr, sig_repr, COND, ACT, ATTR, VAL
+from Parsing import dmg_repr, sig_repr, val_repr, act_repr, COND, ACT, ATTR, VAL
+from Utils import print3
 import operator as Op
 from random import randint
 
@@ -54,33 +55,45 @@ def evaluate(me, tree):
         val1 = get_val(me, tree[2])
         val2 = get_val(me, tree[3])
         if min(val1, val2) <= check_val <= max(val1, val2):
+            print3(val_repr(tree[1]), 'was between',val1,'and',val2)
             return eval_act(me, tree[4])
         else:
+            print3(val_repr(tree[1]), 'was between',val1,'and',val2)
             return eval_act(me, tree[5])
     elif COND.less_than <= cond_typ <= COND.not_equal_to:
         if cond_typ == COND.less_than:
+            op_str = '<'
             op = Op.lt
         elif cond_typ == COND.greater_than:
+            op_str = '>'
             op = Op.gt
         elif cond_typ == COND.equal_to:
+            op_str = '=='
             op = Op.eq
         elif cond_typ == COND.not_equal_to:
+            op_str = '!='
             op = Op.ne
         val1 = get_val(me, tree[1])
         val2 = get_val(me, tree[2])
         if op(val1, val2):
+            print3(val_repr(tree[1]), 'was', op_str, val_repr(tree[2]))
             return eval_act(me, tree[3])
         else:
+            print3(val_repr(tree[1]), 'was not', op_str, val_repr(tree[2]))
             return eval_act(me, tree[4])
     elif cond_typ in [COND.me_last_act, COND.target_last_act]:
         if cond_typ == COND.me_last_act:
+            who_str = 'his'
             actor = me
         else:
+            who_str = "target's"
             actor = me.target
         act1 = eval_act(me, tree[1])
         if act1 == actor.last_action:
+            print3(who_str, 'last action was', act_repr(tree[1]))
             return eval_act(me, tree[2])
         else:
+            print3(who_str, 'last action was not', act_repr(tree[1]))
             return eval_act(me, tree[3])
     else:
         raise InvalidInstructionError("Couldn't understand condition: {0}".
@@ -92,7 +105,8 @@ def get_val(me, tree):
     if val_typ == VAL.literal:
         return tree[1]
     elif val_typ == VAL.random:
-        return randint(-1, 9)
+        ret = randint(-1, 9)
+        return ret
     elif val_typ == VAL.me:
         return get_attr(me, tree[1])
     elif val_typ == VAL.target:
