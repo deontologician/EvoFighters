@@ -238,6 +238,10 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     if isinstance(first_mate, Feeder) or isinstance(second_mate, Feeder):
         print1('{.name} tried to mate with {.name}!'.format(first_mate,
                                                             second_mate))
+        if isinstance(first_mate, Feeder):
+            first_mate.energy = 0
+        if isinstance(second_mate, Feeder):
+            second_mate.energy = 0
         return None
     print2('Attempting to mate')
     

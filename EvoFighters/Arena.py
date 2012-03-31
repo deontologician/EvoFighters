@@ -302,7 +302,7 @@ class EvoCmd(cmd.Cmd):
 
     def doc_header(self):
         return 'Available commands:'
-    def do_simulate(self):
+    def do_simulate(self, arg):
         simulate(self.sd)
         
     def do_show(self, arg):
@@ -316,13 +316,13 @@ class EvoCmd(cmd.Cmd):
             print(repr(rand.choice(self.sd.creatures)))
         elif args[0] == 'max':
             try:
-                print(repr(max(self.sd.creatures, 
+                print(repr(max(only_creatures(self.sd.creatures),
                                key = op.attrgetter(args[1]))))
             except:
                 print("Couldn't get the maximum of that")
         elif args[0] == 'min':
             try:
-                print(repr(min(self.sd.creatures, 
+                print(repr(min(only_creatures(self.sd.creatures),
                                key = op.attrgetter(args[1]))))
             except:
                 print("Couldn't get the minimum of that.")
@@ -333,7 +333,7 @@ class EvoCmd(cmd.Cmd):
                     return (float(c.kills ** 2) / c.survived)
                 else:
                     return 0
-            print(repr(max(self.sd.creatures, key = _skill)))
+            print(repr(max(only_creatures(self.sd.creatures), key = _skill)))
         else:
             print("Not sure what you want me to show you :(")
 
@@ -378,7 +378,7 @@ class EvoCmd(cmd.Cmd):
             print("Invalid fighter name")
             return
         
-        do_random_encounter([fighter1, fighter2], copy = True)
+        do_random_encounter([fighter1, fighter2])
 
     def do_EOF(self, arg):
         raise KeyboardInterrupt
@@ -404,7 +404,7 @@ def main(argv):
     else:
         print('No save file found, creating a new generation!')
         sd = SaveData(creatures = [Creature() 
-                                   for _ in xrange(0, OPTIMAL_GEN_SIZE)],
+                                   for _ in xrange(0, 2 * OPTIMAL_GEN_SIZE)],
                       num_encounters = 0,
                       filename = SAVE_FILENAME
                       )
