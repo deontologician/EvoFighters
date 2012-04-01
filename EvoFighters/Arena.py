@@ -5,7 +5,7 @@ import random as rand
 from random import randint
 from itertools import izip
 from contextlib import contextmanager
-from collections import namedtuple, defaultdict
+from collections import defaultdict
 import operator as op
 import cPickle as pickle
 import sys, os.path, time, cmd
@@ -77,28 +77,29 @@ def do_round(p1, p1_act, p2, p2_act):
                            {ACT.attack : ATTACKING,
                             ACT.defend : DEFENDING,
                             ACT.mate   : MATING})
+
     # c2h = chance to hit
-    M = namedtuple('Multipliers', 'mate_chance p1_c2h p2_c2h '\
-                                  'dmg1_mult dmg2_mult p1_share p2_share')
+    #  Below indexes: 0=mate_chance, 1=p1_c2h, 2=p2_c2h, 3=dmg1_mult,
+    #                 4=dmg2_mult,   5=p1_share,     6=p2_share
         
-    damage_matrix = {
-        (ATTACKING, ATTACKING)  :   M(  0, 75, 75, 50, 50,  0,  0),
-        (ATTACKING, DEFENDING)  :   M(  0, 25, 25, 25, 25,  0,  0),
-        (ATTACKING, MATING)     :   M( 50, 50,  0, 75,  0, 70, 30),
-        (ATTACKING, OTHER)      :   M(  0,100,  0,100,  0,  0,  0),
-        (DEFENDING, DEFENDING)  :   M(  0,  0,  0,  0,  0,  0,  0),
-        (DEFENDING, MATING)     :   M( 25,  0,  0,  0,  0, 70, 30),
-        (DEFENDING, OTHER)      :   M(  0,  0,  0,  0,  0,  0,  0),
-        (MATING,    MATING)     :   M(100,  0,  0,  0,  0, 50, 50),
-        (MATING,    OTHER)      :   M( 75,  0,  0,  0,  0,  0,100),
-        (OTHER,     OTHER)      :   M(  0,  0,  0,  0,  0,  0,  0),
+    damage_matrix = {           #      0   1   2   3   4   5   6
+        (ATTACKING, ATTACKING)  :   (  0, 75, 75, 50, 50,  0,  0),
+        (ATTACKING, DEFENDING)  :   (  0, 25, 25, 25, 25,  0,  0),
+        (ATTACKING, MATING)     :   ( 50, 50,  0, 75,  0, 70, 30),
+        (ATTACKING, OTHER)      :   (  0,100,  0,100,  0,  0,  0),
+        (DEFENDING, DEFENDING)  :   (  0,  0,  0,  0,  0,  0,  0),
+        (DEFENDING, MATING)     :   ( 25,  0,  0,  0,  0, 70, 30),
+        (DEFENDING, OTHER)      :   (  0,  0,  0,  0,  0,  0,  0),
+        (MATING,    MATING)     :   (100,  0,  0,  0,  0, 50, 50),
+        (MATING,    OTHER)      :   ( 75,  0,  0,  0,  0,  0,100),
+        (OTHER,     OTHER)      :   (  0,  0,  0,  0,  0,  0,  0),
         # the rest of these are duplicates of the above with swapped order
-        (DEFENDING, ATTACKING)  :   M(  0, 25, 25, 25, 25,  0,  0),
-        (MATING,    ATTACKING)  :   M( 50,  0, 50,  0, 75, 30, 70),
-        (MATING,    DEFENDING)  :   M( 25,  0,  0,  0,  0, 30, 70),
-        (OTHER,     ATTACKING)  :   M(  0,  0,100,  0,100,  0,  0),
-        (OTHER,     DEFENDING)  :   M(  0,  0,  0,  0,  0,  0,  0),
-        (OTHER,     MATING)     :   M( 75,  0,  0,  0,  0,100,  0),
+        (DEFENDING, ATTACKING)  :   (  0, 25, 25, 25, 25,  0,  0),
+        (MATING,    ATTACKING)  :   ( 50,  0, 50,  0, 75, 30, 70),
+        (MATING,    DEFENDING)  :   ( 25,  0,  0,  0,  0, 30, 70),
+        (OTHER,     ATTACKING)  :   (  0,  0,100,  0,100,  0,  0),
+        (OTHER,     DEFENDING)  :   (  0,  0,  0,  0,  0,  0,  0),
+        (OTHER,     MATING)     :   ( 75,  0,  0,  0,  0,100,  0),
         }
     mults = damage_matrix[(act_kind[p1_act.typ], act_kind[p2_act.typ])]
     def damage_fun(chance, mult):
@@ -108,8 +109,8 @@ def do_round(p1, p1_act, p2, p2_act):
             return randint(1, int(round(((mult/100.0) * 6))))
         else:
             return 0
-    p1_dmg = damage_fun(mults.p1_c2h, mults.dmg1_mult)
-    p2_dmg = damage_fun(mults.p2_c2h, mults.dmg2_mult)
+    p1_dmg = damage_fun(mults[1], mults[3])
+    p2_dmg = damage_fun(mults[2], mults[4])
     # TODO: take into account damage type!
     if p1_dmg > 0:
         print1(p1.name, 'takes', p1_dmg, 'damage')
@@ -122,8 +123,7 @@ def do_round(p1, p1_act, p2, p2_act):
     # actions that happen to both creatures in order. Conceivably, p2 could die
     # without p1 paying any cost at all, even if p2 initiated mating against
     # p1's will
-    child = try_to_mate(mults.mate_chance, p2, mults.p2_share, 
-                                           p1, mults.p1_share)
+    child = try_to_mate(mults[0], p2, mults[6], p1, mults[5])
     if child:
         print1(p1.name, 'and', p2.name, 'have a child named', child.name)
         if not child.dna:
