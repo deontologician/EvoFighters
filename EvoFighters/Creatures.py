@@ -26,7 +26,7 @@ class Creature(object):
     
     def __init__(self, dna = None):
         if dna is None:
-            self.dna = [randint(-1, 9) for _ in xrange(0, 50)]
+            self.dna = tuple(randint(-1, 9) for _ in xrange(0, 50))
         else:
             self.dna = dna
         self.inv = []
@@ -180,7 +180,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 class Feeder(Creature):
     '''A pitiful subclass of creature, used only for eating by creatures.'''
     def __init__(self):
-        super(Feeder, self).__init__(dna = [])
+        super(Feeder, self).__init__(dna = ())
         self.energy = 1
         self.signal = SIG['green']
         self.name = 'Feeder'
@@ -216,17 +216,12 @@ class Feeder(Creature):
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''
     chunk = []
-    #dna_iter = iter(dna)
-    for i in iter(dna):
+    for i in dna:
         chunk.append(i)
         if i == -1:
             yield chunk
             chunk = []
     if chunk:
-        yield chunk
-        chunk = []
-    while True:
-        #just keep yielding empty chunks rather than raising StopIteration
         yield chunk
 
 
@@ -275,15 +270,15 @@ def mate(p1, p2):
     dna2_primer = gene_primer(p2.dna)
     child_genes = []
     while True:
-        gene1 = next(dna1_primer)
-        gene2 = next(dna2_primer)
+        gene1 = next(dna1_primer, [])
+        gene2 = next(dna2_primer, [])
         if gene1 == [] and gene2 == []:
             break
         gene3 = rand.choice([gene1, gene2])
         child_genes.append(gene3)
     if rand.uniform(0, 1) < mutation_rate:
         mutate(child_genes)
-    child = Creature([base for gene in child_genes for base in gene])
+    child = Creature(tuple([base for gene in child_genes for base in gene]))
     child.generation = max(p1.generation, p2.generation) + 1
     p1.num_children += 1
     p2.num_children += 1

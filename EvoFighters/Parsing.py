@@ -1,7 +1,6 @@
 '''Handles parsing of streams of integers into instructions for the
 EvoFighters'''
 
-from itertools import cycle
 from collections import namedtuple
 
 MAX_THINKING_STEPS = 200
@@ -73,22 +72,17 @@ class TooMuchThinkingError(Exception):
         self.icount = icount
         self.skipped = skipped
 
-# these are used for internal state of the parser and should bot be modified by
-# the clients of the module
-_icount = 0
-_skipped = 0
-_dna_iter = None
 
 Thought = namedtuple('Thought', 'tree icount skipped')
 
 class Parser(object):
-    '''Handles parsing of a dna iterator and returning a parse tree which
-    represents a creature's tthought process in making encounter decisions'''
+    '''Handles parsing from dna and returning a parse tree which represents a
+    creature's tthought process in making encounter decisions'''
     def __init__(self, dna):
         self._icount = 0
         self._skipped = 0
         self._dna = dna
-        self._dna_iter = cycle(dna)
+        self._len = len(dna)
 
     def next(self):
         '''Parses a dna iterator (Must not be the dna list!) into a tree
@@ -146,7 +140,7 @@ class Parser(object):
         if val_typ == VAL['literal']:
             self._icount += 1
             return (VAL['literal'], 
-                    next(self._dna_iter))
+                    self._dna[self._icount % self._len])
         elif val_typ == VAL['random']:
             return (VAL['random'],)
         elif val_typ in [VAL['me'], VAL['target']]:
@@ -175,14 +169,14 @@ class Parser(object):
         '''Gets the next valid integer in the range allowed by the given
         type. Adds on to the `count` passed in. mini and maxi allow one to
         restrict the range further than `typ` does'''
-        next_val = next(self._dna_iter)
+        next_val = self._dna[self._icount % self._len]
         self._icount += 1
         # we want to return a count 1 less than the number required, since we
         # dont want to penalize for required parser symbols. Therefore if the
         # while condition succeeds the first time through, count is not
         # incremented
         while not( minimum <= next_val < len(typ) ):
-            next_val = next(self._dna_iter)
+            next_val = self._dna[self._icount % self._len]
             self._skipped += 1
             if self._icount + self._skipped > MAX_THINKING_STEPS:
                 raise TooMuchThinkingError('Thought too much :/', 
