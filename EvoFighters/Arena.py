@@ -27,17 +27,17 @@ def encounter(p1, p2):
     # 10 rounds
     max_rounds = abs(int(rand.gauss(200, 30)))
     children = []
-    print1('Max rounds: {}'.format(max_rounds))
+    print1('Max rounds: {}', max_rounds)
     for rounds, (p1act, c1), (p2act, c2) in izip(xrange(max_rounds),
                                                  p1.decision_generator(),
                                                  p2.decision_generator()):
-        print2('Round {}'.format(rounds))
+        print2('Round {}', rounds)
         try:
             if c1 > c2:
-                print3('{0.name} is going first'.format(p2))
+                print3('{0.name} is going first', p2)
                 child = do_round(p1, p1act, p2, p2act)
             else:
-                print3('{0.name} is going first'.format(p1))
+                print3('{0.name} is going first', p1)
                 child = do_round(p2, p2act, p1, p1act)
         except FightOver as fo:
             if fo.child is not None:
@@ -50,11 +50,11 @@ def encounter(p1, p2):
     else:
         # if the rounds timed out, penalty
         penalty = randint(1,5)
-        print1('Time is up!, both combatants take', penalty, 'damage')
+        print1('Time is up!, both combatants take {} damage', penalty)
         p1.energy -= penalty
         p2.energy -= penalty
     def _victory(winner, loser):
-        print1(winner.name, 'has killed', loser.name)
+        print1('{.name} has killed {.name}', winner, loser)
         winner.inv.extend(loser.inv)
         winner.energy = min(40, winner.energy + randint(1, 6))
         winner.survived += 1
@@ -64,7 +64,7 @@ def encounter(p1, p2):
     elif p1.dead and p2.alive:
         _victory(p2, p1)
     elif p1.dead and p2.dead:
-        print1('Both {0.name} and {1.name} have died.'.format(p1, p2))
+        print1('Both {0.name} and {1.name} have died.', p1, p2)
     else:
         p1.survived += 1
         p2.survived += 1
@@ -118,10 +118,10 @@ def do_round(p1, p1_act, p2, p2_act):
     p2_dmg = damage_fun(mults[2], mults[4])
     # TODO: take into account damage type!
     if p1_dmg > 0:
-        print1(p1.name, 'takes', p1_dmg, 'damage')
+        print1('{.name} takes {} damage', p2, p1_dmg)
         p2.energy -= p1_dmg
     if p2_dmg > 0:
-        print1(p2.name, 'p1 takes', p2_dmg, 'damage.')
+        print1('{.name} takes {} damage', p1, p2_dmg)
         p1.energy -= p2_dmg
     # we reverse the order of p1, p2 when calling try_to_mate because paying
     # costs first in mating is worse, and in this function p1 is preferred in
@@ -130,7 +130,7 @@ def do_round(p1, p1_act, p2, p2_act):
     # p1's will
     child = try_to_mate(mults[0], p2, mults[6], p1, mults[5])
     if child:
-        print1(p1.name, 'and', p2.name, 'have a child named', child.name)
+        print1('{.name} and {.name} have a child named {.name}', p1, p2, child)
         if not child.dna:
             print1('But it was stillborn as it has no dna.')
             child = None
@@ -141,8 +141,8 @@ def do_round(p1, p1_act, p2, p2_act):
             p2.carryout(p2_act)
     except StopIteration:
         raise FightOver(child)
-    print3('{0.name} has {0.energy} life left'.format(p1))
-    print3('{0.name} has {0.energy} life left'.format(p2))
+    print3('{0.name} has {0.energy} life left', p1)
+    print3('{0.name} has {0.energy} life left', p2)
     return child
 
 class FightOver(StopIteration):
@@ -210,7 +210,7 @@ def simulate(sd):
                                          xrange(OPTIMAL_GEN_SIZE - len(sd.creatures))])
             time_to_save.send((time.time() - timestamp) / SAVE_PERIOD)
             with random_encounter(sd.creatures) as (p1, p2):
-                print1(p1.name, 'encounters', p2.name, 'in the wild')
+                print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
             
     except KeyboardInterrupt:
@@ -253,7 +253,7 @@ def do_random_encounter(creatures):
     with random_encounter(creatures, copy = True) as (p1, p2):
         print(repr(p1))
         print(repr(p2))
-        print1('{0.name} is fighting {1.name}'.format(p1, p2))
+        print1('{0.name} is fighting {1.name}', p1, p2)
         encounter(p1, p2)
 
 

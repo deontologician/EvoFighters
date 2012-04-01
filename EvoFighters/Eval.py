@@ -1,7 +1,7 @@
 '''This module handles evaluating the parse trees that Parsing creates'''
 
-from Parsing import dmg_repr, sig_repr, val_repr, act_repr, COND, ACT, ATTR, VAL
-from Utils import print3
+from Parsing import COND, ACT, ATTR, VAL
+from Utils import print3, dmg_repr, sig_repr
 import operator as Op
 from random import randint
 
@@ -55,10 +55,10 @@ def evaluate(me, tree):
         val1 = get_val(me, tree[2])
         val2 = get_val(me, tree[3])
         if min(val1, val2) <= check_val <= max(val1, val2):
-            print3(val_repr(tree[1]), 'was between',val1,'and',val2)
+            print3('{val_repr} was between {} and {}', val1, val2, val_repr = tree[1])
             return eval_act(me, tree[4])
         else:
-            print3(val_repr(tree[1]), 'was between',val1,'and',val2)
+            print3('{val_repr} was not between {} and {}', val1, val2, val_repr = tree[1])
             return eval_act(me, tree[5])
     elif COND.less_than <= cond_typ <= COND.not_equal_to:
         if cond_typ == COND.less_than:
@@ -76,10 +76,12 @@ def evaluate(me, tree):
         val1 = get_val(me, tree[1])
         val2 = get_val(me, tree[2])
         if op(val1, val2):
-            print3(val_repr(tree[1]), 'was', op_str, val_repr(tree[2]))
+            print3('{val_repr} was {} {val_repr2}', op_str, val_repr = tree[1],
+                   val_repr2 = tree[2])
             return eval_act(me, tree[3])
         else:
-            print3(val_repr(tree[1]), 'was not', op_str, val_repr(tree[2]))
+            print3('{val_repr} was not {} {val_repr2}', op_str, val_repr = tree[1], 
+                   val_repr2 = tree[2])
             return eval_act(me, tree[4])
     elif cond_typ in [COND.me_last_act, COND.target_last_act]:
         if cond_typ == COND.me_last_act:
@@ -90,10 +92,10 @@ def evaluate(me, tree):
             actor = me.target
         act1 = eval_act(me, tree[1])
         if act1 == actor.last_action:
-            print3(who_str, 'last action was', act_repr(tree[1]))
+            print3('{} last action was {act_repr}', who_str, act_repr = tree[1])
             return eval_act(me, tree[2])
         else:
-            print3(who_str, 'last action was not', act_repr(tree[1]))
+            print3('{} last action was not', who_str, act_repr = tree[1])
             return eval_act(me, tree[3])
     else:
         raise InvalidInstructionError("Couldn't understand condition: {0}".

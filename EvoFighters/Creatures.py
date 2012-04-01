@@ -95,23 +95,24 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         while self.alive:
             try: 
                 thought = next(parser)
-                print3("{0.name}'s thought process:".format(self))
-                print3(P.show_thought(thought.tree))
-                print3('which required', thought.icount, 'instructions.',
-                       'and', thought.skipped, 'instructions skipped over')
+                print3("{0.name}'s thought process: \n{thought}", self,
+                       thought = thought.tree)
+                print3('which required {.icount} instructions and {.skipped} '
+                       'instructions skipped over', thought)
                 self.instr_used += thought.icount
                 self.instr_skipped += thought.skipped
             except P.TooMuchThinkingError as tmt:
                 self.instr_used += tmt.icount
                 self.instr_skipped += tmt.skipped
                 penalty = randint(1,5)
-                print1(self.name, 'got caught thinking too much and lost',penalty,'life.')
+                print1('{.name} got caught thinking too much and lost {} life',
+                       self, penalty)
                 self.energy -= penalty
                 yield PerformableAction(ACT.wait, None), \
                     tmt.icount + tmt.skipped
                 continue
             decision = evaluate(self, thought.tree)
-            print2(self.name, 'decided to', decision)
+            print2('{.name} decided to {}', self, decision)
             yield decision, thought.icount + thought.skipped
         raise StopIteration('{} died.'.format(self.name))
 
@@ -123,42 +124,40 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             return
         #signalling
         elif act.typ == ACT.signal:
-            print1(self.name, 'signals with color', P.sig_repr(act.arg))
+            print1('{.name} signals with color {sig_repr}', self, sig_repr = act.arg)
             self.signal = act.arg
         #using an item
         elif act.typ == ACT.use:
             if self.inv:
-                print1(self.name, 'uses', P.item_repr(self.inv[-1]))
+                print1('{.name} uses {item_repr}', self, item_repr = self.inv[-1])
                 self.use()
             else:
-                print2(self.name, "tries to use an item, but doesn't have one")
+                print2("{.name} tries to use an item, but doesn't have one", self)
 
         # take an item from the other's inventory
         elif act.typ == ACT.take:
             if self.target.inv:
                 item = self.target.inv.pop()
-                print1("{0.name} takes {1} from {2.name}"\
-                           .format(self, P.item_repr(item), self.target))
+                print1("{0.name} takes {item_repr} from {1.name}", self, self.target,
+                       item_repr = item)
                 self.inv.append(item)
             else:
                 print2("{0.name} tries to take an item from {1.name}, "\
-                           "but there's nothing to take.".format(self,
-                                                                 self.target))
+                           "but there's nothing to take.", self, self.target)
         # waiting
         elif act.typ == ACT.wait:
-            print2(self.name, 'waits')
+            print2('{.name} waits', self)
         # defending with no corresponding attack
         elif act.typ == ACT.defend:
-            print2(self.name, 'defends')
+            print2('{.name} defends', self)
         elif act.typ == ACT.flee:
             enemy_roll = randint(0, 100) * (self.target.energy / 40.0)
             my_roll = randint(0, 100) * (self.energy / 40.0)
             if enemy_roll < my_roll:
-                print1(self.name, 'flees the encounter!')
+                print1('{.name} flees the encounter!', self)
                 raise StopIteration('{} flees the encounter'.format(self.name))
             else:
-                print1(self.name, 'tries to flee, but', self.target.name, 
-                       'prevents it')
+                print1('{.name} tries to flee, but {.name} prevents it', self, self.target)
         else:
             raise RuntimeError("{0.name} did {1.typ} with magnitude {1.arg}"\
                                    .format(self, act))
@@ -173,8 +172,8 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             else:
                 mult = 0
             energy_gain = 3 * mult
-            print2(self.name, '{.name} gains {} life from {}'\
-                       .format(self, energy_gain, P.item_repr(item)))
+            print2('{.name} gains {} life from {item_repr}', self, energy_gain,
+                   item_repr = item)
             self.energy += energy_gain
 
 
@@ -238,8 +237,7 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
         return None
     if isinstance(first_mate, Feeder) or isinstance(second_mate, Feeder):
-        print1('{.name} tried to mate with {.name}!'.format(first_mate,
-                                                            second_mate))
+        print1('{.name} tried to mate with {.name}!', first_mate, second_mate)
         if isinstance(first_mate, Feeder):
             first_mate.energy = 0
         if isinstance(second_mate, Feeder):
@@ -259,11 +257,11 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
 
     pay_cost(first_mate, fm_share)
     if first_mate.dead:
-        print1(first_mate.name, 'died in the process of mating')
+        print1('{.name} died in the process of mating', first_mate)
         return None
     pay_cost(second_mate, sm_share)
     if second_mate.dead:
-        print1(second_mate.name, 'died in the process of mating')
+        print1('{.name} died in the process of mating', second_mate)
         return None
     return mate(first_mate, second_mate)
 
@@ -298,7 +296,7 @@ def mutate(dna):
         genome_level_mutation(dna)
     else: # both branches can happen
         index = randint(0, len(dna) - 1)
-        print2('mutating gene', index)
+        print2('mutating gene {}', index)
         dna[index] = gene_level_mutation(dna[index])
 
 def genome_level_mutation(dna):
@@ -308,12 +306,12 @@ def genome_level_mutation(dna):
         length = len(genome)
         i1 = randint(0, length - 1)
         i2 = randint(0, length - 1)
-        print2('swapped gene', i1, 'and', i2)
+        print2('swapped gene {} and {}', i1, i2)
         genome[i1], genome[i2] = genome[i2], genome[i1]
     def _delete(genome):
         'Delete a gene'
         index = randint(0, len(genome) - 1)
-        print2('Deleted gene {}'.format(index))
+        print2('Deleted gene {}', index)
         del dna[index]
 
     rand.choice([_swap, _delete])(dna)
@@ -334,7 +332,7 @@ def gene_level_mutation(gene):
         val = randint(-1, 9)
         index = randint(0, len(x) - 1)
         x.insert(index, val)
-        print2('inserted {} at {}'.format(val, index))
+        print2('inserted {} at {}', val, index)
         return x
     def _duplicate(x):
         'Double a gene'
@@ -346,14 +344,14 @@ def gene_level_mutation(gene):
         val = int(round(rand.gauss(0, 1)))
         index = randint(0, len(x) - 1)
         x[index] += val
-        print2('changed', index, 'by', val)
+        print2('changed {} by {}', index, val)
         return x
     def _swap(x):
         'Swap two bases'
         i1 = randint(0, len(x) - 1)
         i2 = randint(0, len(x) - 1)
         x[i1], x[i2] = x[i2], x[i1]
-        print2('swapped bases {} and {}'.format(i1, i2))
+        print2('swapped bases {} and {}', i1, i2)
         return x
     if not gene:
         print3('Mutated an empty gene!')
