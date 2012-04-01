@@ -47,7 +47,12 @@ def encounter(p1, p2):
             children.append(child)
         if p1.dead or p2.dead:
             break
-
+    else:
+        # if the rounds timed out, penalty
+        penalty = randint(1,5)
+        print1('Time is up!, both combatants take', penalty, 'damage')
+        p1.energy -= penalty
+        p2.energy -= penalty
     def _victory(winner, loser):
         print1(winner.name, 'has killed', loser.name)
         winner.inv.extend(loser.inv)

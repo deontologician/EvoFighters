@@ -102,9 +102,11 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 self.instr_used += thought.icount
                 self.instr_skipped += thought.skipped
             except P.TooMuchThinkingError as tmt:
-                print1(self.name, 'got caught thinking too much!')
                 self.instr_used += tmt.icount
                 self.instr_skipped += tmt.skipped
+                penalty = randint(1,5)
+                print1(self.name, 'got caught thinking too much and lost',penalty,'life.')
+                self.energy -= penalty
                 yield PerformableAction(ACT.wait, None), \
                     tmt.icount + tmt.skipped
                 continue
