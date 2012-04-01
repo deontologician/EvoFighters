@@ -109,10 +109,10 @@ def cond_repr(tree):
     '''Creates a string from a condition tree node'''
     cond_typ = tree[0]
 
-    if cond_typ == COND.always:
+    if cond_typ == COND['always']:
         act = act_repr(tree[1])
         return "Always:\n{}".format(indent(act))
-    elif cond_typ == COND.in_range:
+    elif cond_typ == COND['in_range']:
         rng_min = val_repr(tree[1])
         rng_max = val_repr(tree[2])
         match = val_repr(tree[3])
@@ -120,16 +120,16 @@ def cond_repr(tree):
         then_str = act_repr(tree[4])
         else_str = act_repr(tree[5])
         return branch_repr(cond_str, then_str, else_str)
-    elif COND.less_than <= cond_typ <= COND.not_equal_to:
+    elif COND['less_than'] <= cond_typ <= COND['not_equal_to']:
         val1 = val_repr(tree[1])
         val2 = val_repr(tree[2])
-        if cond_typ == COND.less_than:
+        if cond_typ == COND['less_than']:
             relation = 'is less than'
-        elif cond_typ == COND.greater_than:
+        elif cond_typ == COND['greater_than']:
             relation = 'is greater than'
-        elif cond_typ == COND.equal_to:
+        elif cond_typ == COND['equal_to']:
             relation = 'is equal to'
-        elif cond_typ == COND.not_equal_to:
+        elif cond_typ == COND['not_equal_to']:
             relation = 'is not equal to'
         else:
             raise NotImplementedError('This cant happen! {}'.format(cond_typ))
@@ -137,9 +137,9 @@ def cond_repr(tree):
         then_str = act_repr(tree[3])
         else_str = act_repr(tree[4])
         return branch_repr(cond_str, then_str, else_str)
-    elif cond_typ in [COND.me_last_act, COND.target_last_act]:
+    elif cond_typ in [COND['me_last_act'], COND['target_last_act']]:
         matchact = act_repr(tree[1])
-        if cond_typ == COND.me_last_act:
+        if cond_typ == COND['me_last_act']:
             what = 'my last action was'
         else:
             what = "my target's last action was"
@@ -155,12 +155,12 @@ def val_repr(tree):
     '''Creates a string from a value tree node'''
     val_typ = tree[0]
     
-    if val_typ == VAL.literal:
+    if val_typ == VAL['literal']:
         return str(tree[1])
-    elif val_typ == VAL.random:
+    elif val_typ == VAL['random']:
         return 'a random number'
-    elif val_typ in [VAL.me, VAL.target]:
-        who = 'my' if val_typ == VAL.me else "the target's"
+    elif val_typ in [VAL['me'], VAL['target']]:
+        who = 'my' if val_typ == VAL['me'] else "the target's"
         attr = attr_repr(tree[1])
         return '{} {}'.format(who, attr)
     else:
@@ -170,26 +170,26 @@ def act_repr(tree):
     '''Creates a string from an action tree node'''
     act_typ = tree[0]
     
-    if act_typ == ACT.subcondition:
+    if act_typ == ACT['subcondition']:
         return cond_repr(tree[1])
-    elif act_typ in [ACT.attack, ACT.defend]:
+    elif act_typ in [ACT['attack'], ACT['defend']]:
         dmg_str = dmg_repr(tree[1])
-        if act_typ == ACT.attack:
+        if act_typ == ACT['attack']:
             return 'attack with {}'.format(dmg_str)
         else:
             return 'defend with {}'.format(dmg_str)
-    elif act_typ == ACT.signal:
+    elif act_typ == ACT['signal']:
         sig = sig_repr(tree[1])
         return 'signal {}'.format(sig)
-    elif act_typ == ACT.use:
+    elif act_typ == ACT['use']:
         return 'use the top inventory item'
-    elif act_typ == ACT.take:
+    elif act_typ == ACT['take']:
         return "take the target's top inventory item"
-    elif act_typ == ACT.wait:
+    elif act_typ == ACT['wait']:
         return 'wait'
-    elif act_typ == ACT.flee:
+    elif act_typ == ACT['flee']:
         return 'flee from the encounter'
-    elif act_typ == ACT.mate:
+    elif act_typ == ACT['mate']:
         return 'attempt to mate with the target'
     else:
         return 'Unknown Action({})'.format(act_typ)
@@ -197,19 +197,19 @@ def act_repr(tree):
 
 def attr_repr(attr):
     '''Creates a string from an attribute code'''
-    if attr == ATTR.energy:
+    if attr == ATTR['energy']:
         return 'energy level'
-    elif attr == ATTR.signal:
+    elif attr == ATTR['signal']:
         return 'signal'
-    elif attr == ATTR.generation:
+    elif attr == ATTR['generation']:
         return 'generation'
-    elif attr == ATTR.kills:
+    elif attr == ATTR['kills']:
         return 'kills'
-    elif attr == ATTR.survived:
+    elif attr == ATTR['survived']:
         return 'number of encounters survived'
-    elif attr == ATTR.num_children:
+    elif attr == ATTR['num_children']:
         return 'number of children'
-    elif attr == ATTR.top_item:
+    elif attr == ATTR['top_item']:
         return 'top inventory item'
     else:
         return 'Unknown attribute({})'.format(attr)
@@ -217,24 +217,24 @@ def attr_repr(attr):
 
 def item_repr(item):
     '''Creates a string from an item code'''
-    if item == ITEM.food:
+    if item == ITEM['food']:
         return "a piece of food"
-    elif item == ITEM.good_food:
+    elif item == ITEM['good_food']:
         return "an good food"
-    elif item == ITEM.better_food:
+    elif item == ITEM['better_food']:
         return "a better food"
-    elif item == ITEM.excellent_food:
+    elif item == ITEM['excellent_food']:
         return "an excellent food"
     else:
         return "Unknown Item({})".format(item)
  
 def dmg_repr(damage):
     '''Creates a string from a damage code'''
-    if damage == DMG.fire:
+    if damage == DMG['fire']:
         return 'Fire'
-    elif damage == DMG.ice:
+    elif damage == DMG['ice']:
         return 'Ice'
-    elif damage == DMG.electricity:
+    elif damage == DMG['electricity']:
         return 'Electricity'
     else:
         return 'Unknown Damage Type({})'.format(damage)
@@ -242,17 +242,17 @@ def dmg_repr(damage):
 
 def sig_repr(signal):
     '''Creates a string from a signal code'''
-    if signal == SIG.red:
+    if signal == SIG['red']:
         return 'Red'
-    elif signal == SIG.yellow:
+    elif signal == SIG['yellow']:
         return 'Yellow'
-    elif signal == SIG.blue:
+    elif signal == SIG['blue']:
         return 'Blue'
-    elif signal == SIG.purple:
+    elif signal == SIG['purple']:
         return 'Purple'
-    elif signal == SIG.orange:
+    elif signal == SIG['orange']:
         return 'Orange'
-    elif signal == SIG.green:
+    elif signal == SIG['green']:
         return 'Green'
     else:
         return 'Unknown Signal({})'.format(signal)

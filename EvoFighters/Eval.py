@@ -19,21 +19,21 @@ class PerformableAction(object):
         return str(self)
 
     def __str__(self):
-        if self.typ == ACT.attack:
+        if self.typ == ACT['attack']:
             return "attack with damage type: {}".format(dmg_repr(self.arg))
-        elif self.typ == ACT.defend:
+        elif self.typ == ACT['defend']:
             return "defend against damage type: {}".format(dmg_repr(self.arg))
-        elif self.typ == ACT.signal:
+        elif self.typ == ACT['signal']:
             return "signal with the color {0}".format(sig_repr(self.arg))
-        elif self.typ == ACT.use:
+        elif self.typ == ACT['use']:
             return "use an item in his inventory"
-        elif self.typ == ACT.take:
+        elif self.typ == ACT['take']:
             return "take something from target"
-        elif self.typ == ACT.wait:
+        elif self.typ == ACT['wait']:
             return "wait"
-        elif self.typ == ACT.flee:
+        elif self.typ == ACT['flee']:
             return "flee the encounter"
-        elif self.typ == ACT.mate:
+        elif self.typ == ACT['mate']:
             return "mate with target"
         else:
             return "do unknown action: ({}, {})".format(self.typ, self.arg)
@@ -48,9 +48,9 @@ def evaluate(me, tree):
     '''Eval takes information from the creature and a thought and returns an
     action to perform'''
     cond_typ = tree[0]
-    if cond_typ == COND.always:
+    if cond_typ == COND['always']:
         return eval_act(me, tree[1])
-    elif cond_typ == COND.in_range:
+    elif cond_typ == COND['in_range']:
         check_val = get_val(me, tree[1])
         val1 = get_val(me, tree[2])
         val2 = get_val(me, tree[3])
@@ -60,17 +60,17 @@ def evaluate(me, tree):
         else:
             print3('{val_repr} was not between {} and {}', val1, val2, val_repr = tree[1])
             return eval_act(me, tree[5])
-    elif COND.less_than <= cond_typ <= COND.not_equal_to:
-        if cond_typ == COND.less_than:
+    elif COND['less_than'] <= cond_typ <= COND['not_equal_to']:
+        if cond_typ == COND['less_than']:
             op_str = '<'
             op = Op.lt
-        elif cond_typ == COND.greater_than:
+        elif cond_typ == COND['greater_than']:
             op_str = '>'
             op = Op.gt
-        elif cond_typ == COND.equal_to:
+        elif cond_typ == COND['equal_to']:
             op_str = '=='
             op = Op.eq
-        elif cond_typ == COND.not_equal_to:
+        elif cond_typ == COND['not_equal_to']:
             op_str = '!='
             op = Op.ne
         val1 = get_val(me, tree[1])
@@ -83,8 +83,8 @@ def evaluate(me, tree):
             print3('{val_repr} was not {} {val_repr2}', op_str, val_repr = tree[1], 
                    val_repr2 = tree[2])
             return eval_act(me, tree[4])
-    elif cond_typ in [COND.me_last_act, COND.target_last_act]:
-        if cond_typ == COND.me_last_act:
+    elif cond_typ in [COND['me_last_act'], COND['target_last_act']]:
+        if cond_typ == COND['me_last_act']:
             who_str = 'his'
             actor = me
         else:
@@ -104,41 +104,41 @@ def evaluate(me, tree):
 def get_val(me, tree):
     '''Evaluates a VAL node in a thought tree'''
     val_typ = tree[0]
-    if val_typ == VAL.literal:
+    if val_typ == VAL['literal']:
         return tree[1]
-    elif val_typ == VAL.random:
+    elif val_typ == VAL['random']:
         ret = randint(-1, 9)
         return ret
-    elif val_typ == VAL.me:
+    elif val_typ == VAL['me']:
         return get_attr(me, tree[1])
-    elif val_typ == VAL.target:
+    elif val_typ == VAL['target']:
         return get_attr(me.target, tree[1])
 
 def get_attr(who, attr_typ):
     '''Returns the value of the attribute on "who" '''
-    if attr_typ == ATTR.energy:
+    if attr_typ == ATTR['energy']:
         return who.energy
-    elif attr_typ == ATTR.signal:
+    elif attr_typ == ATTR['signal']:
         return who.signal
-    elif attr_typ == ATTR.generation:
+    elif attr_typ == ATTR['generation']:
         return who.generation
-    elif attr_typ == ATTR.kills:
+    elif attr_typ == ATTR['kills']:
         return who.kills
-    elif attr_typ == ATTR.survived:
+    elif attr_typ == ATTR['survived']:
         return who.survived
-    elif attr_typ == ATTR.num_children:
+    elif attr_typ == ATTR['num_children']:
         return who.num_children
-    elif attr_typ == ATTR.top_item:
+    elif attr_typ == ATTR['top_item']:
         return who.inv[-1] if who.inv else -1
 
 def eval_act(me, tree):
     '''Returns an action suitable for performing (PerformableAction)'''
     act_typ = tree[0]
-    if ACT.attack <= act_typ <= ACT.signal:
+    if ACT['attack'] <= act_typ <= ACT['signal']:
         return PerformableAction(act_typ, tree[1])
-    elif ACT.use <= act_typ <= ACT.mate:
+    elif ACT['use'] <= act_typ <= ACT['mate']:
         return PerformableAction(act_typ, None)
-    elif act_typ == ACT.subcondition:
+    elif act_typ == ACT['subcondition']:
         return evaluate(me, tree[1])
     else:
         raise InvalidInstructionError("Didn't understand action: {0}"\
@@ -147,7 +147,7 @@ def eval_act(me, tree):
 if __name__ == '__main__':
     from Parsing import Parser, TooMuchThinkingError
     from Creatures import Creature
-    last_action = PerformableAction(ACT.wait, None)
+    last_action = PerformableAction(ACT['wait'], None)
     for _ in xrange(1000):
         a = Creature()
         b = Creature()

@@ -108,13 +108,13 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 print1('{.name} got caught thinking too much and lost {} life',
                        self, penalty)
                 self.energy -= penalty
-                yield PerformableAction(ACT.wait, None), \
+                yield PerformableAction(ACT['wait'], None), \
                     tmt.icount + tmt.skipped
                 continue
             decision = evaluate(self, thought.tree)
             print2('{.name} decided to {}', self, decision)
             yield decision, thought.icount + thought.skipped
-        raise StopIteration('{} died.'.format(self.name))
+        raise StopIteration()
 
     def carryout(self, act):
         '''Carries out any actions that unlike mating and fighting, don't depend
@@ -123,11 +123,11 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         if self.dead:
             return
         #signalling
-        elif act.typ == ACT.signal:
+        elif act.typ == ACT['signal']:
             print1('{.name} signals with color {sig_repr}', self, sig_repr = act.arg)
             self.signal = act.arg
         #using an item
-        elif act.typ == ACT.use:
+        elif act.typ == ACT['use']:
             if self.inv:
                 print1('{.name} uses {item_repr}', self, item_repr = self.inv[-1])
                 self.use()
@@ -135,7 +135,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 print2("{.name} tries to use an item, but doesn't have one", self)
 
         # take an item from the other's inventory
-        elif act.typ == ACT.take:
+        elif act.typ == ACT['take']:
             if self.target.inv:
                 item = self.target.inv.pop()
                 print1("{0.name} takes {item_repr} from {1.name}", self, self.target,
@@ -145,17 +145,17 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 print2("{0.name} tries to take an item from {1.name}, "\
                            "but there's nothing to take.", self, self.target)
         # waiting
-        elif act.typ == ACT.wait:
+        elif act.typ == ACT['wait']:
             print2('{.name} waits', self)
         # defending with no corresponding attack
-        elif act.typ == ACT.defend:
+        elif act.typ == ACT['defend']:
             print2('{.name} defends', self)
-        elif act.typ == ACT.flee:
+        elif act.typ == ACT['flee']:
             enemy_roll = randint(0, 100) * (self.target.energy / 40.0)
             my_roll = randint(0, 100) * (self.energy / 40.0)
             if enemy_roll < my_roll:
                 print1('{.name} flees the encounter!', self)
-                raise StopIteration('{} flees the encounter'.format(self.name))
+                raise StopIteration()
             else:
                 print1('{.name} tries to flee, but {.name} prevents it', self, self.target)
         else:
@@ -182,7 +182,7 @@ class Feeder(Creature):
     def __init__(self):
         super(Feeder, self).__init__(dna = [])
         self.energy = 1
-        self.signal = SIG.green
+        self.signal = SIG['green']
         self.name = 'Feeder'
         self.inv = self._getinv()
 
@@ -200,8 +200,8 @@ class Feeder(Creature):
             # number of steps
             self.instr_used += 0
             self.instr_skipped += MAX_THINKING_STEPS + 1
-            yield PerformableAction(ACT.wait, None), MAX_THINKING_STEPS + 1
-        yield StopIteration('Feeder died.')
+            yield PerformableAction(ACT['wait'], None), MAX_THINKING_STEPS + 1
+        yield StopIteration()
 
     @property
     def dead(self):

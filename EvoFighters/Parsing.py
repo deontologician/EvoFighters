@@ -6,12 +6,7 @@ from collections import namedtuple
 
 MAX_THINKING_STEPS = 200
 
-class Enum(dict):
-    '''Simple subclass that allows getting codes as attributes'''
-    def __getattr__(self, attr):
-        return self[attr]
-
-COND = Enum(always         = 0,
+COND = dict(always         = 0,
             in_range       = 1,
             less_than      = 2,
             greater_than   = 3,
@@ -21,13 +16,13 @@ COND = Enum(always         = 0,
             target_last_act = 7,
             )
 
-VAL = Enum(literal = 0, # a number straight from the dna
+VAL = dict(literal = 0, # a number straight from the dna
            random  = 1, # a randomly selected number
            me      = 2, # one of my attributes (1 arg)
            target   = 3, # one of my enemies attributes (1 arg)
            )
 
-ACT = Enum(subcondition = 0, # indicates a subconditional
+ACT = dict(subcondition = 0, # indicates a subconditional
            attack       = 1, # attacks target with specified attack type (1 arg)
            defend       = 2, # defends with specified defense type (1 arg)
            signal       = 3, # sets a flag on the creature (1 arg)
@@ -38,7 +33,7 @@ ACT = Enum(subcondition = 0, # indicates a subconditional
            mate         = 8, # attempt to mate with target
            )
 
-ATTR = Enum(energy       = 0, # energy level
+ATTR = dict(energy       = 0, # energy level
             signal       = 1, # current signal
             generation   = 2, # generation number
             kills        = 3,  # how many targets killed
@@ -47,13 +42,13 @@ ATTR = Enum(energy       = 0, # energy level
             top_item     = 6, # value of top inventory item
             )
 
-ITEM = Enum(food           = 0,
+ITEM = dict(food           = 0,
             good_food      = 1, 
             better_food    = 2, 
             excellent_food = 3,
             )
 
-SIG = Enum(red    = 0,
+SIG = dict(red    = 0,
            yellow = 1,
            blue   = 2,
            purple = 3,
@@ -61,7 +56,7 @@ SIG = Enum(red    = 0,
            green  = 5,
            )
 
-DMG = Enum(fire        = 0,
+DMG = dict(fire        = 0,
            ice         = 1,
            electricity = 2,
            )
@@ -107,7 +102,7 @@ class Parser(object):
                            skipped = self._skipped)
         except RuntimeError as rte:
             if 'recursion depth exceeded' in rte.args[0]:
-                return Thought(tree = (COND.always, (ACT.wait,)),
+                return Thought(tree = (COND['always'], (ACT['wait'],)),
                                icount = 0,
                                skipped = MAX_THINKING_STEPS)
             else:
@@ -119,23 +114,23 @@ class Parser(object):
         #get the condition type symbol
         cond_typ = self._get_next_valid(COND)
         
-        if cond_typ == COND.always:
-            return (COND.always,
+        if cond_typ == COND['always']:
+            return (COND['always'],
                     self._act())
-        elif cond_typ == COND.in_range:
-            return (COND.in_range,
+        elif cond_typ == COND['in_range']:
+            return (COND['in_range'],
                     self._val, 
                     self._val, 
                     self._val,
                     self._act(), 
                     self._act())
-        elif COND.less_than <= cond_typ <= COND.not_equal_to:
+        elif COND['less_than'] <= cond_typ <= COND['not_equal_to']:
             return (cond_typ, 
                     self._val, 
                     self._val,
                     self._act(), 
                     self._act())
-        elif cond_typ in [COND.me_last_act, COND.target_last_act]:
+        elif cond_typ in [COND['me_last_act'], COND['target_last_act']]:
             return(cond_typ, 
                    self._act(nosub = True),
                    self._act(),
@@ -148,13 +143,13 @@ class Parser(object):
         '''Parses a value node'''
         val_typ = self._get_next_valid(VAL)
         
-        if val_typ == VAL.literal:
+        if val_typ == VAL['literal']:
             self._icount += 1
-            return (VAL.literal, 
+            return (VAL['literal'], 
                     next(self._dna_iter))
-        elif val_typ == VAL.random:
-            return (VAL.random,)
-        elif val_typ in [VAL.me, VAL.target]:
+        elif val_typ == VAL['random']:
+            return (VAL['random'],)
+        elif val_typ in [VAL['me'], VAL['target']]:
             return (val_typ,
                     self._get_next_valid(ATTR))
 
@@ -162,16 +157,16 @@ class Parser(object):
         '''Parses an action node'''
         act_typ = self._get_next_valid(ACT, minimum = 1 if nosub else 0)
 
-        if act_typ == ACT.subcondition:
-            return (ACT.subcondition, 
+        if act_typ == ACT['subcondition']:
+            return (ACT['subcondition'],
                     self._cond)
-        elif act_typ in [ACT.attack, ACT.defend]:
+        elif act_typ in [ACT['attack'], ACT['defend']]:
             return (act_typ,
                     self._get_next_valid(DMG))
-        elif act_typ == ACT.signal:
-            return (ACT.signal,
+        elif act_typ == ACT['signal']:
+            return (ACT['signal'],
                     self._get_next_valid(SIG))
-        elif ACT.use <= act_typ <= ACT.mate:
+        elif ACT['use'] <= act_typ <= ACT['mate']:
             return (act_typ,)
         else:
             raise ParseError("Action didn't match: {}".format(act_typ))

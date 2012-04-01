@@ -79,9 +79,9 @@ def do_round(p1, p1_act, p2, p2_act):
     OTHER     = 4
     # defaults to OTHER if the key is not present
     act_kind = defaultdict(lambda: OTHER,
-                           {ACT.attack : ATTACKING,
-                            ACT.defend : DEFENDING,
-                            ACT.mate   : MATING})
+                           {ACT['attack'] : ATTACKING,
+                            ACT['defend'] : DEFENDING,
+                            ACT['mate']   : MATING})
 
     # c2h = chance to hit
     #  Below indexes: 0=mate_chance, 1=p1_c2h, 2=p2_c2h, 3=dmg1_mult,
@@ -189,26 +189,30 @@ def only_feeders(creatures):
     return filter(is_feeder, creatures)
 
 def simulate(sd):
-    time_to_save = progress_bar('{:3} creatures, {:3} feeders, {} total encounters',
-                                lambda: len(only_creatures(sd.creatures)),
-                                lambda: len(only_feeders(sd.creatures)),
-                                lambda: sd.num_encounters)
-    timestamp = time.time()
+    time_till_save = progress_bar('{:3} creatures, {:3} feeders, {} total encounters',
+                                  lambda: len(only_creatures(sd.creatures)),
+                                  lambda: len(only_feeders(sd.creatures)),
+                                  lambda: sd.num_encounters)
+    timestamp = updatetime = time.time()
     try:
         while True:
+            new_time = time.time()
             if len(sd.creatures) < 2:
                 raise RuntimeError('Not enough creatures')
             sd.num_encounters += 1
-            if time.time() - timestamp > SAVE_PERIOD:
+            if new_time - timestamp > SAVE_PERIOD:
                 print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
                 timestamp = time.time()
-                print()
+                print()            
+            if  new_time - updatetime > 1:
+                time_till_save.send((time.time() - timestamp) / SAVE_PERIOD)
+                updatetime = time.time()
             if sd.num_encounters % OPTIMAL_GEN_SIZE == 0:
                 if len(sd.creatures) < OPTIMAL_GEN_SIZE:
                     sd.creatures.extend([Feeder() for _ in
                                          xrange(OPTIMAL_GEN_SIZE - len(sd.creatures))])
-            time_to_save.send((time.time() - timestamp) / SAVE_PERIOD)
+
             with random_encounter(sd.creatures) as (p1, p2):
                 print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
