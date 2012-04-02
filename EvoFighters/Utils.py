@@ -35,7 +35,7 @@ def _print_helper(fmt, *args, **kwargs):
     else:
         prefix = ''
     if 'thought' in kwargs:
-        kwargs['thought'] = show_thought(cond_repr(kwargs['thought']))
+        kwargs['thought'] = show_thought(kwargs['thought'])
     if 'sig_repr' in kwargs:
         kwargs['sig_repr'] = sig_repr(kwargs['sig_repr'])
     if 'item_repr' in kwargs:

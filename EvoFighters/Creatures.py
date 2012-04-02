@@ -100,7 +100,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 thought = next(parser)
                 print3("{0.name}'s thought process: \n{thought}", self,
                        thought = thought.tree)
-                print3('which required {.icount} instructions and {.skipped} '
+                print3('which required {0.icount} instructions and {0.skipped} '
                        'instructions skipped over', thought)
                 self.instr_used += thought.icount
                 self.instr_skipped += thought.skipped
