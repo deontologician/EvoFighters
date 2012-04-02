@@ -22,7 +22,7 @@ class Creature(object):
     # efficiency
     __slots__ = ('dna', 'inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
-                 'last_action', 'name')
+                 'last_action', 'name', 'is_feeder')
 
     count = 0
     
@@ -42,6 +42,7 @@ class Creature(object):
         self.instr_used = 0
         self.instr_skipped = 0
         self.last_action = PerformableAction('wait', None)
+        self.is_feeder = False
         self.name = Creature.count
         Creature.count += 1
 
@@ -196,6 +197,7 @@ class Feeder(Creature):
         self.instr_used = 0
         self.instr_skipped = 0
         self.last_action = Feeder.action
+        self.is_feeder = True
 
         self.energy = 1
         self.signal = SIG['green']
