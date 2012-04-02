@@ -129,7 +129,7 @@ def get_attr(who, attr_typ):
     elif attr_typ == ATTR['num_children']:
         return who.num_children
     elif attr_typ == ATTR['top_item']:
-        return who.inv[-1] if who.inv else -1
+        return who.top_item if who.has_items else -1
 
 def eval_act(me, tree):
     '''Returns an action suitable for performing (PerformableAction)'''

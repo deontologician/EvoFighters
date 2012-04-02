@@ -54,7 +54,7 @@ def encounter(p1, p2):
         p2.energy -= penalty
     def _victory(winner, loser):
         print1('{.name} has killed {.name}', winner, loser)
-        winner.inv.extend(loser.inv)
+        winner.add_item(loser.pop_item())
         winner.energy = min(40, winner.energy + randint(1, 6))
         winner.survived += 1
         winner.kills += 1

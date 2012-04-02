@@ -5,7 +5,6 @@ from random import randint
 import Parsing as P
 import random as rand
 import cPickle as pickle
-from uuid import uuid4 as uuid
 
 from Parsing import ACT, ITEM, SIG, MAX_THINKING_STEPS
 from Eval import PerformableAction, evaluate
@@ -20,18 +19,19 @@ class Creature(object):
     '''Represents a creature'''
     # There will be a lot of these creatures, so we'll use slots for memory
     # efficiency
-    __slots__ = ('dna', 'inv', 'energy', 'target', 'generation', 'num_children',
+    __slots__ = ('dna', '_inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
                  'last_action', 'name', 'is_feeder')
 
     count = 0
+    wait_action = PerformableAction('wait', None)
     
     def __init__(self, dna = None):
         if dna is None:
             self.dna = tuple(randint(-1, 9) for _ in xrange(0, 50))
         else:
             self.dna = dna
-        self.inv = []
+        self._inv = []
         self.energy = 40
         self.target = None
         self.generation = 0
@@ -41,7 +41,7 @@ class Creature(object):
         self.kills = 0
         self.instr_used = 0
         self.instr_skipped = 0
-        self.last_action = PerformableAction('wait', None)
+        self.last_action = Creature.wait_action
         self.is_feeder = False
         self.name = Creature.count
         Creature.count += 1
@@ -61,7 +61,7 @@ Survived: {0.survived}
 Kills: {0.kills}
 Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 []{bar}[]'''.format(self, 
-                    inv = ','.join([str(i) for i in self.inv]),
+                    inv = ','.join([str(i) for i in self._inv]),
                     bar = ''.center(76, '='))
     
     @property
@@ -82,6 +82,26 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 xs = '({xs})'.format(xs = xs)
             return xs
         return ''.join([stringify(x) for x in self.dna])
+
+    def add_item(self, item):
+        if item is not None and len(self._inv) + 1 <= 4:
+            self._inv.append(item)
+
+    def pop_item(self):
+        ''
+        if self._inv:
+            return self._inv.pop()
+        else:
+            return None
+
+    @property
+    def has_items(self):
+        'Whether creature has any items'
+        return bool(self._inv)
+
+    def top_item(self):
+        'What the top item is. Will throw an exception if no items'
+        return self._inv[-1]
 
     @property
     def dead(self):
@@ -132,19 +152,19 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             self.signal = act.arg
         #using an item
         elif act.typ == ACT['use']:
-            if self.inv:
-                print1('{.name} uses {item_repr}', self, item_repr = self.inv[-1])
+            if self.has_items:
+                print1('{.name} uses {item_repr}', self, item_repr = self.top_item)
                 self.use()
             else:
                 print2("{.name} tries to use an item, but doesn't have one", self)
 
         # take an item from the other's inventory
         elif act.typ == ACT['take']:
-            if self.target.inv:
-                item = self.target.inv.pop()
+            if self.target.has_items:
+                item = self.target.pop_item()
                 print1("{0.name} takes {item_repr} from {1.name}", self, self.target,
                        item_repr = item)
-                self.inv.append(item)
+                self.add_item(item)
             else:
                 print2("{0.name} tries to take an item from {1.name}, "\
                            "but there's nothing to take.", self, self.target)
@@ -169,8 +189,8 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 
     def use(self):
         'Uses the top inventory item'
-        if self.inv:
-            item = self.inv.pop()
+        item = self.pop_item()
+        if item:
             if 0 <= item <= len(ITEM):
                 mult = item + 1
             else:
@@ -184,8 +204,6 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 class Feeder(Creature):
     '''A pitiful subclass of creature, used only for eating by creatures.'''
 
-    action = PerformableAction('wait', None)
-
     def __init__(self):
         self.dna = None
         self.target = None
@@ -196,13 +214,13 @@ class Feeder(Creature):
         self.kills = 0
         self.instr_used = 0
         self.instr_skipped = 0
-        self.last_action = Feeder.action
+        self.last_action = Creature.wait_action
         self.is_feeder = True
 
         self.energy = 1
         self.signal = SIG['green']
         self.name = 'Feeder'
-        self.inv = self._getinv()
+        self._inv = self._getinv()
 
     def _getinv(self):
         choices = [i for i in xrange(len(ITEM)) for _ in xrange(len(ITEM) - i)]
@@ -224,7 +242,7 @@ class Feeder(Creature):
     @property
     def dead(self):
         '''Also dies if inventory is raided'''
-        return self.energy <= 0 or not self.inv
+        return self.energy <= 0 or not self.has_items
 
     def carryout(self, act):
         '''Never do anything'''
@@ -249,11 +267,11 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     third.'''
     if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
         return None
-    if isinstance(first_mate, Feeder) or isinstance(second_mate, Feeder):
+    if first_mate.is_feeder or second_mate.is_feeder:
         print1('{.name} tried to mate with {.name}!', first_mate, second_mate)
-        if isinstance(first_mate, Feeder):
+        if first_mate.is_feeder:
             first_mate.energy = 0
-        if isinstance(second_mate, Feeder):
+        if second_mate.is_feeder:
             second_mate.energy = 0
         return None
     print2('Attempting to mate')
@@ -261,11 +279,11 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
     def pay_cost(p, share):
         cost = int(round(MATING_COST * (share / 100.0)))
         while cost > 0:
-            if first_mate.inv:
-                item = first_mate.inv.pop()
+            if p.has_items:
+                item = p.pop_item()
                 cost -= item + 1
             else:
-                first_mate.energy -= cost
+                p.energy -= cost
                 break
 
     pay_cost(first_mate, fm_share)
