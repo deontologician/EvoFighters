@@ -14,7 +14,7 @@ from Utils import print1, print2, print3, progress_bar, get_verbosity, \
     set_verbosity, term_width
 from Creatures import Creature, Feeder, try_to_mate
 
-OPTIMAL_GEN_SIZE = 500
+OPTIMAL_GEN_SIZE = 1000
     
 SAVE_FILENAME = 'evofighters.save'
 SAVE_PERIOD = 90.0
@@ -39,6 +39,7 @@ def encounter(p1, p2):
                 print3('{0.name} is going first', p1)
                 child = do_round(p2, p2act, p1, p1act)
         except FightOver as fo:
+            print3('The fight ended before it timed out')
             if fo.child is not None:
                 children.append(fo.child)
             break
@@ -242,10 +243,11 @@ def simulate(sd):
 
 
 class SaveData(object):
-    def __init__(self, creatures, feeders, num_encounters, filename = None):
+    def __init__(self, creatures, feeders, num_encounters, count, filename = None):
         self.creatures = creatures
         self.feeders = feeders
         self.num_encounters = num_encounters
+        self.count = count
         self.filename = filename or SAVE_FILENAME
 
     def save(self):
@@ -258,7 +260,9 @@ class SaveData(object):
 
 def load(savefile):
     '''Loads savedata from `savefile`'''
-    return pickle.load(savefile)
+    sd = pickle.load(savefile)
+    Creature.count = sd.count
+    return sd
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
@@ -421,10 +425,11 @@ def main(argv):
     else:
         print('No save file found, creating a new generation!')
         sd = SaveData(creatures = [Creature() 
-                                   for _ in xrange(0, 2 * OPTIMAL_GEN_SIZE)],
+                                   for i in xrange(0, OPTIMAL_GEN_SIZE)],
                       feeders = [],
                       num_encounters = 0,
-                      filename = SAVE_FILENAME
+                      filename = SAVE_FILENAME,
+                      count = OPTIMAL_GEN_SIZE
                       )
         sd.save()
     

@@ -80,6 +80,7 @@ class Parser(object):
     creature's tthought process in making encounter decisions'''
     def __init__(self, dna):
         self._icount = 0
+        self._progress = 0
         self._skipped = 0
         self._dna = dna
         self._len = len(dna)
@@ -140,7 +141,7 @@ class Parser(object):
         if val_typ == VAL['literal']:
             self._icount += 1
             return (VAL['literal'], 
-                    self._dna[self._icount % self._len])
+                    self._dna[self._progress % self._len])
         elif val_typ == VAL['random']:
             return (VAL['random'],)
         elif val_typ in [VAL['me'], VAL['target']]:
@@ -169,14 +170,15 @@ class Parser(object):
         '''Gets the next valid integer in the range allowed by the given
         type. Adds on to the `count` passed in. mini and maxi allow one to
         restrict the range further than `typ` does'''
-        next_val = self._dna[self._icount % self._len]
+        next_val = self._dna[self._progress % self._len]
         self._icount += 1
+        self._progress += 1
         # we want to return a count 1 less than the number required, since we
         # dont want to penalize for required parser symbols. Therefore if the
         # while condition succeeds the first time through, count is not
         # incremented
         while not( minimum <= next_val < len(typ) ):
-            next_val = self._dna[self._icount % self._len]
+            next_val = self._dna[self._progress % self._len]
             self._skipped += 1
             if self._icount + self._skipped > MAX_THINKING_STEPS:
                 raise TooMuchThinkingError('Thought too much :/', 

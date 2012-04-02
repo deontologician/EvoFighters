@@ -6,12 +6,12 @@ import Parsing as P
 import random as rand
 import cPickle as pickle
 
-from Parsing import ACT, ITEM, SIG, MAX_THINKING_STEPS
+from Parsing import ACT, ITEM, SIG, COND, MAX_THINKING_STEPS
 from Eval import PerformableAction, evaluate
 from Utils import print1, print2, print3
 
 # need to move this into a config file
-mutation_rate = 0.05 # higher = more mutations
+mutation_rate = 0.10 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
 MATING_COST = 40
 
@@ -23,12 +23,12 @@ class Creature(object):
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
                  'last_action', 'name', 'is_feeder')
 
-    count = 0
     wait_action = PerformableAction('wait', None)
+    count = 0
     
     def __init__(self, dna = None):
         if dna is None:
-            self.dna = tuple(randint(-1, 9) for _ in xrange(0, 50))
+            self.dna = (COND['always'], ACT['mate'], COND['always'], ACT['flee'])
         else:
             self.dna = dna
         self._inv = []
