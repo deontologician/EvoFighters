@@ -23,6 +23,8 @@ class Creature(object):
     __slots__ = ('dna', 'inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
                  'last_action', 'name')
+
+    count = 0
     
     def __init__(self, dna = None):
         if dna is None:
@@ -40,7 +42,8 @@ class Creature(object):
         self.instr_used = 0
         self.instr_skipped = 0
         self.last_action = PerformableAction('wait', None)
-        self.name = uuid().bytes.encode('base64')[:10]
+        self.name = Creature.count
+        Creature.count += 1
 
     def __str__(self):
         return "<]Creature {0.name}[>".format(self)
@@ -179,8 +182,21 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 
 class Feeder(Creature):
     '''A pitiful subclass of creature, used only for eating by creatures.'''
+
+    action = PerformableAction('wait', None)
+
     def __init__(self):
-        super(Feeder, self).__init__(dna = ())
+        self.dna = None
+        self.target = None
+        self.generation = 0
+        self.num_children = 0
+        self.signal = -1
+        self.survived = 0
+        self.kills = 0
+        self.instr_used = 0
+        self.instr_skipped = 0
+        self.last_action = Feeder.action
+
         self.energy = 1
         self.signal = SIG['green']
         self.name = 'Feeder'

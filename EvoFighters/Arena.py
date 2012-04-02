@@ -78,10 +78,14 @@ def do_round(p1, p1_act, p2, p2_act):
     MATING    = 3
     OTHER     = 4
     # defaults to OTHER if the key is not present
-    act_kind = defaultdict(lambda: OTHER,
-                           {ACT['attack'] : ATTACKING,
-                            ACT['defend'] : DEFENDING,
-                            ACT['mate']   : MATING})
+    act_kind = {ACT['attack'] : ATTACKING,
+                ACT['defend'] : DEFENDING,
+                ACT['mate']   : MATING,
+                ACT['signal'] : OTHER,
+                ACT['use']    : OTHER,
+                ACT['take']   : OTHER,
+                ACT['wait']   : OTHER,
+                ACT['flee']   : OTHER }
 
     # c2h = chance to hit
     #  Below indexes: 0=mate_chance, 1=p1_c2h, 2=p2_c2h, 3=dmg1_mult,
