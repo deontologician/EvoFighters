@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import os, sys
 from Parsing import ITEM, ATTR, COND, VAL, ACT, DMG, SIG
+from collections import Counter
 
 _verbosity = 0
 
@@ -50,6 +51,9 @@ def _print_helper(fmt, *args, **kwargs):
     formatted = fmt.format(*args, **kwargs)
     lines = ["{} {}".format(prefix, line) for line in formatted.splitlines()]
     print('\n'.join(lines))
+
+
+
 
 def term_width():
     '''A (probably not super portable) way to get the terminal width. Try to
@@ -218,16 +222,23 @@ def attr_repr(attr):
 def item_repr(item):
     '''Creates a string from an item code'''
     if item == ITEM['food']:
-        return "a piece of food"
+        return "a bread"
     elif item == ITEM['good_food']:
-        return "an good food"
+        return "a cheese"
     elif item == ITEM['better_food']:
-        return "a better food"
+        return "a fruit"
     elif item == ITEM['excellent_food']:
-        return "an excellent food"
+        return "a chocolate"
     else:
         return "Unknown Item({})".format(item)
  
+def inv_repr(inv):
+    'A string that represents an inventory succinctly'
+    c = Counter(inv)
+    fixup = lambda x: ' '.join(x.split()[1:])
+    return ', '.join('{} {}'.format(c, fixup(item_repr(i))) for i,c in c.iteritems())
+
+
 def dmg_repr(damage):
     '''Creates a string from a damage code'''
     if damage == DMG['fire']:
@@ -257,7 +268,10 @@ def sig_repr(signal):
     else:
         return 'Unknown Signal({})'.format(signal)
 
-
+def dna_repr(dna):
+    'Represents DNA as blocks of color'
+    pass
+    
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

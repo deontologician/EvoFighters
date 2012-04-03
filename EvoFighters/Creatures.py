@@ -8,7 +8,7 @@ import cPickle as pickle
 
 from Parsing import ACT, ITEM, SIG, COND, MAX_THINKING_STEPS
 from Eval import PerformableAction, evaluate
-from Utils import print1, print2, print3
+from Utils import print1, print2, print3, inv_repr
 
 # need to move this into a config file
 MUTATION_RATE = 0.10 # higher = more mutations
@@ -21,12 +21,12 @@ class Creature(object):
     # efficiency
     __slots__ = ('dna', '_inv', 'energy', 'target', 'generation', 'num_children',
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
-                 'last_action', 'name', 'is_feeder')
+                 'last_action', 'name', 'is_feeder', 'eaten', 'parents')
 
     wait_action = PerformableAction(ACT['wait'], None)
     count = 0
     
-    def __init__(self, dna = None):
+    def __init__(self, dna = None, parents = None):
         if dna is None:
             self.dna = (COND['always'], ACT['mate'], COND['always'], ACT['flee'])
         else:
@@ -43,6 +43,8 @@ class Creature(object):
         self.instr_skipped = 0
         self.last_action = Creature.wait_action
         self.is_feeder = False
+        self.eaten = 0
+        self.parents = parents
         self.name = Creature.count
         Creature.count += 1
 
@@ -59,9 +61,11 @@ Generation: {0.generation}
 Children: {0.num_children}
 Survived: {0.survived}
 Kills: {0.kills}
+Eaten: {0.eaten}
+Parents: {0.parents}
 Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 []{bar}[]'''.format(self, 
-                    inv = ','.join([str(i) for i in self._inv]),
+                    inv = inv_repr(self._inv),
                     bar = ''.center(76, '='))
     
     @property
@@ -222,6 +226,8 @@ class Feeder(Creature):
             cls._instance.is_feeder = True
             cls._instance.signal = SIG['green']
             cls._instance.name = 'Feeder'
+            cls._instance.parents = None
+            cls._instance.eaten = 0
         cls._instance.energy = 1
         cls._instance._inv = Feeder._getinv()
         return cls._instance
@@ -263,7 +269,7 @@ def gene_primer(dna):
     chunk = []
     for i in dna:
         chunk.append(i)
-        if i < 0:
+        if i < 0 or i > 9:
             yield chunk
             chunk = []
     if chunk:
@@ -323,7 +329,8 @@ def mate(p1, p2):
         child_genes.append(gene3)
     if rand.uniform(0, 1) < MUTATION_RATE:
         mutate(child_genes)
-    child = Creature(tuple([base for gene in child_genes for base in gene]))
+    child = Creature(tuple([base for gene in child_genes for base in gene]), 
+                     parents = (p1.name, p2.name))
     child.generation = max(p1.generation, p2.generation) + 1
     p1.num_children += 1
     p2.num_children += 1

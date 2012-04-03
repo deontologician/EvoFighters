@@ -3,7 +3,9 @@ EvoFighters'''
 
 from collections import namedtuple
 
-MAX_THINKING_STEPS = 200
+MAX_THINKING_STEPS = 200 # how many steps they are allowed to use to construct a
+                         # thought
+MAX_TREE_DEPTH = 15      # How deeply nested a thought tree is allowed to be
 
 COND = dict(always         = 0,
             in_range       = 1,
@@ -78,12 +80,16 @@ Thought = namedtuple('Thought', 'tree icount skipped')
 class Parser(object):
     '''Handles parsing from dna and returning a parse tree which represents a
     creature's tthought process in making encounter decisions'''
+
+    WAIT_THOUGHT = (COND['always'], (ACT['wait'],))
+
     def __init__(self, dna):
         self._icount = 0
         self._progress = 0
         self._skipped = 0
         self._dna = dna
         self._len = len(dna)
+        self._depth = 0
 
     def next(self):
         '''Parses a dna iterator (Must not be the dna list!) into a tree
@@ -91,19 +97,11 @@ class Parser(object):
         encounter decisions'''
         self._icount = 0
         self._skipped = 0
-        try:
-            return Thought(tree = self._cond, 
-                           icount = self._icount,
-                           skipped = self._skipped)
-        except RuntimeError as rte:
-            if 'recursion depth exceeded' in rte.args[0]:
-                return Thought(tree = (COND['always'], (ACT['wait'],)),
-                               icount = 0,
-                               skipped = MAX_THINKING_STEPS)
-            else:
-                raise
+        self._depth = 0
+        return Thought(tree = self._cond(), 
+                       icount = self._icount,
+                       skipped = self._skipped)
 
-    @property
     def _cond(self):
         '''Parses a conditional node'''
         #get the condition type symbol
@@ -130,8 +128,6 @@ class Parser(object):
                    self._act(nosub = True),
                    self._act(),
                    self._act())
-        else:
-            raise ParseError("Condition didn't match: {}".format(cond_typ))
     
     @property
     def _val(self):
@@ -150,11 +146,22 @@ class Parser(object):
 
     def _act(self, nosub = False):
         '''Parses an action node'''
+        if self._depth > MAX_TREE_DEPTH:
+            raise TooMuchThinkingError('Recursion depth exceeded',
+                                       icount = 0,
+                                       skipped = MAX_THINKING_STEPS)
         act_typ = self._get_next_valid(ACT, minimum = 1 if nosub else 0)
 
         if act_typ == ACT['subcondition']:
-            return (ACT['subcondition'],
-                    self._cond)
+            # you're thinking, "increment a variable before a function call and
+            # decrement it afterward? Why not use the call stack?!" Well, I'll
+            # tell you why not: I don't want to thread a depth argument through
+            # all of the other parser method calls. That's why this is a class!
+            self._depth += 1
+            retval = (ACT['subcondition'], 
+                      self._cond())
+            self._depth -= 1
+            return retval
         elif act_typ in [ACT['attack'], ACT['defend']]:
             return (act_typ,
                     self._get_next_valid(DMG))
@@ -163,8 +170,6 @@ class Parser(object):
                     self._get_next_valid(SIG))
         elif ACT['use'] <= act_typ <= ACT['mate']:
             return (act_typ,)
-        else:
-            raise ParseError("Action didn't match: {}".format(act_typ))
 
     def _get_next_valid(self, typ, minimum = 0):
         '''Gets the next valid integer in the range allowed by the given
@@ -181,8 +186,9 @@ class Parser(object):
             next_val = self._dna[self._progress % self._len]
             self._skipped += 1
             if self._icount + self._skipped > MAX_THINKING_STEPS:
-                raise TooMuchThinkingError('Thought too much :/', 
-                                           self._icount, self._skipped)
+                raise TooMuchThinkingError('Recursion depth exceeded',
+                                           icount = 0,
+                                           skipped = MAX_THINKING_STEPS)
         return next_val
 
 

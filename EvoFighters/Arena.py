@@ -6,7 +6,7 @@ from random import randint
 from itertools import izip
 from contextlib import contextmanager
 import operator as op
-import cPickle as pickle
+from SaveData import SaveData
 import sys, os.path, time, cmd
 
 from Parsing import ACT
@@ -59,8 +59,11 @@ def encounter(p1, p2):
         print1('{.name} has killed {.name}', winner, loser)
         winner.add_item(loser.pop_item())
         winner.energy = min(40, winner.energy + randint(1, 6))
-        winner.survived += 1
-        winner.kills += 1
+        if loser.is_feeder:
+            winner.eaten += 1
+        else:
+            winner.survived += 1
+            winner.kills += 1
         winner.last_action = Creature.wait_action
     if p2.dead and p1.alive:
         _victory(p1, p2)
@@ -69,8 +72,10 @@ def encounter(p1, p2):
     elif p1.dead and p2.dead:
         print1('Both {0.name} and {1.name} have died.', p1, p2)
     else:
-        p1.survived += 1
-        p2.survived += 1
+        if not p2.is_feeder:
+            p1.survived += 1
+        if not p1.is_feeder:
+            p2.survived += 1
         p1.last_action = Creature.wait_action
         p2.last_action = Creature.wait_action
     return children
@@ -244,28 +249,6 @@ def simulate(sd):
                 print(repr(sd.creatures.pop()))
         
 
-
-class SaveData(object):
-    def __init__(self, creatures, feeder_count, num_encounters, count, filename = None):
-        self.creatures = creatures
-        self.feeder_count = feeder_count
-        self.num_encounters = num_encounters
-        self.count = count
-        self.filename = filename or SAVE_FILENAME
-
-    def save(self):
-        '''Saves a generation to a file, with the generation number for starting
-        up again'''
-        print('Saving progress to file.')
-        with open(SAVE_FILENAME, 'w') as savefile:
-            pickle.dump(self, file = savefile, protocol = 2)
-        print('Finished saving.')
-
-def load(savefile):
-    '''Loads savedata from `savefile`'''
-    sd = pickle.load(savefile)
-    Creature.count = sd.count
-    return sd
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
@@ -413,13 +396,14 @@ class EvoCmd(cmd.Cmd):
 
 
 def main(argv):
-    if os.path.isfile(SAVE_FILENAME):
-        with open(SAVE_FILENAME, 'r') as savefile:
+    if os.path.isfile(SaveData.SAVE_FILENAME):
+        with open(SaveData.SAVE_FILENAME, 'r') as savefile:
             try:
-                sd = load(savefile)
+                sd = SaveData.loadfrom(savefile)
             except Exception as e:
-                print('Invalid save file!', e, file=sys.stdin)
-                sys.exit(1)
+                print('Invalid save file!', e, file = sys.stderr)
+                raise
+                #sys.exit(1)
 
         print('Loaded an existing save file with {gen_size} creatures with '\
               '{num_encounters} encounters under their belt'\
@@ -431,7 +415,6 @@ def main(argv):
                                    for i in xrange(0, OPTIMAL_GEN_SIZE)],
                       feeder_count = 0,
                       num_encounters = 0,
-                      filename = SAVE_FILENAME,
                       count = OPTIMAL_GEN_SIZE
                       )
         sd.save()
