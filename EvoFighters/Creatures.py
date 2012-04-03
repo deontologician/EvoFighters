@@ -23,7 +23,7 @@ class Creature(object):
                  'signal', 'survived', 'kills', 'instr_used', 'instr_skipped', 
                  'last_action', 'name', 'is_feeder')
 
-    wait_action = PerformableAction('wait', None)
+    wait_action = PerformableAction(ACT['wait'], None)
     count = 0
     
     def __init__(self, dna = None):
@@ -185,7 +185,6 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         else:
             raise RuntimeError("{0.name} did {1.typ} with magnitude {1.arg}"\
                                    .format(self, act))
-        self.last_action = act
 
     def use(self):
         'Uses the top inventory item'
@@ -204,25 +203,35 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 class Feeder(Creature):
     '''A pitiful subclass of creature, used only for eating by creatures.'''
 
+    _instance = None #singleton instance
+
+    def __new__(cls, *args, **kwargs):
+        'Feeder is a singleton'
+        if not cls._instance:
+            cls._instance = super(Feeder, cls).__new__(cls, *args, **kwargs)
+            cls._instance.dna = None
+            cls._instance.target = None
+            cls._instance.generation = 0
+            cls._instance.num_children = 0
+            cls._instance.signal = -1
+            cls._instance.survived = 0
+            cls._instance.kills = 0
+            cls._instance.instr_used = 0
+            cls._instance.instr_skipped = 0
+            cls._instance.last_action = Creature.wait_action
+            cls._instance.is_feeder = True
+            cls._instance.signal = SIG['green']
+            cls._instance.name = 'Feeder'
+        cls._instance.energy = 1
+        cls._instance._inv = Feeder._getinv()
+        return cls._instance
+            
+ 
     def __init__(self):
-        self.dna = None
-        self.target = None
-        self.generation = 0
-        self.num_children = 0
-        self.signal = -1
-        self.survived = 0
-        self.kills = 0
-        self.instr_used = 0
-        self.instr_skipped = 0
-        self.last_action = Creature.wait_action
-        self.is_feeder = True
+        pass
 
-        self.energy = 1
-        self.signal = SIG['green']
-        self.name = 'Feeder'
-        self._inv = self._getinv()
-
-    def _getinv(self):
+    @staticmethod
+    def _getinv():
         choices = [i for i in xrange(len(ITEM)) for _ in xrange(len(ITEM) - i)]
         return [rand.choice(choices)]
 
@@ -254,7 +263,7 @@ def gene_primer(dna):
     chunk = []
     for i in dna:
         chunk.append(i)
-        if i == -1:
+        if i < 0:
             yield chunk
             chunk = []
     if chunk:

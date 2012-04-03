@@ -47,6 +47,8 @@ def encounter(p1, p2):
             children.append(child)
         if p1.dead or p2.dead:
             break
+        p1.last_action = p1act
+        p2.last_action = p2act
     else:
         # if the rounds timed out, penalty
         penalty = randint(1,5)
@@ -59,6 +61,7 @@ def encounter(p1, p2):
         winner.energy = min(40, winner.energy + randint(1, 6))
         winner.survived += 1
         winner.kills += 1
+        winner.last_action = Creature.wait_action
     if p2.dead and p1.alive:
         _victory(p1, p2)
     elif p1.dead and p2.alive:
@@ -68,6 +71,8 @@ def encounter(p1, p2):
     else:
         p1.survived += 1
         p2.survived += 1
+        p1.last_action = Creature.wait_action
+        p2.last_action = Creature.wait_action
     return children
 
 def do_round(p1, p1_act, p2, p2_act):
@@ -159,27 +164,28 @@ def maxencounters(creatures):
     return round((len(creatures) ** 3) / (OPTIMAL_GEN_SIZE * 1000.0))
        
 @contextmanager
-def random_encounter(creatures, feeders, copy = False):
+def random_encounter(sd, copy = False):
     '''A context manager that handles selecting two random creatures from the
     creature list, setting them as targets of each other, and then yielding to
     the actual encounter code.'''
-    c_len = len(creatures)
-    f_len = len(feeders)
+    c_len = len(sd.creatures)
     if c_len < 2:
         raise RuntimeError('Not enough creatures.')
     
     p1_i = rand.randint(0, c_len - 1)
-    p2_i = rand.randint(0, c_len + f_len - 1)
+    p2_i = rand.randint(0, c_len + sd.feeder_count - 1)
     while p1_i == p2_i:
-        p2_i = rand.randint(0, c_len + f_len - 1)
-    p1 = creatures[p1_i]
+        p2_i = rand.randint(0, c_len + sd.feeder_count - 1)
+    p1 = sd.creatures[p1_i]
     if p2_i < c_len:
-        p2 = creatures[p2_i]
+        p2 = sd.creatures[p2_i]
     else:
-        p2 = feeders[p2_i - c_len]
+        p2 = Feeder()
     if copy:
         p1 = p1.copy
         p2 = p2.copy
+        p1.energy = 40
+        p2.energy = 40
     p1.target = p2
     p2.target = p1
     try:
@@ -187,19 +193,19 @@ def random_encounter(creatures, feeders, copy = False):
     finally:
         p1.target = None
         p2.target = None
-        if p1.dead and not copy:
-            del creatures[p1_i]
-        if p2.dead and not copy:
+        if not (p1.alive or copy):
+            del sd.creatures[p1_i]
+        if not (p2.alive or copy):
             if p2.is_feeder:
-                del feeders[p2_i - c_len]
+                sd.feeder_count -= 1
             else:
-                del creatures[p2_i]
+                del sd.creatures[p2_i]
 
 def simulate(sd):
     time_till_save = progress_bar('{:4} creatures, {:4} feeders, {} total '
                                   'encounters',
                                   lambda: len(sd.creatures),
-                                  lambda: len(sd.feeders),
+                                  lambda: sd.feeder_count,
                                   lambda: sd.num_encounters)
     timestamp = updatetime = time.time()
     try:
@@ -215,13 +221,11 @@ def simulate(sd):
             if  new_time - updatetime > 0.033333: #update 30 times per second
                 time_till_save.send((time.time() - timestamp) / SAVE_PERIOD)
                 updatetime = time.time()
-            total_beings = len(sd.creatures) + len(sd.feeders)
-            if sd.num_encounters % OPTIMAL_GEN_SIZE == 0:
-                if total_beings < OPTIMAL_GEN_SIZE:
-                    sd.feeders.extend([Feeder() for _ in
-                                         xrange(OPTIMAL_GEN_SIZE - total_beings)])
+            total_beings = len(sd.creatures) + sd.feeder_count
+            if total_beings < OPTIMAL_GEN_SIZE:
+                sd.feeder_count += 1
 
-            with random_encounter(sd.creatures, sd.feeders) as (p1, p2):
+            with random_encounter(sd) as (p1, p2):
                 print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
                 if not (p1.is_feeder or p2.is_feeder):
@@ -243,9 +247,9 @@ def simulate(sd):
 
 
 class SaveData(object):
-    def __init__(self, creatures, feeders, num_encounters, count, filename = None):
+    def __init__(self, creatures, feeder_count, num_encounters, count, filename = None):
         self.creatures = creatures
-        self.feeders = feeders
+        self.feeder_count = feeder_count
         self.num_encounters = num_encounters
         self.count = count
         self.filename = filename or SAVE_FILENAME
@@ -264,9 +268,9 @@ def load(savefile):
     Creature.count = sd.count
     return sd
       
-def do_random_encounter(creatures):
+def do_random_encounter(sd):
     '''Runs a fight between two random creatures at the current verbosity'''
-    with random_encounter(creatures, [], copy = True) as (p1, p2):
+    with random_encounter(sd, copy = True) as (p1, p2):
         print(repr(p1))
         print(repr(p2))
         print1('{0.name} is fighting {1.name}', p1, p2)
@@ -364,7 +368,7 @@ class EvoCmd(cmd.Cmd):
             num = len(self.sd.creatures)
             print('There are {} creatures'.format(num))
         elif arg == 'feeders':
-            num = len(self.sd.creatures)
+            num = self.sd.feeder_count
             print('There are {} feeders.'.format(num))
         else:
             print("Not sure what we're counting here")
@@ -386,12 +390,12 @@ class EvoCmd(cmd.Cmd):
         args = arg.split()
         if len(args) >= 1:
             fighter1 = next((c for c in self.sd.creatures 
-                             if c.name == args[0]), None)
+                             if c.name == int(args[0])), None)
         else:
             fighter1 = rand.choice(self.sd.creatures)
         if len(args) >= 2:
             fighter2 = next((c for c in self.sd.creatures
-                             if c.name == args[1]), None)
+                             if c.name == int(args[1])), None)
         else:
             fighter2 = rand.choice(self.sd.creatures)
         
@@ -426,7 +430,7 @@ def main(argv):
         print('No save file found, creating a new generation!')
         sd = SaveData(creatures = [Creature() 
                                    for i in xrange(0, OPTIMAL_GEN_SIZE)],
-                      feeders = [],
+                      feeder_count = 0,
                       num_encounters = 0,
                       filename = SAVE_FILENAME,
                       count = OPTIMAL_GEN_SIZE

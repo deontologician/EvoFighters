@@ -85,17 +85,18 @@ def evaluate(me, tree):
             return eval_act(me, tree[4])
     elif cond_typ in [COND['me_last_act'], COND['target_last_act']]:
         if cond_typ == COND['me_last_act']:
-            who_str = 'his'
             actor = me
         else:
-            who_str = "target's"
             actor = me.target
         act1 = eval_act(me, tree[1])
         if act1 == actor.last_action:
-            print3('{} last action was {act_repr}', who_str, act_repr = tree[1])
+            print3('{who.name}\'s last action was {act_repr}', who = actor, 
+                   act_repr = tree[1])
             return eval_act(me, tree[2])
         else:
-            print3('{} last action was not', who_str, act_repr = tree[1])
+            print3('{who.name}\'s last action was not {act_repr} ({fst} vs. {snd})',
+                   who = actor, act_repr = tree[1], fst = act1, 
+                   snd = actor.last_action)
             return eval_act(me, tree[3])
     else:
         raise InvalidInstructionError("Couldn't understand condition: {0}".
