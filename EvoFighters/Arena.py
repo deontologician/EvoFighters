@@ -164,21 +164,21 @@ def maxencounters(creatures):
     return round((len(creatures) ** 3) / (OPTIMAL_GEN_SIZE * 1000.0))
        
 @contextmanager
-def random_encounter(sd, copy = False):
+def random_encounter(creatures, feeder_count, copy = False):
     '''A context manager that handles selecting two random creatures from the
     creature list, setting them as targets of each other, and then yielding to
     the actual encounter code.'''
-    c_len = len(sd.creatures)
+    c_len = len(creatures)
     if c_len < 2:
         raise RuntimeError('Not enough creatures.')
     
     p1_i = rand.randint(0, c_len - 1)
-    p2_i = rand.randint(0, c_len + sd.feeder_count - 1)
+    p2_i = rand.randint(0, c_len + feeder_count - 1)
     while p1_i == p2_i:
-        p2_i = rand.randint(0, c_len + sd.feeder_count - 1)
-    p1 = sd.creatures[p1_i]
+        p2_i = rand.randint(0, c_len + feeder_count - 1)
+    p1 = creatures[p1_i]
     if p2_i < c_len:
-        p2 = sd.creatures[p2_i]
+        p2 = creatures[p2_i]
     else:
         p2 = Feeder()
     if copy:
@@ -194,12 +194,9 @@ def random_encounter(sd, copy = False):
         p1.target = None
         p2.target = None
         if not (p1.alive or copy):
-            del sd.creatures[p1_i]
-        if not (p2.alive or copy):
-            if p2.is_feeder:
-                sd.feeder_count -= 1
-            else:
-                del sd.creatures[p2_i]
+            del creatures[p1_i]
+        if not (p2.alive or copy or p2.is_feeder):
+            del creatures[p2_i]
 
 def simulate(sd):
     time_till_save = progress_bar('{:4} creatures, {:4} feeders, {} total '
@@ -225,11 +222,13 @@ def simulate(sd):
             if total_beings < OPTIMAL_GEN_SIZE:
                 sd.feeder_count += 1
 
-            with random_encounter(sd) as (p1, p2):
+            with random_encounter(sd.creatures, sd.feeder_count) as (p1, p2):
                 print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
-                if not (p1.is_feeder or p2.is_feeder):
+                if not p2.is_feeder:
                     sd.num_encounters += 1
+                elif p2.dead:
+                    sd.feeder_count -= 1
                     
             
     except KeyboardInterrupt:
@@ -268,9 +267,9 @@ def load(savefile):
     Creature.count = sd.count
     return sd
       
-def do_random_encounter(sd):
+def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
-    with random_encounter(sd, copy = True) as (p1, p2):
+    with random_encounter(creatures, 0, copy = True) as (p1, p2):
         print(repr(p1))
         print(repr(p2))
         print1('{0.name} is fighting {1.name}', p1, p2)

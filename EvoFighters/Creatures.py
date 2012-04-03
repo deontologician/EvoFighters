@@ -11,7 +11,7 @@ from Eval import PerformableAction, evaluate
 from Utils import print1, print2, print3
 
 # need to move this into a config file
-mutation_rate = 0.10 # higher = more mutations
+MUTATION_RATE = 0.10 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
 MATING_COST = 40
 
@@ -321,7 +321,7 @@ def mate(p1, p2):
             break
         gene3 = rand.choice([gene1, gene2])
         child_genes.append(gene3)
-    if rand.uniform(0, 1) < mutation_rate:
+    if rand.uniform(0, 1) < MUTATION_RATE:
         mutate(child_genes)
     child = Creature(tuple([base for gene in child_genes for base in gene]))
     child.generation = max(p1.generation, p2.generation) + 1
@@ -332,9 +332,9 @@ def mate(p1, p2):
 
 def mutate(dna):
     '''Mutates the dna on either the genome or gene level'''
-    if randint(0, 2) == 0:
+    if randint(0, int(10000/MUTATION_RATE)) == 0:
         genome_level_mutation(dna)
-    else: # both branches can happen
+    else:
         index = randint(0, len(dna) - 1)
         print2('mutating gene {}', index)
         dna[index] = gene_level_mutation(dna[index])
@@ -348,13 +348,18 @@ def genome_level_mutation(dna):
         i2 = randint(0, length - 1)
         print2('swapped gene {} and {}', i1, i2)
         genome[i1], genome[i2] = genome[i2], genome[i1]
+    def _double(genome):
+        'Doubles a gene'
+        i = randint(0, len(genome) - 1)
+        gene = genome[i]
+        genome.insert(i, gene)
     def _delete(genome):
         'Delete a gene'
         index = randint(0, len(genome) - 1)
         print2('Deleted gene {}', index)
         del dna[index]
 
-    rand.choice([_swap, _delete])(dna)
+    rand.choice([_swap, _delete, _double])(dna)
 
 def gene_level_mutation(gene):
     '''Does a mutation on a gene in various different ways'''
@@ -373,11 +378,6 @@ def gene_level_mutation(gene):
         index = randint(0, len(x) - 1)
         x.insert(index, val)
         print2('inserted {} at {}', val, index)
-        return x
-    def _duplicate(x):
-        'Double a gene'
-        x.extend(x)
-        print2('doubled')
         return x
     def _point(x):
         "Increment or decrement a base's value"
@@ -399,7 +399,6 @@ def gene_level_mutation(gene):
     return rand.choice([_invert,
                         _delete,
                         _insert,
-                        _duplicate,
                         _point,
                         _swap,
                         ])(list(gene))
