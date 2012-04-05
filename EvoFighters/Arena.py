@@ -169,7 +169,7 @@ def maxencounters(creatures):
     return round((len(creatures) ** 3) / (OPTIMAL_GEN_SIZE * 1000.0))
        
 @contextmanager
-def random_encounter(creatures, feeder_count, copy = False):
+def random_encounter(creatures, feeder_count, dead, copy = False):
     '''A context manager that handles selecting two random creatures from the
     creature list, setting them as targets of each other, and then yielding to
     the actual encounter code.'''
@@ -200,8 +200,10 @@ def random_encounter(creatures, feeder_count, copy = False):
         p2.target = None
         if not (p1.alive or copy):
             del creatures[p1_i]
+            #dead.append((p1.name, p1.generation, p1.parents))
         if not (p2.alive or copy or p2.is_feeder):
             del creatures[p2_i]
+            #dead.append((p2.name, p2.generation, p2.parents))
 
 def simulate(sd):
     time_till_save = progress_bar('{:4} creatures, {:4} feeders, {} total '
@@ -227,7 +229,7 @@ def simulate(sd):
             if total_beings < OPTIMAL_GEN_SIZE:
                 sd.feeder_count += 1
 
-            with random_encounter(sd.creatures, sd.feeder_count) as (p1, p2):
+            with random_encounter(sd.creatures, sd.feeder_count, sd.dead) as (p1, p2):
                 print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
                 if not p2.is_feeder:
@@ -252,7 +254,7 @@ def simulate(sd):
       
 def do_random_encounter(creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
-    with random_encounter(creatures, 0, copy = True) as (p1, p2):
+    with random_encounter(creatures, 0, [], copy = True) as (p1, p2):
         print(repr(p1))
         print(repr(p2))
         print1('{0.name} is fighting {1.name}', p1, p2)
@@ -415,6 +417,7 @@ def main(argv):
                                    for i in xrange(0, OPTIMAL_GEN_SIZE)],
                       feeder_count = 0,
                       num_encounters = 0,
+                      dead = [],
                       count = OPTIMAL_GEN_SIZE
                       )
         sd.save()
