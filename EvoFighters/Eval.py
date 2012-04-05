@@ -51,11 +51,11 @@ def evaluate(me, tree):
     if cond_typ == COND['always']:
         return eval_act(me, tree[1])
     elif cond_typ == COND['in_range']:
-        check_val = get_val(me, tree[1])
-        val1 = get_val(me, tree[2])
-        val2 = get_val(me, tree[3])
+        val1 = get_val(me, tree[1])
+        val2 = get_val(me, tree[2])
+        check_val = get_val(me, tree[3])
         if min(val1, val2) <= check_val <= max(val1, val2):
-            print3('{val_repr} was between {} and {}', val1, val2, val_repr = tree[1])
+            print3('{val_repr} was between {} and {}', val1, val2, val_repr = tree[3])
             return eval_act(me, tree[4])
         else:
             print3('{val_repr} was not between {} and {}', val1, val2, val_repr = tree[1])
