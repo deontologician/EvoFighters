@@ -323,7 +323,7 @@ def mate(p1, p2):
         mutate(child_genes)
     child = Creature(tuple([base for gene in child_genes for base in gene]), 
                      parents = (p1.name, p2.name))
-    child.generation = max(p1.generation, p2.generation) + 1
+    child.generation = min(p1.generation, p2.generation) + 1
     p1.num_children += 1
     p2.num_children += 1
     return child
