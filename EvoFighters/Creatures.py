@@ -75,13 +75,10 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
 
     @property
     def fullname(self):
-        '''A compact view of a creature's dna. Not necessarily a unique
-        representation of a dna (can't distinguish adjacent 1 digit numbers from
-        a single 2 digit number) but should be sufficient disambiguation for
-        most purposes'''
+        '''A compact view of a creature's dna.'''
         def stringify(x):
             '''helper for fullname'''
-            xs = str(x) if x != -1 else '|'
+            xs = str(x)
             if len(xs) > 1:
                 xs = '({xs})'.format(xs = xs)
             return xs
@@ -267,9 +264,9 @@ class Feeder(Creature):
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''
     chunk = []
-    for i in dna:
-        chunk.append(i)
-        if i < 0 or i > 9:
+    for i, base in enumerate(dna):
+        chunk.append(base)
+        if i % 10 == 9:
             yield chunk
             chunk = []
     if chunk:
