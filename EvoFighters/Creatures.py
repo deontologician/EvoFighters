@@ -127,14 +127,9 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
                 self.instr_used += thought.icount
                 self.instr_skipped += thought.skipped
             except P.TooMuchThinkingError as tmt:
-                self.instr_used += tmt.icount
-                self.instr_skipped += tmt.skipped
-                penalty = randint(1,5)
-                print1('{.name} got caught thinking too much and lost {} life',
-                       self, penalty)
-                self.energy -= penalty
-                yield PerformableAction(ACT['wait'], None), \
-                    tmt.icount + tmt.skipped
+                print1('{.name} was paralyzed by analysis and died', self)
+                self.energy = 0
+                yield Creature.wait_action, tmt.icount + tmt.skipped
                 continue
             decision = evaluate(self, thought.tree)
             print2('{.name} decided to {}', self, decision)
