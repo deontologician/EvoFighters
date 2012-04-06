@@ -202,7 +202,10 @@ def random_encounter(creatures, feeder_count, dead, copy = False):
             del creatures[p1_i]
             #dead.append((p1.name, p1.generation, p1.parents))
         if not (p2.alive or copy or p2.is_feeder):
-            del creatures[p2_i]
+            if p1_i < p2_i:
+                del creatures[p2_i - 1]
+            else:
+                del creatures[p2_i]
             #dead.append((p2.name, p2.generation, p2.parents))
 
 def simulate(sd):
