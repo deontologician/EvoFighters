@@ -8,7 +8,8 @@ import cPickle as pickle
 
 from Parsing import ACT, ITEM, SIG, COND, MAX_THINKING_STEPS
 from Eval import PerformableAction, evaluate
-from Utils import print1, print2, print3, inv_repr
+from Utils import print1, print2, print3, inv_repr, dna_repr
+from array import array
 
 # need to move this into a config file
 MUTATION_RATE = 0.10 # higher = more mutations
@@ -28,7 +29,8 @@ class Creature(object):
     
     def __init__(self, dna = None, parents = None):
         if dna is None:
-            self.dna = (COND['always'], ACT['mate'], COND['always'], ACT['flee'])
+            self.dna = array('b', [COND['always'], ACT['mate'], 
+                                   COND['always'], ACT['flee']])
         else:
             self.dna = dna
         self._inv = []
@@ -76,13 +78,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
     @property
     def fullname(self):
         '''A compact view of a creature's dna.'''
-        def stringify(x):
-            '''helper for fullname'''
-            xs = str(x)
-            if len(xs) > 1:
-                xs = '({xs})'.format(xs = xs)
-            return xs
-        return ''.join([stringify(x) for x in self.dna])
+        return dna_repr(self.dna)
 
     def add_item(self, item):
         if item is not None and len(self._inv) + 1 <= 4:
@@ -320,7 +316,7 @@ def mate(p1, p2):
         child_genes.append(gene3)
     if rand.uniform(0, 1) < MUTATION_RATE:
         mutate(child_genes)
-    child = Creature(tuple([base for gene in child_genes for base in gene]), 
+    child = Creature(array('b', [base for gene in child_genes for base in gene]), 
                      parents = (p1.name, p2.name))
     child.generation = min(p1.generation, p2.generation) + 1
     p1.num_children += 1
@@ -381,8 +377,9 @@ def gene_level_mutation(gene):
         "Increment or decrement a base's value"
         val = int(round(rand.gauss(0, 1)))
         index = randint(0, len(x) - 1)
-        x[index] += val
-        print2('changed {} by {}', index, val)
+        new_base = (x[index] + 1 + val) % 11 - 1
+        print2('changed {} from {} to {}', index, x[index], new_base)
+        x[index] = new_base
         return x
     def _swap(x):
         'Swap two bases'

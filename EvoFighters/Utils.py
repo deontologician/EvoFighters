@@ -270,7 +270,13 @@ def sig_repr(signal):
 
 def dna_repr(dna):
     'Represents DNA as blocks of color'
-    pass
+    output = []
+    for base in dna:
+        output.append('\033[38;5;0m\033[48;5;{color}m{base}\033[0m'\
+                          .format(color = base + 1, base = base \
+                                      if base != -1 else '|'))
+    return ''.join(output)
+    
     
 if __name__ == '__main__':
     import doctest
