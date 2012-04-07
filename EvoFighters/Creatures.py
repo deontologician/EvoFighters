@@ -254,9 +254,9 @@ class Feeder(Creature):
 def gene_primer(dna):
     '''Breaks a dna list into chunks by the terminator -1.'''
     chunk = []
-    for i, base in enumerate(dna):
+    for base in dna:
         chunk.append(base)
-        if i % 10 == 9:
+        if base == -1:
             yield chunk
             chunk = []
     if chunk:
