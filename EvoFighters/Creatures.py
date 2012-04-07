@@ -209,7 +209,6 @@ class Feeder(Creature):
             cls._instance.target = None
             cls._instance.generation = 0
             cls._instance.num_children = 0
-            cls._instance.signal = -1
             cls._instance.survived = 0
             cls._instance.kills = 0
             cls._instance.instr_used = 0

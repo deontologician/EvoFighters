@@ -14,7 +14,7 @@ from Utils import print1, print2, print3, progress_bar, get_verbosity, \
     set_verbosity, term_width
 from Creatures import Creature, Feeder, try_to_mate
 
-OPTIMAL_GEN_SIZE = 1000
+OPTIMAL_GEN_SIZE = 10000
     
 SAVE_FILENAME = 'evofighters.save'
 SAVE_PERIOD = 90.0
@@ -224,7 +224,7 @@ def simulate(sd):
                 print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
                 timestamp = time.time()
-                print()            
+                print()
             if  new_time - updatetime > 0.033333: #update 30 times per second
                 time_till_save.send((time.time() - timestamp) / SAVE_PERIOD)
                 updatetime = time.time()
