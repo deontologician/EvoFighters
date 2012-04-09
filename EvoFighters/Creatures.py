@@ -15,6 +15,8 @@ from array import array
 MUTATION_RATE = 0.10 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
 MATING_COST = 40
+# maximum inventory size allowed
+MAX_INV_SIZE = 10
 
 class Creature(object):
     '''Represents a creature'''
@@ -29,7 +31,7 @@ class Creature(object):
     
     def __init__(self, dna = None, parents = None):
         if dna is None:
-            self.dna = array('b', [COND['always'], ACT['mate'], 
+            self.dna = array('b', [COND['always'], ACT['mate'],
                                    COND['always'], ACT['flee']])
         else:
             self.dna = dna
@@ -81,7 +83,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         return dna_repr(self.dna)
 
     def add_item(self, item):
-        if item is not None and len(self._inv) + 1 <= 4:
+        if item is not None and len(self._inv) + 1 <= MAX_INV_SIZE:
             self._inv.append(item)
 
     def pop_item(self):
@@ -95,7 +97,8 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
     def has_items(self):
         'Whether creature has any items'
         return bool(self._inv)
-
+    
+    @property
     def top_item(self):
         'What the top item is. Will throw an exception if no items'
         return self._inv[-1]
@@ -169,8 +172,10 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         elif act.typ == ACT['flee']:
             enemy_roll = randint(0, 100) * (self.target.energy / 40.0)
             my_roll = randint(0, 100) * (self.energy / 40.0)
+            dmg = randint(0,3)
             if enemy_roll < my_roll:
-                print1('{.name} flees the encounter!', self)
+                print1('{.name} flees the encounter and takes {} damage', self, dmg)
+                self.energy -= dmg
                 raise StopIteration()
             else:
                 print1('{.name} tries to flee, but {.name} prevents it', self, self.target)
@@ -285,18 +290,14 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
                 item = p.pop_item()
                 cost -= item + 1
             else:
-                p.energy -= cost
-                break
-
-    pay_cost(first_mate, fm_share)
-    if first_mate.dead:
-        print1('{.name} died in the process of mating', first_mate)
+                print1('{.name} ran out of items and failed to mate', p)
+                return False
+        return True
+        
+    if pay_cost(first_mate, fm_share) and pay_cost(second_mate, sm_share):
+        return mate(first_mate, second_mate)
+    else:
         return None
-    pay_cost(second_mate, sm_share)
-    if second_mate.dead:
-        print1('{.name} died in the process of mating', second_mate)
-        return None
-    return mate(first_mate, second_mate)
 
 
 def mate(p1, p2):

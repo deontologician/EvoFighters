@@ -14,10 +14,11 @@ from Utils import print1, print2, print3, progress_bar, get_verbosity, \
     set_verbosity, term_width
 from Creatures import Creature, Feeder, try_to_mate
 
-OPTIMAL_GEN_SIZE = 10000
+OPTIMAL_GEN_SIZE = 8000
     
 SAVE_FILENAME = 'evofighters.save'
 SAVE_PERIOD = 90.0
+WINNER_LIFE_BONUS = 5
 
 
 def encounter(p1, p2):
@@ -58,10 +59,11 @@ def encounter(p1, p2):
     def _victory(winner, loser):
         print1('{.name} has killed {.name}', winner, loser)
         winner.add_item(loser.pop_item())
-        winner.energy = min(40, winner.energy + randint(1, 6))
         if loser.is_feeder:
             winner.eaten += 1
+            winner.energy += randint(0,1)
         else:
+            winner.energy = min(40, winner.energy + randint(0, WINNER_LIFE_BONUS))
             winner.survived += 1
             winner.kills += 1
         winner.last_action = Creature.wait_action
@@ -235,7 +237,7 @@ def simulate(sd):
             with random_encounter(sd.creatures, sd.feeder_count, sd.dead) as (p1, p2):
                 print1('{.name} encounters {.name} in the wild', p1, p2)
                 sd.creatures.extend(encounter(p1, p2))
-                if not p2.is_feeder:
+                if not (p2.is_feeder or p1.is_feeder):
                     sd.num_encounters += 1
                 elif p2.dead:
                     sd.feeder_count -= 1
@@ -416,8 +418,8 @@ def main(argv):
                           num_encounters = sd.num_encounters))
     else:
         print('No save file found, creating a new generation!')
-        sd = SaveData(creatures = [Creature() 
-                                   for i in xrange(0, OPTIMAL_GEN_SIZE)],
+        sd = SaveData(creatures = [Creature()
+                                   for i in xrange(0, int(OPTIMAL_GEN_SIZE * 1.0))],
                       feeder_count = 0,
                       num_encounters = 0,
                       dead = [],
