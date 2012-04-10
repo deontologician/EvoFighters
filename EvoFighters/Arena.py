@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import operator as op
 from SaveData import SaveData
 import sys, os.path, time, cmd
+from collections import Counter
 
 from Parsing import ACT
 from Utils import print1, print2, print3, progress_bar, get_verbosity, \
@@ -360,7 +361,13 @@ class EvoCmd(cmd.Cmd):
             num = self.sd.feeder_count
             print('There are {} feeders.'.format(num))
         else:
-            print("Not sure what we're counting here")
+            try:
+                counter = Counter(getattr(c,arg) for c in self.sd.creatures)
+                for val, count in sorted(counter.iteritems()):
+                    print('{val} : {count}'.format(val = val, count = count))
+            except:
+                print
+                print("Not sure what we're counting here")
 
     def do_set(self, arg):
         '''Set a variable'''
