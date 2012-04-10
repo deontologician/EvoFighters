@@ -16,7 +16,7 @@ MUTATION_RATE = 0.10 # higher = more mutations
 # cost in energy of mating. May be taken out of items in inventory
 MATING_COST = 40
 # maximum inventory size allowed
-MAX_INV_SIZE = 10
+MAX_INV_SIZE = 5
 
 class Creature(object):
     '''Represents a creature'''
@@ -288,7 +288,7 @@ def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
         while cost > 0:
             if p.has_items:
                 item = p.pop_item()
-                cost -= item + 1
+                cost -= (item + 1) * 2
             else:
                 print1('{.name} ran out of items and failed to mate', p)
                 return False
