@@ -64,7 +64,7 @@ def encounter(p1, p2):
             winner.eaten += 1
             winner.energy += randint(0,1)
         else:
-            winner.energy = min(40, winner.energy + randint(0, WINNER_LIFE_BONUS))
+            winner.energy += randint(0, WINNER_LIFE_BONUS)
             winner.survived += 1
             winner.kills += 1
         winner.last_action = Creature.wait_action
@@ -81,6 +81,8 @@ def encounter(p1, p2):
             p2.survived += 1
         p1.last_action = Creature.wait_action
         p2.last_action = Creature.wait_action
+    p1.energy = min(40, p1.energy)
+    p2.energy = min(40, p2.energy)
     return children
 
 def do_round(p1, p1_act, p2, p2_act):
@@ -201,14 +203,11 @@ def random_encounter(creatures, feeder_count, dead, copy = False):
     finally:
         p1.target = None
         p2.target = None
-        if not (p1.alive or copy):
-            del creatures[p1_i]
+        if p1.dead and not copy:
+            creatures.remove(p1)
             #dead.append((p1.name, p1.generation, p1.parents))
-        if not (p2.alive or copy or p2.is_feeder):
-            if p1_i < p2_i:
-                del creatures[p2_i - 1]
-            else:
-                del creatures[p2_i]
+        if p2.dead and not copy and not p2.is_feeder:
+            creatures.remove(p2)
             #dead.append((p2.name, p2.generation, p2.parents))
 
 def simulate(sd):
