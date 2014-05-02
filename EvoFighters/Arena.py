@@ -6,20 +6,14 @@ from random import randint
 from itertools import izip
 from contextlib import contextmanager
 import operator as op
-from SaveData import SaveData
 import sys, os.path, time, cmd
 from collections import Counter
 
-from Parsing import ACT
-from Utils import print1, print2, print3, progress_bar, get_verbosity, \
-    set_verbosity, term_width
-from Creatures import Creature, Feeder, try_to_mate
-
-OPTIMAL_GEN_SIZE = 8000
-    
-SAVE_FILENAME = 'evofighters.save'
-SAVE_PERIOD = 90.0
-WINNER_LIFE_BONUS = 5
+from EvoFighters.SaveData import SaveData, Settings
+from EvoFighters.Parsing import ACT
+from EvoFighters.Utils import (print1, print2, print3, progress_bar,
+                               get_verbosity, set_verbosity, term_width)
+from EvoFighters.Creatures import Creature, Feeder, try_to_mate
 
 
 def encounter(p1, p2):
@@ -29,9 +23,10 @@ def encounter(p1, p2):
     max_rounds = abs(int(rand.gauss(200, 30)))
     children = []
     print1('Max rounds: {}', max_rounds)
-    for rounds, (p1act, c1), (p2act, c2) in izip(xrange(max_rounds),
-                                                 p1.decision_generator(),
-                                                 p2.decision_generator()):
+    for rounds, (p1act, c1), (p2act, c2) in izip(
+            xrange(max_rounds),
+            p1.decision_generator(),
+            p2.decision_generator()):
         print2('Round {}', rounds)
         try:
             if c1 > c2:
@@ -169,9 +164,9 @@ class FightOver(StopIteration):
     def __init__(self, child):
         self.child = child
 
-def maxencounters(creatures):
+def maxencounters(sd):
     '''Number of encounters required for a given population based on size'''
-    return round((len(creatures) ** 3) / (OPTIMAL_GEN_SIZE * 1000.0))
+    return round((len(sd.creatures) ** 3) / (sd.settings.MAX_POP_SIZE * 1000.0))
        
 @contextmanager
 def random_encounter(creatures, feeder_count, dead, copy = False):
@@ -211,27 +206,28 @@ def random_encounter(creatures, feeder_count, dead, copy = False):
             #dead.append((p2.name, p2.generation, p2.parents))
 
 def simulate(sd):
-    time_till_save = progress_bar('{:4} creatures, {:4} feeders, {} total '
-                                  'encounters',
-                                  lambda: len(sd.creatures),
-                                  lambda: sd.feeder_count,
-                                  lambda: sd.num_encounters)
+    time_till_save = progress_bar(
+        '{:4} creatures, {:4} feeders, {:,} encounters total',
+        lambda: len(sd.creatures),
+        lambda: sd.feeder_count,
+        lambda: sd.num_encounters,
+    )
     timestamp = updatetime = time.time()
     try:
         while True:
             new_time = time.time()
             if len(sd.creatures) < 2:
                 raise RuntimeError('Not enough creatures')
-            if new_time - timestamp > SAVE_PERIOD:
+            if new_time - timestamp > sd.settings.SAVE_PERIOD:
                 print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
                 timestamp = time.time()
                 print()
-            if  new_time - updatetime > 0.033333: #update 30 times per second
+            if  new_time - updatetime > (1.0 / sd.settings.FPS):
                 time_till_save.send((time.time() - timestamp) / SAVE_PERIOD)
                 updatetime = time.time()
             total_beings = len(sd.creatures) + sd.feeder_count
-            if total_beings < OPTIMAL_GEN_SIZE:
+            if total_beings < sd.settings.MAX_POP_SIZE :
                 sd.feeder_count += 1
 
             with random_encounter(sd.creatures, sd.feeder_count, sd.dead) as (p1, p2):
@@ -265,6 +261,10 @@ def do_random_encounter(creatures):
         print1('{0.name} is fighting {1.name}', p1, p2)
         encounter(p1, p2)
 
+
+def dna_histogram(creatures):
+    
+    pass
 
 class EvoCmd(cmd.Cmd):
     '''Command line processor for EvoFighters'''
@@ -316,6 +316,7 @@ class EvoCmd(cmd.Cmd):
 
     def doc_header(self):
         return 'Available commands:'
+
     def do_simulate(self, arg):
         simulate(self.sd)
         
@@ -362,7 +363,7 @@ class EvoCmd(cmd.Cmd):
         else:
             try:
                 counter = Counter(getattr(c,arg) for c in self.sd.creatures)
-                for val, count in sorted(counter.iteritems()):
+                for val, count in counter.most_common():
                     print('{val} : {count}'.format(val = val, count = count))
             except:
                 print
@@ -370,15 +371,11 @@ class EvoCmd(cmd.Cmd):
 
     def do_set(self, arg):
         '''Set a variable'''
-        args = arg.split()
-        if args[0] == 'verbosity':
-            try:
-                set_verbosity(int(args[1]))
-            except ValueError:
-                print("That isn't a valid verbosity level.")
-                return
-        else:
-            print("I can't set that right now. Maybe soon")
+        try:
+            key, value = arg.split()
+            self.sd.settings.set_from_strings([(key, value)])
+        except Exception as ex:
+            print("Didn't work out:", str(ex))
         
     def do_fight(self, arg):
         '''Watch a fight between two creatures'''
@@ -409,28 +406,30 @@ class EvoCmd(cmd.Cmd):
 
 
 def main(argv):
-    if os.path.isfile(SaveData.SAVE_FILENAME):
-        with open(SaveData.SAVE_FILENAME, 'r') as savefile:
+    settings = Settings.from_config()
+    if os.path.isfile(settings.save_file):
+        with open(settings.save_file, 'r') as savefile:
             try:
                 sd = SaveData.loadfrom(savefile)
             except Exception as e:
                 print('Invalid save file!', e, file = sys.stderr)
                 raise
-                #sys.exit(1)
 
         print('Loaded an existing save file with {gen_size} creatures with '\
               '{num_encounters} encounters under their belt'\
-                  .format(gen_size = len(sd.creatures), 
-                          num_encounters = sd.num_encounters))
+                  .format(gen_size=len(sd.creatures), 
+                          num_encounters=sd.num_encounters))
     else:
         print('No save file found, creating a new generation!')
-        sd = SaveData(creatures = [Creature()
-                                   for i in xrange(0, int(OPTIMAL_GEN_SIZE * 1.0))],
-                      feeder_count = 0,
-                      num_encounters = 0,
-                      dead = [],
-                      count = OPTIMAL_GEN_SIZE
-                      )
+        sd = SaveData(
+            creatures=[Creature() for i in xrange(
+                0, int(settings.max_pop_size * 1.0))],
+            feeder_count=0,
+            num_encounters=0,
+            dead=[],
+            count=settings.max_pop_size,
+            settings=settings,
+        )
         sd.save()
     
     try:

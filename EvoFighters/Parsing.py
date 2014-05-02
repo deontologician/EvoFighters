@@ -25,13 +25,13 @@ VAL = dict(literal = 0, # a number straight from the dna
 
 ACT = dict(subcondition = 0, # indicates a subconditional
            attack       = 1, # attacks target with specified attack type (1 arg)
-           defend       = 2, # defends with specified defense type (1 arg)
-           signal       = 3, # sets a flag on the creature (1 arg)
+           mate         = 2, # attempt to mate with target
+           defend       = 3, # defends with specified defense type (1 arg)
            use          = 4, # uses the top item in the inventory
-           take         = 5, # takes top item in enemies inventory
-           wait         = 6, # do nothing
-           flee         = 7, # escape the fight
-           mate         = 8, # attempt to mate with target
+           signal       = 5, # sets a flag on the creature (1 arg)
+           take         = 6, # takes top item in enemies inventory
+           wait         = 7, # do nothing
+           flee         = 8, # escape the fight
            )
 
 ATTR = dict(energy       = 0, # energy level
@@ -168,7 +168,8 @@ class Parser(object):
         elif act_typ == ACT['signal']:
             return (ACT['signal'],
                     self._get_next_valid(SIG))
-        elif ACT['use'] <= act_typ <= ACT['mate']:
+        elif act_typ in (ACT['use'], ACT['take'], ACT['mate'],
+                         ACT['wait'], ACT['flee']):
             return (act_typ,)
 
     def _get_next_valid(self, typ, minimum = 0):

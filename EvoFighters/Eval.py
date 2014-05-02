@@ -135,9 +135,10 @@ def get_attr(who, attr_typ):
 def eval_act(me, tree):
     '''Returns an action suitable for performing (PerformableAction)'''
     act_typ = tree[0]
-    if ACT['attack'] <= act_typ <= ACT['signal']:
+    if act_typ in (ACT['attack'], ACT['defend'], ACT['signal']):
         return PerformableAction(act_typ, tree[1])
-    elif ACT['use'] <= act_typ <= ACT['mate']:
+    elif act_typ in (ACT['use'], ACT['take'],
+                     ACT['wait'], ACT['flee'], ACT['mate']):
         return PerformableAction(act_typ, None)
     elif act_typ == ACT['subcondition']:
         return evaluate(me, tree[1])
