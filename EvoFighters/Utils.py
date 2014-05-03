@@ -3,7 +3,7 @@ modules'''
 
 from __future__ import print_function
 
-import os, sys
+import sys
 from collections import Counter
 
 from blessings import Terminal
@@ -15,27 +15,8 @@ term = Terminal()
 
 _verbosity = 0
 
-def set_verbosity(lvl):
-    global _verbosity
-    _verbosity = lvl
 
-def get_verbosity():
-    return _verbosity
-
-def print1(*args, **kwargs):
-    if _verbosity >= 1:
-        _print_helper(*args, prefix='***',**kwargs)
-
-def print2(*args, **kwargs):
-    if _verbosity >= 2:
-        _print_helper(*args, prefix='**', **kwargs)
-
-def print3(*args, **kwargs):
-    if _verbosity >= 3:
-        _print_helper(*args, prefix='*', **kwargs)
-
-
-def _print_helper(fmt, *args, **kwargs):
+def print_helper(fmt, *args, **kwargs):
     if 'prefix' in kwargs:
         prefix = kwargs['prefix']
         del kwargs['prefix']
@@ -59,22 +40,18 @@ def _print_helper(fmt, *args, **kwargs):
     print('\n'.join(lines))
 
 
-def term_width():
-    return term.width
-
-
 def progress_bar(fmt_str, *args, **kwargs):
     r'''Generator to create a pipish progress bar. `progress` is a float from
     0.0 to 1.0 representing the progress intended to be represented. It uses \r
     to overwrite the line it is printed on, so always print a newline before
     calling this function'''
-    height, width = term_dimensions()
     move_up_1 = '\033[1A'
-    def _prog_gen(width=width):
+    width = term.width
+    def _prog_gen():
         print()
         while True:
             progress = yield
-            total_bars = (width - 5) # don't have super narrow terminals!
+            total_bars = (width - 5)
             num_bars = int(round(total_bars * progress))
             _kwargs = {k : v() for k,v in kwargs.iteritems()}
             _args = [x() for x in args]
@@ -93,9 +70,9 @@ def progress_bar(fmt_str, *args, **kwargs):
     return val
 
 
-def indent(val):
+def indent(corpus):
     '''Indent a string by 4 spaces per line'''
-    return '\n'.join(['    {}'.format(val) for val in val.splitlines()])
+    return '\n'.join(['    {}'.format(line) for line in corpus.splitlines()])
 
 def branch_repr(condition, then_str, else_str):
     """Prints an if then else branch"""

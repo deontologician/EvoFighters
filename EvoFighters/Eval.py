@@ -1,9 +1,11 @@
 '''This module handles evaluating the parse trees that Parsing creates'''
 
 from Parsing import COND, ACT, ATTR, VAL
-from Utils import print3, dmg_repr, sig_repr
+from Utils import dmg_repr, sig_repr
 import operator as Op
 from random import randint
+
+sd = None  # Set by Arena
 
 class PerformableAction(object):
     '''Represents a concrete, comparable action that a creature intends to carry
@@ -55,10 +57,10 @@ def evaluate(me, tree):
         val2 = get_val(me, tree[2])
         check_val = get_val(me, tree[3])
         if min(val1, val2) <= check_val <= max(val1, val2):
-            print3('{val_repr} was between {} and {}', val1, val2, val_repr = tree[3])
+            sd.print3('{val_repr} was between {} and {}', val1, val2, val_repr = tree[3])
             return eval_act(me, tree[4])
         else:
-            print3('{val_repr} was not between {} and {}', val1, val2, val_repr = tree[1])
+            sd.print3('{val_repr} was not between {} and {}', val1, val2, val_repr = tree[1])
             return eval_act(me, tree[5])
     elif COND['less_than'] <= cond_typ <= COND['not_equal_to']:
         if cond_typ == COND['less_than']:
@@ -76,11 +78,11 @@ def evaluate(me, tree):
         val1 = get_val(me, tree[1])
         val2 = get_val(me, tree[2])
         if op(val1, val2):
-            print3('{val_repr} was {} {val_repr2}', op_str, val_repr = tree[1],
+            sd.print3('{val_repr} was {} {val_repr2}', op_str, val_repr = tree[1],
                    val_repr2 = tree[2])
             return eval_act(me, tree[3])
         else:
-            print3('{val_repr} was not {} {val_repr2}', op_str, val_repr = tree[1], 
+            sd.print3('{val_repr} was not {} {val_repr2}', op_str, val_repr = tree[1], 
                    val_repr2 = tree[2])
             return eval_act(me, tree[4])
     elif cond_typ in [COND['me_last_act'], COND['target_last_act']]:
@@ -90,11 +92,11 @@ def evaluate(me, tree):
             actor = me.target
         act1 = eval_act(me, tree[1])
         if act1 == actor.last_action:
-            print3('{who.name}\'s last action was {act_repr}', who = actor, 
+            sd.print3('{who.name}\'s last action was {act_repr}', who = actor, 
                    act_repr = tree[1])
             return eval_act(me, tree[2])
         else:
-            print3('{who.name}\'s last action was not {act_repr} ({fst} vs. {snd})',
+            sd.print3('{who.name}\'s last action was not {act_repr} ({fst} vs. {snd})',
                    who = actor, act_repr = tree[1], fst = act1, 
                    snd = actor.last_action)
             return eval_act(me, tree[3])

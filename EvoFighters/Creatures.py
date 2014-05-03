@@ -2,21 +2,17 @@
 
 from random import randint
 
-import Parsing as P
 import random as rand
 import cPickle as pickle
-
-from Parsing import ACT, ITEM, SIG, COND, MAX_THINKING_STEPS
-from Eval import PerformableAction, evaluate
-from Utils import print1, print2, print3, inv_repr, dna_repr
 from array import array
 
-# need to move this into a config file
-MUTATION_RATE = 0.10 # higher = more mutations
-# cost in energy of mating. May be taken out of items in inventory
-MATING_COST = 40
-# maximum inventory size allowed
-MAX_INV_SIZE = 5
+import Parsing as P
+from EvoFighters.Parsing import ACT, ITEM, SIG, COND
+from EvoFighters.Eval import PerformableAction, evaluate
+from EvoFighters.Utils import inv_repr, dna_repr
+
+
+sd = None  # Set by Arena once the savedata is created
 
 class Creature(object):
     '''Represents a creature'''
@@ -83,7 +79,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         return dna_repr(self.dna)
 
     def add_item(self, item):
-        if item is not None and len(self._inv) + 1 <= MAX_INV_SIZE:
+        if item is not None and len(self._inv) + 1 <= sd.settings.max_inv_size:
             self._inv.append(item)
 
     def pop_item(self):
@@ -119,19 +115,19 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
         while self.alive:
             try: 
                 thought = next(parser)
-                print3("{0.name}'s thought process: \n{thought}", self,
+                sd.print3("{0.name}'s thought process: \n{thought}", self,
                        thought = thought.tree)
-                print3('which required {0.icount} instructions and {0.skipped} '
+                sd.print3('which required {0.icount} instructions and {0.skipped} '
                        'instructions skipped over', thought)
                 self.instr_used += thought.icount
                 self.instr_skipped += thought.skipped
             except P.TooMuchThinkingError as tmt:
-                print1('{.name} was paralyzed by analysis and died', self)
+                sd.print1('{.name} was paralyzed by analysis and died', self)
                 self.energy = 0
                 yield Creature.wait_action, tmt.icount + tmt.skipped
                 continue
             decision = evaluate(self, thought.tree)
-            print2('{.name} decided to {}', self, decision)
+            sd.print2('{.name} decided to {}', self, decision)
             yield decision, thought.icount + thought.skipped
         raise StopIteration()
 
@@ -143,42 +139,42 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             return
         #signalling
         elif act.typ == ACT['signal']:
-            print1('{.name} signals with color {sig_repr}', self, sig_repr = act.arg)
+            sd.print1('{.name} signals with color {sig_repr}', self, sig_repr = act.arg)
             self.signal = act.arg
         #using an item
         elif act.typ == ACT['use']:
             if self.has_items:
-                print1('{.name} uses {item_repr}', self, item_repr = self.top_item)
+                sd.print1('{.name} uses {item_repr}', self, item_repr = self.top_item)
                 self.use()
             else:
-                print2("{.name} tries to use an item, but doesn't have one", self)
+                sd.print2("{.name} tries to use an item, but doesn't have one", self)
 
         # take an item from the other's inventory
         elif act.typ == ACT['take']:
             if self.target.has_items:
                 item = self.target.pop_item()
-                print1("{0.name} takes {item_repr} from {1.name}", self, self.target,
+                sd.print1("{0.name} takes {item_repr} from {1.name}", self, self.target,
                        item_repr = item)
                 self.add_item(item)
             else:
-                print2("{0.name} tries to take an item from {1.name}, "\
+                sd.print2("{0.name} tries to take an item from {1.name}, "\
                            "but there's nothing to take.", self, self.target)
         # waiting
         elif act.typ == ACT['wait']:
-            print2('{.name} waits', self)
+            sd.print2('{.name} waits', self)
         # defending with no corresponding attack
         elif act.typ == ACT['defend']:
-            print2('{.name} defends', self)
+            sd.print2('{.name} defends', self)
         elif act.typ == ACT['flee']:
             enemy_roll = randint(0, 100) * (self.target.energy / 40.0)
             my_roll = randint(0, 100) * (self.energy / 40.0)
             dmg = randint(0,3)
             if enemy_roll < my_roll:
-                print1('{.name} flees the encounter and takes {} damage', self, dmg)
+                sd.print1('{.name} flees the encounter and takes {} damage', self, dmg)
                 self.energy -= dmg
                 raise StopIteration()
             else:
-                print1('{.name} tries to flee, but {.name} prevents it', self, self.target)
+                sd.print1('{.name} tries to flee, but {.name} prevents it', self, self.target)
         else:
             raise RuntimeError("{0.name} did {1.typ} with magnitude {1.arg}"\
                                    .format(self, act))
@@ -192,7 +188,7 @@ Instructions used/skipped: {0.instr_used}/{0.instr_skipped}
             else:
                 mult = 0
             energy_gain = 3 * mult
-            print2('{.name} gains {} life from {item_repr}', self, energy_gain,
+            sd.print2('{.name} gains {} life from {item_repr}', self, energy_gain,
                    item_repr = item)
             self.energy += energy_gain
 
@@ -242,8 +238,9 @@ class Feeder(Creature):
             # always 'wait', and always think about it for more than the max
             # number of steps
             self.instr_used += 0
-            self.instr_skipped += MAX_THINKING_STEPS + 1
-            yield PerformableAction(ACT['wait'], None), MAX_THINKING_STEPS + 1
+            self.instr_skipped += sd.settings.max_thinking_steps + 1
+            yield (PerformableAction(ACT['wait'], None),
+                   sd.settings.max_thinking_steps + 1)
         yield StopIteration()
 
     @property
@@ -253,7 +250,7 @@ class Feeder(Creature):
 
     def carryout(self, act):
         '''Never do anything'''
-        print2('Feeder does nothing')
+        sd.print2('Feeder does nothing')
         pass
 
 def gene_primer(dna):
@@ -268,29 +265,29 @@ def gene_primer(dna):
         yield chunk
 
 
-def try_to_mate(mating_chance, first_mate, fm_share, second_mate, sm_share):
+def try_to_mate(sd, mating_chance, first_mate, fm_share, second_mate, sm_share):
     '''Takes a chance of mating, two creatures to mate, and the relative
     proportion of costs each creature must pay, mates two creatures to create a
     third.'''
     if randint(1,100) > mating_chance or first_mate.dead or second_mate.dead:
         return None
     if first_mate.is_feeder or second_mate.is_feeder:
-        print1('{.name} tried to mate with {.name}!', first_mate, second_mate)
+        sd.print1('{.name} tried to mate with {.name}!', first_mate, second_mate)
         if first_mate.is_feeder:
             first_mate.energy = 0
         if second_mate.is_feeder:
             second_mate.energy = 0
         return None
-    print2('Attempting to mate')
+    sd.print2('Attempting to mate')
     
     def pay_cost(p, share):
-        cost = int(round(MATING_COST * (share / 100.0)))
+        cost = int(round(sd.settings.mating_cost * (share / 100.0)))
         while cost > 0:
             if p.has_items:
                 item = p.pop_item()
                 cost -= (item + 1) * 2
             else:
-                print1('{.name} ran out of items and failed to mate', p)
+                sd.print1('{.name} ran out of items and failed to mate', p)
                 return False
         return True
         
@@ -315,7 +312,7 @@ def mate(p1, p2):
             break
         gene3 = rand.choice([gene1, gene2])
         child_genes.append(gene3)
-    if rand.uniform(0, 1) < MUTATION_RATE:
+    if rand.uniform(0, 1) < sd.settings.mutation_rate:
         mutate(child_genes)
     child = Creature(array('b', [base for gene in child_genes for base in gene]), 
                      parents = (p1.name, p2.name))
@@ -327,11 +324,11 @@ def mate(p1, p2):
 
 def mutate(dna):
     '''Mutates the dna on either the genome or gene level'''
-    if randint(0, int(10000/MUTATION_RATE)) == 0:
+    if randint(0, int(10000/sd.settings.mutation_rate)) == 0:
         genome_level_mutation(dna)
     else:
         index = randint(0, len(dna) - 1)
-        print2('mutating gene {}', index)
+        sd.print2('mutating gene {}', index)
         dna[index] = gene_level_mutation(dna[index])
 
 def genome_level_mutation(dna):
@@ -341,7 +338,7 @@ def genome_level_mutation(dna):
         length = len(genome)
         i1 = randint(0, length - 1)
         i2 = randint(0, length - 1)
-        print2('swapped gene {} and {}', i1, i2)
+        sd.print2('swapped gene {} and {}', i1, i2)
         genome[i1], genome[i2] = genome[i2], genome[i1]
     def _double(genome):
         'Doubles a gene'
@@ -351,7 +348,7 @@ def genome_level_mutation(dna):
     def _delete(genome):
         'Delete a gene'
         index = randint(0, len(genome) - 1)
-        print2('Deleted gene {}', index)
+        sd.print2('Deleted gene {}', index)
         del dna[index]
 
     rand.choice([_swap, _delete, _double])(dna)
@@ -361,25 +358,25 @@ def gene_level_mutation(gene):
     def _invert(x):
         'Reverse the order of the bases in a gene'
         x.reverse()
-        print2('reversed gene')
+        sd.print2('reversed gene')
         return x
     def _delete(_):
         'Delete a gene'
-        print2('deleted gene')
+        sd.print2('deleted gene')
         return []
     def _insert(x):
         'Insert an extra base in the gene'
         val = randint(-1, 9)
         index = randint(0, len(x) - 1)
         x.insert(index, val)
-        print2('inserted {} at {}', val, index)
+        sd.print2('inserted {} at {}', val, index)
         return x
     def _point(x):
         "Increment or decrement a base's value"
         val = int(round(rand.gauss(0, 1)))
         index = randint(0, len(x) - 1)
         new_base = (x[index] + 1 + val) % 11 - 1
-        print2('changed {} from {} to {}', index, x[index], new_base)
+        sd.print2('changed {} from {} to {}', index, x[index], new_base)
         x[index] = new_base
         return x
     def _swap(x):
@@ -387,10 +384,10 @@ def gene_level_mutation(gene):
         i1 = randint(0, len(x) - 1)
         i2 = randint(0, len(x) - 1)
         x[i1], x[i2] = x[i2], x[i1]
-        print2('swapped bases {} and {}', i1, i2)
+        sd.print2('swapped bases {} and {}', i1, i2)
         return x
     if not gene:
-        print3('Mutated an empty gene!')
+        sd.print3('Mutated an empty gene!')
         return gene
     return rand.choice([_invert,
                         _delete,

@@ -2,41 +2,45 @@
 from __future__ import print_function
 
 import random as rand
+import shlex
 from random import randint
 from itertools import izip
 from contextlib import contextmanager
 import operator as op
 import sys, os.path, time, cmd
 from collections import Counter
+from functools import wraps
+
+from pkg_resources import resource_string
 
 from EvoFighters.SaveData import SaveData, Settings
 from EvoFighters.Parsing import ACT
-from EvoFighters.Utils import (print1, print2, print3, progress_bar,
-                               get_verbosity, set_verbosity, term_width)
+from EvoFighters.Utils import (progress_bar, term)
+from EvoFighters import Creatures, Parsing, Eval
 from EvoFighters.Creatures import Creature, Feeder, try_to_mate
 
 
-def encounter(p1, p2):
+def encounter(sd, p1, p2):
     '''Carries out an encounter between two creatures'''
     # these numbers were very carefully tuned to pretty much never go less than
     # 10 rounds
     max_rounds = abs(int(rand.gauss(200, 30)))
     children = []
-    print1('Max rounds: {}', max_rounds)
+    sd.print1('Max rounds: {}', max_rounds)
     for rounds, (p1act, c1), (p2act, c2) in izip(
             xrange(max_rounds),
             p1.decision_generator(),
             p2.decision_generator()):
-        print2('Round {}', rounds)
+        sd.print2('Round {}', rounds)
         try:
             if c1 > c2:
-                print3('{0.name} is going first', p2)
-                child = do_round(p1, p1act, p2, p2act)
+                sd.print3('{0.name} is going first', p2)
+                child = do_round(sd, p1, p1act, p2, p2act)
             else:
-                print3('{0.name} is going first', p1)
-                child = do_round(p2, p2act, p1, p1act)
+                sd.print3('{0.name} is going first', p1)
+                child = do_round(sd, p2, p2act, p1, p1act)
         except FightOver as fo:
-            print3('The fight ended before it timed out')
+            sd.print3('The fight ended before it timed out')
             if fo.child is not None:
                 children.append(fo.child)
             break
@@ -49,17 +53,17 @@ def encounter(p1, p2):
     else:
         # if the rounds timed out, penalty
         penalty = randint(1,5)
-        print1('Time is up!, both combatants take {} damage', penalty)
+        sd.print1('Time is up!, both combatants take {} damage', penalty)
         p1.energy -= penalty
         p2.energy -= penalty
     def _victory(winner, loser):
-        print1('{.name} has killed {.name}', winner, loser)
+        sd.print1('{.name} has killed {.name}', winner, loser)
         winner.add_item(loser.pop_item())
         if loser.is_feeder:
             winner.eaten += 1
             winner.energy += randint(0,1)
         else:
-            winner.energy += randint(0, WINNER_LIFE_BONUS)
+            winner.energy += randint(0, sd.settings.winner_life_bonus)
             winner.survived += 1
             winner.kills += 1
         winner.last_action = Creature.wait_action
@@ -68,7 +72,7 @@ def encounter(p1, p2):
     elif p1.dead and p2.alive:
         _victory(p2, p1)
     elif p1.dead and p2.dead:
-        print1('Both {0.name} and {1.name} have died.', p1, p2)
+        sd.print1('Both {0.name} and {1.name} have died.', p1, p2)
     else:
         if not p2.is_feeder:
             p1.survived += 1
@@ -80,7 +84,7 @@ def encounter(p1, p2):
     p2.energy = min(40, p2.energy)
     return children
 
-def do_round(p1, p1_act, p2, p2_act):
+def do_round(sd, p1, p1_act, p2, p2_act):
     '''Handles carrying out the decided actions for a single round'''
     # convenient short-hands to make code more readable
     ATTACKING = 1
@@ -132,21 +136,21 @@ def do_round(p1, p1_act, p2, p2_act):
     p2_dmg = damage_fun(mults[2], mults[4])
     # TODO: take into account damage type!
     if p1_dmg > 0:
-        print1('{.name} takes {} damage', p2, p1_dmg)
+        sd.print1('{.name} takes {} damage', p2, p1_dmg)
         p2.energy -= p1_dmg
     if p2_dmg > 0:
-        print1('{.name} takes {} damage', p1, p2_dmg)
+        sd.print1('{.name} takes {} damage', p1, p2_dmg)
         p1.energy -= p2_dmg
     # we reverse the order of p1, p2 when calling try_to_mate because paying
     # costs first in mating is worse, and in this function p1 is preferred in
     # actions that happen to both creatures in order. Conceivably, p2 could die
     # without p1 paying any cost at all, even if p2 initiated mating against
     # p1's will
-    child = try_to_mate(mults[0], p2, mults[6], p1, mults[5])
+    child = try_to_mate(sd, mults[0], p2, mults[6], p1, mults[5])
     if child:
-        print1('{.name} and {.name} have a child named {.name}', p1, p2, child)
+        sd.print1('{.name} and {.name} have a child named {.name}', p1, p2, child)
         if not child.dna:
-            print1('But it was stillborn as it has no dna.')
+            sd.print1('But it was stillborn as it has no dna.')
             child = None
     try:
         if act_kind[p1_act.typ] == OTHER:
@@ -155,8 +159,8 @@ def do_round(p1, p1_act, p2, p2_act):
             p2.carryout(p2_act)
     except StopIteration:
         raise FightOver(child)
-    print3('{0.name} has {0.energy} life left', p1)
-    print3('{0.name} has {0.energy} life left', p2)
+    sd.print3('{0.name} has {0.energy} life left', p1)
+    sd.print3('{0.name} has {0.energy} life left', p2)
     return child
 
 class FightOver(StopIteration):
@@ -166,7 +170,7 @@ class FightOver(StopIteration):
 
 def maxencounters(sd):
     '''Number of encounters required for a given population based on size'''
-    return round((len(sd.creatures) ** 3) / (sd.settings.MAX_POP_SIZE * 1000.0))
+    return round((len(sd.creatures) ** 3) / (sd.settings.max_pop_size * 1000.0))
        
 @contextmanager
 def random_encounter(creatures, feeder_count, dead, copy = False):
@@ -218,21 +222,22 @@ def simulate(sd):
             new_time = time.time()
             if len(sd.creatures) < 2:
                 raise RuntimeError('Not enough creatures')
-            if new_time - timestamp > sd.settings.SAVE_PERIOD:
+            if new_time - timestamp > sd.settings.save_interval:
                 print('\nCurrently', len(sd.creatures), 'creatures alive.')
                 sd.save()
                 timestamp = time.time()
                 print()
-            if  new_time - updatetime > (1.0 / sd.settings.FPS):
-                time_till_save.send((time.time() - timestamp) / SAVE_PERIOD)
+            if  new_time - updatetime > (1.0 / sd.settings.fps):
+                time_till_save.send(
+                    (time.time() - timestamp) / sd.settings.save_interval)
                 updatetime = time.time()
             total_beings = len(sd.creatures) + sd.feeder_count
-            if total_beings < sd.settings.MAX_POP_SIZE :
+            if total_beings < sd.settings.max_pop_size :
                 sd.feeder_count += 1
 
             with random_encounter(sd.creatures, sd.feeder_count, sd.dead) as (p1, p2):
-                print1('{.name} encounters {.name} in the wild', p1, p2)
-                sd.creatures.extend(encounter(p1, p2))
+                sd.print1('{.name} encounters {.name} in the wild', p1, p2)
+                sd.creatures.extend(encounter(sd, p1, p2))
                 if not (p2.is_feeder or p1.is_feeder):
                     sd.num_encounters += 1
                 elif p2.dead:
@@ -253,18 +258,26 @@ def simulate(sd):
         
 
       
-def do_random_encounter(creatures):
+def do_random_encounter(sd, creatures):
     '''Runs a fight between two random creatures at the current verbosity'''
     with random_encounter(creatures, 0, [], copy = True) as (p1, p2):
         print(repr(p1))
         print(repr(p2))
-        print1('{0.name} is fighting {1.name}', p1, p2)
-        encounter(p1, p2)
+        sd.print1('{0.name} is fighting {1.name}', p1, p2)
+        encounter(sd, p1, p2)
 
-
-def dna_histogram(creatures):
-    
-    pass
+def preparse(*argspec):
+    '''Parses input to cmd methods'''
+    def _decorator(func):
+        @wraps(func)
+        def _wrapped(self, arg):
+            try:
+                args = [f(a) for f, a in zip(argspec, shlex.split(arg))]
+                return func(*args)
+            except ValueError:
+                print('Bad args!')
+        return _wrapped
+    return _decorator
 
 class EvoCmd(cmd.Cmd):
     '''Command line processor for EvoFighters'''
@@ -277,40 +290,17 @@ class EvoCmd(cmd.Cmd):
     
     @property
     def intro(self):
-        tw = term_width()
-        if tw >= 90:
-            return \
-"""
-'||''''|  '||'  '|'  ..|''||   '||''''|  ||          '||        .                          
- ||  .     '|.  .'  .|'    ||   ||  .   ...    ... .  || ..   .||.    ....  ... ..   ....  
- ||''|      ||  |   ||      ||  ||''|    ||   || ||   ||' ||   ||   .|...||  ||' '' ||. '  
- ||          |||    '|.     ||  ||       ||    |''    ||  ||   ||   ||       ||     . '|.. 
-.||.....|     |      ''|...|'  .||.     .||.  '||||. .||. ||.  '|.'  '|...' .||.    |'..|' 
-                                             .|....'                                       
-"""
-        elif tw >= 79 :
-            return \
-"""
- ________                ________  _         __       _                         
-|_   __  |              |_   __  |(_)       [  |     / |_                      
-  | |_ \_|_   __   .--.   | |_ \_|__   .--./)| |--. `| |-'.---.  _ .--.  .--.  
-  |  _| _[ \ [  ]/ .'`\ \ |  _|  [  | / /'`\;| .-. | | | / /__\\[ `/'`\]( (`\]
- _| |__/ |\ \/ / | \__. |_| |_    | | \ \._//| | | | | |,| \__., | |     `'.'. 
-|________| \__/   '.__.'|_____|  [___].',__`[___]|__]\__/ '.__.'[___]   [\__) )
-                                     ( ( __))
-"""
-        elif tw >= 51:
-            return \
-"""
-  __             ___                               
- /              /    /      /    /                 
-(___       ___ (___    ___ (___ (___  ___  ___  ___
-|     \  )|   )|    | |   )|   )|    |___)|   )|___
-|__    \/ |__/ |    | |__/ |  / |__  |__  |     __/
-                      __/                          
-"""
+        if term.width >= 90:
+            width = 90
+        elif term.width >= 79:
+            width = 79
+        elif term.width >= 51:
+            width = 51
         else:
             return 'EvoFighters (You may want to widen your terminal)'
+
+        return resource_string(__name__, 'banner_{}.ascii'.format(width))
+
     def default(self, line):
         print("Sorry, that isn't a recognized command")
 
@@ -324,9 +314,10 @@ class EvoCmd(cmd.Cmd):
         '''Shows various things'''
         args = arg.split()
         if args[0] in (c.name for c in self.sd.creatures):
-            print(repr(next((c for c in self.sd.creatures if c.name == args[0]), None)))
+            print(repr(next((c for c in self.sd.creatures
+                             if c.name == args[0]), None)))
         elif args[0] == 'verbosity':
-            print('verbosity = {}'.format(get_verbosity()))
+            print('verbosity = {}'.format(self.sd.settings.verbosity))
         elif args[0] == 'random':
             print(repr(rand.choice(self.sd.creatures)))
         elif args[0] == 'max':
@@ -395,7 +386,7 @@ class EvoCmd(cmd.Cmd):
             print("Invalid fighter name")
             return
         
-        do_random_encounter([fighter1, fighter2])
+        do_random_encounter(self.sd, [fighter1, fighter2])
 
     def do_EOF(self, arg):
         raise KeyboardInterrupt
@@ -404,8 +395,12 @@ class EvoCmd(cmd.Cmd):
         'Exit evofighters'
         raise KeyboardInterrupt
 
+    def do_load(self, arg):
+        args = shlex.split(arg)
+        print(repr(args))
 
-def main(argv):
+
+def main():
     settings = Settings.from_config()
     if os.path.isfile(settings.save_file):
         with open(settings.save_file, 'r') as savefile:
@@ -431,11 +426,11 @@ def main(argv):
             settings=settings,
         )
         sd.save()
-    
+    Creatures.sd = Parsing.sd = Eval.sd = sd
     try:
         EvoCmd(sd).cmdloop()
     except KeyboardInterrupt:
         print('Bye')
         
 if __name__ == '__main__':
-    main(sys.argv)
+    main()

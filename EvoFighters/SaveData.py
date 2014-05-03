@@ -4,6 +4,7 @@ import os
 import re
 
 from EvoFighters.Creatures import Creature
+from EvoFighters.Utils import print_helper
 
     
 _int_rgx = re.compile(r'\d+')
@@ -25,8 +26,9 @@ class Settings(object):
     individually for each generation file'''
 
     __slots__ = ('max_pop_size', 'fps', 'save_filename', 'save_dir',
-                 'config_dir',
-                 'winner_life_bonus', 'save_interval', 'verbosity')
+                 'config_dir', 'mutation_rate', 'mating_cost', 'max_inv_size',
+                 'winner_life_bonus', 'save_interval', 'verbosity',
+                 'max_thinking_steps', 'max_tree_depth')
 
     def __init__(self):
         self.max_pop_size = 12000
@@ -37,6 +39,13 @@ class Settings(object):
         self.winner_life_bonus = 5
         self.save_interval = 90
         self.verbosity = 0
+        self.mutation_rate = 0.10 # higher = more mutations
+        self.mating_cost = 40
+        self.max_inv_size = 5
+        # how many steps they are allowed to use to construct a thought
+        self.max_thinking_steps = 200 
+        # How deeply nested a thought tree is allowed to be
+        self.max_tree_depth = 15
 
     def __str__(self):
         lines = ['{} = {!r}'.format(key, getattr(self, key))
@@ -122,3 +131,16 @@ class SaveData(object):
         sd = pickle.load(savefile)
         Creature.count = sd.count
         return sd
+
+    def print1(self, *args, **kwargs):
+        if self.settings.verbosity >= 1:
+            print_helper(*args, prefix='***',**kwargs)
+
+    def print2(self, *args, **kwargs):
+        if self.settings.verbosity >= 2:
+            print_helper(*args, prefix='**', **kwargs)
+
+    def print3(self, *args, **kwargs):
+        if self.settings.verbosity >= 3:
+            print_helper(*args, prefix='*', **kwargs)
+

@@ -1,11 +1,10 @@
 '''Handles parsing of streams of integers into instructions for the
 EvoFighters'''
 
-from collections import namedtuple
+from collections import namedtuple 
 
-MAX_THINKING_STEPS = 200 # how many steps they are allowed to use to construct a
-                         # thought
-MAX_TREE_DEPTH = 15      # How deeply nested a thought tree is allowed to be
+sd = None  # set by Arenas
+
 
 COND = dict(always         = 0,
             in_range       = 1,
@@ -146,10 +145,10 @@ class Parser(object):
 
     def _act(self, nosub = False):
         '''Parses an action node'''
-        if self._depth > MAX_TREE_DEPTH:
+        if self._depth > sd.settings.max_tree_depth:
             raise TooMuchThinkingError('Recursion depth exceeded',
-                                       icount = 0,
-                                       skipped = MAX_THINKING_STEPS)
+                                       icount=0,
+                                       skipped=sd.settings.max_thinking_steps)
         act_typ = self._get_next_valid(ACT, minimum = 1 if nosub else 0)
 
         if act_typ == ACT['subcondition']:
@@ -186,10 +185,10 @@ class Parser(object):
         while not( minimum <= next_val < len(typ) ):
             next_val = self._dna[self._progress % self._len]
             self._skipped += 1
-            if self._icount + self._skipped > MAX_THINKING_STEPS:
+            if self._icount + self._skipped > sd.settings.max_thinking_steps:
                 raise TooMuchThinkingError('Recursion depth exceeded',
                                            icount = 0,
-                                           skipped = MAX_THINKING_STEPS)
+                                           skipped=sd.settings.max_thinking_steps)
         return next_val
 
 
