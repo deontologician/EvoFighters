@@ -1,5 +1,0 @@
-
-
-struct Creature {
-    dna: Vec<
-}

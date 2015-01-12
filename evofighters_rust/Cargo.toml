@@ -1,0 +1,9 @@
+[package]
+
+name = "evofighters_rust"
+version = "0.0.1"
+authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
+
+[[bin]]
+
+name = "main"
