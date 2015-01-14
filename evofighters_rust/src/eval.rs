@@ -3,7 +3,7 @@ use std::fmt;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Show, Copy)]
-enum PerformableAction {
+pub enum PerformableAction {
     Attack(dna::DamageType),
     Defend(dna::DamageType),
     Signal(dna::Signal),
