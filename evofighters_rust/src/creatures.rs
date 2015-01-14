@@ -1,12 +1,12 @@
 use dna;
 use eval;
+use parsing;
 use std::rc;
 use std::fmt;
-use std::sync::atomic::{AtomicUsize,Ordering,ATOMIC_USIZE_INIT};
 use settings;
 
 #[derive(Show)]
-struct Creature <'a> {
+pub struct Creature <'a> {
     dna: &'a [u8],
     inv: Vec<dna::Item>,
     pub energy: isize,
@@ -25,6 +25,9 @@ struct Creature <'a> {
     pub is_feeder: bool,
     pub eaten: usize,
     pub parents: (usize, usize),
+    // These are used for the iterator
+    parser: parsing::Parser<'a>,
+    thought: parsing::Thought,
 }
 
 impl <'a> fmt::String for Creature<'a> {
@@ -33,14 +36,15 @@ impl <'a> fmt::String for Creature<'a> {
     }
 }
 
-static mut CreatureCount: AtomicUsize = ATOMIC_USIZE_INIT;
-
 impl <'a> Creature<'a> {
 
-    fn new(&mut self, dna: &'a [u8], parents: (usize, usize)) -> Creature<'a> {
+    pub fn new(&mut self,
+           id: usize,
+           dna: &'a [u8],
+           parents: (usize, usize)) -> Creature<'a> {
         Creature {
             dna: dna,
-            inv: vec![],
+            inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
             generation: 0,
             num_children: 0,
@@ -50,17 +54,61 @@ impl <'a> Creature<'a> {
             instr_used: 0,
             instr_skipped: 0,
             last_action: eval::PerformableAction::Wait,
-            id: CreatureCount.fetch_add(1us, Ordering::Relaxed),
+            id: id,
             is_feeder: false,
             eaten: 0,
             parents: parents,
+            parser: parsing::Parser::new(dna),
+            thought: parsing::Thought::Indecision {
+                reason: parsing::Failure::NoThoughtsYet,
+                icount: 0,
+                skipped: 0,
+            }
         }
     }
 
-    fn add_item(&mut self, item: dna::Item) {
+    pub fn add_item(&mut self, item: dna::Item) {
         if self.inv.len() + 1 <= settings::MAX_INV_SIZE {
             self.inv.push(item)
         }
     }
 
+    pub fn pop_item(&mut self) -> Option<dna::Item> {
+        self.inv.pop()
+    }
+
+    pub fn has_items(&self) -> bool {
+        !self.inv.is_empty()
+    }
+
+    pub fn top_item(&self) -> Option<dna::Item> {
+        if !self.inv.is_empty() {
+            Some(self.inv[self.inv.len() - 1])
+        }else{
+            None
+        }
+    }
+
+    pub fn dead(&self) -> bool {
+        self.energy <= 0 || self.dna.is_empty()
+    }
+
+    pub fn alive(&self) -> bool {
+        !self.dead()
+    }
+}
+
+impl <'a> Iterator for Creature<'a> {
+    type Item = (eval::PerformableAction, usize);
+    fn next(&mut self) -> Option<(eval::PerformableAction, usize)> {
+        self.thought = self.parser.next().unwrap();
+        match self.thought {
+            x @ parsing::Thought::Decision{..} => {
+                panic!("")
+            },
+            y @ parsing::Thought::Indecision{..} => {
+                panic!("")
+            }
+        }
+    }
 }

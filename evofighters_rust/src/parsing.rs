@@ -6,6 +6,7 @@ use settings;
 
 #[derive(Show, PartialEq, Eq, Copy)]
 pub enum Failure {
+    NoThoughtsYet,
     TookTooLong,
     ParseTreeTooDeep,
 }
