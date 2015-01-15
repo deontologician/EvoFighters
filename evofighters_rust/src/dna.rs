@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum Condition {
     Always,
@@ -73,6 +75,17 @@ pub enum BinOp {
     LT, GT, EQ, NE
 }
 
+impl String for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LT => write!(f, "is less than"),
+            GT => write!(f, "is greater than"),
+            EQ => write!(f, "is equal to"),
+            NE => write!(f, "is not equal to"),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Show, Copy)]
 pub enum Actor {
     Me, Other
@@ -100,6 +113,28 @@ pub enum ConditionTree {
         action: ActionTree,
         affirmed: ActionTree,
         denied: ActionTree,
+    }
+}
+
+impl fmt::String for ConditionTree {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Always(act) => {
+                write!(f, "always {{{}}}", act);
+            },
+            RangeCompare{value, bound_a, bound_b, affirmed, denied} => {
+                let rng_min = min(rng.bound_a, rng.bound_b);
+                let rng_max = max(rng.bound_a, rng.bound_b);
+                write!(f, "if ({} is in the range {} to {}){{{}}}else{{{}}}",
+                       rng.value, rng_min, rng_max, affirmed, denied);
+            },
+            BinCompare{operation, lhs, rhs, ..} => {
+                panic!("no binop!")
+            },
+            ActionCompare{actor, action, ..} => {
+                panic!("no action!")
+            }
+        }
     }
 }
 

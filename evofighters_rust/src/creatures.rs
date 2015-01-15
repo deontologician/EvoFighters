@@ -1,9 +1,9 @@
 use dna;
 use eval;
 use parsing;
-use std::rc;
 use std::fmt;
 use settings;
+use util;
 
 #[derive(Show)]
 pub struct Creature <'a> {
@@ -101,12 +101,21 @@ impl <'a> Creature<'a> {
 impl <'a> Iterator for Creature<'a> {
     type Item = (eval::PerformableAction, usize);
     fn next(&mut self) -> Option<(eval::PerformableAction, usize)> {
-        self.thought = self.parser.next().unwrap();
+        self.thought = self.parser.next().expect("parser ended somehow!");
         match self.thought {
-            x @ parsing::Thought::Decision{..} => {
+            parsing::Thought::Decision{
+                ref tree,
+                ref icount,
+                ref skipped,
+            } => {
+                print3!("{0}'s thought process: \n{1}", self.id, tree);
                 panic!("")
             },
-            y @ parsing::Thought::Indecision{..} => {
+            parsing::Thought::Indecision{
+                ref reason,
+                ref icount,
+                ref skipped,
+            } => {
                 panic!("")
             }
         }
