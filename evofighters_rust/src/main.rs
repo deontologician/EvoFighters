@@ -9,10 +9,9 @@ pub mod settings;
 pub mod creatures;
 
 fn main() {
-    let mut x : Vec<usize> = Vec::with_capacity(3);
-    x.push(3us);
-    x.push(4us);
-    print1!("print1 It works! {}", x[x.len() - 1]);
-    print2!("print2 {}", x[x.len() - 2]);
-    print3!("print3 {}", x[x.len() - 2]);
+    let x: Vec<usize> = vec![4,2,1,6,3,1,2,7,4,2];
+    let parser = parsing::Parser::new(x.as_slice());
+    let thought = parser.next();
+    println!("{}", thought);
+            
 }

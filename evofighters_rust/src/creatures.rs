@@ -108,7 +108,7 @@ impl <'a> Iterator for Creature<'a> {
                 ref icount,
                 ref skipped,
             } => {
-                print3!("{0}'s thought process: \n{1}", self.id, tree);
+                //print3!("{0}'s thought process: \n{1}", self.id, tree);
                 panic!("")
             },
             parsing::Thought::Indecision{

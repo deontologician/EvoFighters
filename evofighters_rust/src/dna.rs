@@ -44,6 +44,21 @@ pub enum Attribute {
     TopItem,
 }
 
+impl fmt::String for Attribute {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Attribute::Energy => write!(f, "energy"),
+            Attribute::Signal => write!(f, "signal"),
+            Attribute::Generation => write!(f, "generation"),
+            Attribute::Kills => write!(f, "kills"),
+            Attribute::Survived => write!(f, "encounters survived"),
+            Attribute::NumChildren => write!(f, "number of children"),
+            Attribute::TopItem => write!(f, "top inventory item"),
+        }
+    }
+}
+
+
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum Item {
     Food,
@@ -75,13 +90,13 @@ pub enum BinOp {
     LT, GT, EQ, NE
 }
 
-impl String for BinOp {
+impl fmt::String for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LT => write!(f, "is less than"),
-            GT => write!(f, "is greater than"),
-            EQ => write!(f, "is equal to"),
-            NE => write!(f, "is not equal to"),
+        match *self {
+            BinOp::LT => write!(f, "is less than"),
+            BinOp::GT => write!(f, "is greater than"),
+            BinOp::EQ => write!(f, "is equal to"),
+            BinOp::NE => write!(f, "is not equal to"),
         }
     }
 }
@@ -116,34 +131,24 @@ pub enum ConditionTree {
     }
 }
 
-impl fmt::String for ConditionTree {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Always(act) => {
-                write!(f, "always {{{}}}", act);
-            },
-            RangeCompare{value, bound_a, bound_b, affirmed, denied} => {
-                let rng_min = min(rng.bound_a, rng.bound_b);
-                let rng_max = max(rng.bound_a, rng.bound_b);
-                write!(f, "if ({} is in the range {} to {}){{{}}}else{{{}}}",
-                       rng.value, rng_min, rng_max, affirmed, denied);
-            },
-            BinCompare{operation, lhs, rhs, ..} => {
-                panic!("no binop!")
-            },
-            ActionCompare{actor, action, ..} => {
-                panic!("no action!")
-            }
-        }
-    }
-}
-
 #[derive(Show, Copy)]
 pub enum ValueTree {
     Literal(u8),
     Random,
     Me(Attribute),
     Other(Attribute),
+}
+
+impl fmt::String for ValueTree {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ValueTree::Literal(lit) =>
+                write!(f, "{}", lit),
+            ValueTree::Random => write!(f, "a random number"),
+            ValueTree::Me(ref attr) => write!(f, "my {}", attr),
+            ValueTree::Other(ref attr) => write!(f, "my target's {}", attr),
+        }
+    }
 }
 
 #[derive(Show)]
@@ -157,4 +162,104 @@ pub enum ActionTree {
     Mate,
     Wait,
     Flee
+}
+
+
+pub struct PrettyPrinter<'a> {
+    
+    writer: &'a mut (fmt::Writer+'a),
+    current_indent: usize,
+}
+
+impl <'a> PrettyPrinter<'a> {
+    pub fn new(writer: &'a mut fmt::Writer) -> PrettyPrinter<'a> {
+        PrettyPrinter{writer: writer, current_indent: 0}
+    }
+
+    pub fn indent(&mut self) {
+        self.current_indent += 1;
+    }
+
+    pub fn dedent(&mut self) {
+        if self.current_indent > 0 {
+            self.current_indent -= 1;
+        }
+    }
+
+    pub fn emit_indentation(&mut self) -> fmt::Result {
+        const INDENT: &'static str = "  ";
+        let mut remaining: usize = self.current_indent;
+        while remaining > 1 {
+            try!(self.writer.write_str(INDENT));
+            remaining -= 1;
+        }
+        if remaining == 1 {
+            self.writer.write_str(INDENT)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn emit_cond(&mut self, cond: &ConditionTree) -> fmt::Result {
+        match *cond {
+            ConditionTree::Always(ref act) => {
+                try!(self.emit_indentation());
+                write!(self.writer, "Always:\n");
+                self.indent();
+                try!(self.emit_action(act));
+                self.dedent()
+            },
+            ConditionTree::RangeCompare{
+                ref value,
+                ref bound_a,
+                ref bound_b,
+                ref affirmed,
+                ref denied,
+            } => {
+                try!(self.emit_indentation());
+                write!(self.writer, "if {} is in the range {} to {}:\n",
+                       value, bound_a, bound_b);
+                self.indent();
+                try!(self.emit_action(affirmed));
+                self.dedent();
+                try!(self.emit_indentation());
+                write!(self.writer, "else:\n");
+                self.indent();
+                try!(self.emit_action(denied));
+                self.dedent()
+            },
+            ConditionTree::BinCompare{
+                ref operation,
+                ref lhs,
+                ref rhs,
+                ref affirmed,
+                ref denied,
+            } => {
+                try!(self.emit_indentation());
+                write!(self.writer, "if {} {} {}:\n", lhs, operation, rhs);
+                self.indent();
+                try!(self.emit_action(affirmed));
+                self.dedent();
+                try!(self.emit_indentation());
+                write!(self.writer, "else:");
+                self.indent();
+                try!(self.emit_action(denied));
+                self.dedent();
+            },
+            ConditionTree::ActionCompare{
+                ref actor,
+                ref action,
+                ref affirmed,
+                ref denied,
+            } => {
+                try!(self.emit_indentation());
+                panic!("no action!") //working here
+            }
+        }
+        Ok(())
+    }
+
+    pub fn emit_action(&mut self, action: &ActionTree) -> fmt::Result {
+        Ok(())
+    }
 }
