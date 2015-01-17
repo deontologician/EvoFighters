@@ -3,6 +3,7 @@ use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
 use settings;
+use std::fmt;
 
 #[derive(Show, PartialEq, Eq, Copy)]
 pub enum Failure {

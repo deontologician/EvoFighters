@@ -164,16 +164,21 @@ pub enum ActionTree {
     Flee
 }
 
+impl fmt::String for ActionTree {
+    fn fmt<'a>(&'a self, f: &'a mut fmt::Formatter) -> fmt::Result {
+        PrettyPrinter::new(f).emit_action(self)
+    }
+}
+
 
 pub struct PrettyPrinter<'a> {
-    
-    writer: &'a mut (fmt::Writer+'a),
+    f: &'a mut fmt::Formatter<'a>,
     current_indent: usize,
 }
 
 impl <'a> PrettyPrinter<'a> {
-    pub fn new(writer: &'a mut fmt::Writer) -> PrettyPrinter<'a> {
-        PrettyPrinter{writer: writer, current_indent: 0}
+    pub fn new(f: &'a mut fmt::Formatter<'a>) -> PrettyPrinter<'a> {
+        PrettyPrinter{f: f, current_indent: 0}
     }
 
     pub fn indent(&mut self) {
@@ -190,11 +195,11 @@ impl <'a> PrettyPrinter<'a> {
         const INDENT: &'static str = "  ";
         let mut remaining: usize = self.current_indent;
         while remaining > 1 {
-            try!(self.writer.write_str(INDENT));
+            try!(self.f.write_str(INDENT));
             remaining -= 1;
         }
         if remaining == 1 {
-            self.writer.write_str(INDENT)
+            self.f.write_str(INDENT)
         } else {
             Ok(())
         }
@@ -204,7 +209,7 @@ impl <'a> PrettyPrinter<'a> {
         match *cond {
             ConditionTree::Always(ref act) => {
                 try!(self.emit_indentation());
-                write!(self.writer, "Always:\n");
+                write!(self.f, "Always:\n");
                 self.indent();
                 try!(self.emit_action(act));
                 self.dedent()
@@ -217,13 +222,13 @@ impl <'a> PrettyPrinter<'a> {
                 ref denied,
             } => {
                 try!(self.emit_indentation());
-                write!(self.writer, "if {} is in the range {} to {}:\n",
+                write!(self.f, "if {} is in the range {} to {}:\n",
                        value, bound_a, bound_b);
                 self.indent();
                 try!(self.emit_action(affirmed));
                 self.dedent();
                 try!(self.emit_indentation());
-                write!(self.writer, "else:\n");
+                write!(self.f, "else:\n");
                 self.indent();
                 try!(self.emit_action(denied));
                 self.dedent()
@@ -236,12 +241,12 @@ impl <'a> PrettyPrinter<'a> {
                 ref denied,
             } => {
                 try!(self.emit_indentation());
-                write!(self.writer, "if {} {} {}:\n", lhs, operation, rhs);
+                write!(self.f, "if {} {} {}:\n", lhs, operation, rhs);
                 self.indent();
                 try!(self.emit_action(affirmed));
                 self.dedent();
                 try!(self.emit_indentation());
-                write!(self.writer, "else:");
+                write!(self.f, "else:");
                 self.indent();
                 try!(self.emit_action(denied));
                 self.dedent();
