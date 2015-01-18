@@ -108,15 +108,23 @@ impl <'a> Iterator for Creature<'a> {
                 ref icount,
                 ref skipped,
             } => {
-                //print3!("{0}'s thought process: \n{1}", self.id, tree);
-                panic!("")
+                print3!("{}'s thought process: \n{:?}", self.id, tree);
+                print3!("which required {} instructions and {} instructions \
+                        skipped over", icount, skipped);
+                self.instr_used += *icount;
+                self.instr_skipped += *skipped;
+                //result = evaluate(self, tree) // can't evaluate yet!
+                Some((eval::PerformableAction::Wait, *icount + *skipped))
             },
             parsing::Thought::Indecision{
                 ref reason,
                 ref icount,
                 ref skipped,
             } => {
-                panic!("")
+                print1!("{} was paralyzed by analysis and died: {:?}",
+                        self.id, reason);
+                self.energy = 0;
+                None
             }
         }
     }

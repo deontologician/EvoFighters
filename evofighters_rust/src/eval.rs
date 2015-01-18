@@ -1,12 +1,13 @@
-use dna;
+use dna::{Signal, DamageType, ConditionTree, ActionTree};
+use creatures;
 use std::fmt;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Show, Copy)]
 pub enum PerformableAction {
-    Attack(dna::DamageType),
-    Defend(dna::DamageType),
-    Signal(dna::Signal),
+    Attack(DamageType),
+    Defend(DamageType),
+    Signal(Signal),
     Use,
     Take,
     Wait,
@@ -34,5 +35,34 @@ impl fmt::String for PerformableAction {
             PerformableAction::Mate =>
                 write!(f, "mate with the target"),
         }
+    }
+}
+
+pub fn evaluate(me: &creatures::Creature,
+            tree: &ConditionTree) -> PerformableAction {
+    match *tree {
+        ConditionTree::Always(ref action) => {
+            eval_action(me, action)
+        },
+        _ => panic!("oh noes")
+    }
+}
+
+fn eval_action(me: &creatures::Creature,
+               action: &ActionTree) -> PerformableAction {
+    match *action {
+        ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
+        ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
+        ActionTree::Signal(sig) => PerformableAction::Signal(sig),
+        ActionTree::Use => PerformableAction::Use,
+        ActionTree::Take => PerformableAction::Take,
+        ActionTree::Wait => PerformableAction::Wait,
+        ActionTree::Flee => PerformableAction::Flee,
+        ActionTree::Mate => PerformableAction::Mate,
+        ActionTree::Subcondition(ref sub) => {
+            // Can't figure out how to borrow reference! should be possible...
+            PerformableAction::Mate
+            //evaluate(me, sub)
+        },
     }
 }

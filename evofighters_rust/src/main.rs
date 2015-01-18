@@ -9,12 +9,12 @@ pub mod settings;
 pub mod creatures;
 
 fn main() {
-    let x: Vec<u8> = vec![4,2,1,6,3,1,2,7,4,2];
-    let parser = parsing::Parser::new(x.as_slice());
+    let x: Vec<u8> = vec![1,2,1,1,1,1,1,1,1,-1];
+    let mut parser = parsing::Parser::new(x.as_slice());
     let thought = parser.next().expect("No thought!");
     match thought {
         parsing::Thought::Decision {tree, icount, skipped} =>
-            println!("icount: {}, skipped: {}, tree:\n{}",
+            println!("icount: {}, skipped: {}, tree:\n{:?}",
                      icount, skipped, tree),
         _ => panic!("Bo.")
     }
