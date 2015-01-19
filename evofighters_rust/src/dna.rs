@@ -102,7 +102,7 @@ impl fmt::String for BinOp {
 }
 
 #[derive(PartialEq, Eq, Show, Copy)]
-pub enum Actor {
+pub enum ActorType {
     Me, Other
 }
 
@@ -124,7 +124,7 @@ pub enum ConditionTree {
         denied: ActionTree,
     },
     ActionCompare {
-        actor: Actor,
+        actor_type: ActorType,
         action: ActionTree,
         affirmed: ActionTree,
         denied: ActionTree,

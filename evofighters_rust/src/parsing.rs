@@ -128,9 +128,9 @@ impl<'a> Parser<'a> {
             actor @ Condition::MyLastAction |
             actor @ Condition::OtherLastAction =>
                 ConditionTree::ActionCompare {
-                    actor: match actor {
-                        Condition::MyLastAction => Actor::Me,
-                        Condition::OtherLastAction => Actor::Other,
+                    actor_type: match actor {
+                        Condition::MyLastAction => ActorType::Me,
+                        Condition::OtherLastAction => ActorType::Other,
                         _ => panic!("Not possible")
                     },
                     action: try!(self.parse_action()),
