@@ -1,4 +1,6 @@
 #![allow(unstable)]
+#![feature(box_syntax)]
+
 
 #[macro_use]
 pub mod util;

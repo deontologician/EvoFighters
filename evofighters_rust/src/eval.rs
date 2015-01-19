@@ -1,6 +1,10 @@
+
+extern crate core;
+
 use dna::{Signal, DamageType, ConditionTree, ActionTree};
 use creatures;
 use std::fmt;
+use std::ops::Deref;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Show, Copy)]
@@ -59,10 +63,8 @@ fn eval_action(me: &creatures::Creature,
         ActionTree::Wait => PerformableAction::Wait,
         ActionTree::Flee => PerformableAction::Flee,
         ActionTree::Mate => PerformableAction::Mate,
-        ActionTree::Subcondition(ref sub) => {
-            // Can't figure out how to borrow reference! should be possible...
-            PerformableAction::Mate
-            //evaluate(me, sub)
+        ActionTree::Subcondition(box ref sub) => {
+            evaluate(me, sub)
         },
     }
 }
