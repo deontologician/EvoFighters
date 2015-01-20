@@ -1,3 +1,4 @@
+// TODO: add the stars to different debug statements
 #[macro_export]
 macro_rules! print1 {
     ($($arg:tt)*) => (

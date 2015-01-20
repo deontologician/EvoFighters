@@ -14,7 +14,7 @@ pub enum Failure {
 #[derive(Show)]
 pub enum Thought {
     Decision {
-        tree: ConditionTree,
+        tree: Box<ConditionTree>,
         icount: usize,
         skipped: usize,
     },
@@ -92,11 +92,11 @@ impl<'a> Parser<'a> {
         Ok(next_val.unwrap())
     }
 
-    fn parse_condition(&mut self) -> ParseResult<ConditionTree> {
+    fn parse_condition(&mut self) -> ParseResult<Box<ConditionTree>> {
         if self.depth > settings::MAX_TREE_DEPTH {
             return Err(Failure::ParseTreeTooDeep)
         }
-        Ok(match try!(self.next_valid(0)) {
+        Ok(Box::new(match try!(self.next_valid(0)) {
             Condition::Always =>
                 ConditionTree::Always(try!(self.parse_action())),
             Condition::InRange =>
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
                     affirmed: try!(self.parse_action()),
                     denied: try!(self.parse_action()),
                 }
-        })
+        }))
     }
 
     fn parse_action(&mut self) -> ParseResult<ActionTree> {
@@ -144,14 +144,14 @@ impl<'a> Parser<'a> {
             Action::Subcondition => {
                 self.depth += 1;
                 let subcond = ActionTree::Subcondition(
-                    Box::new(try!(self.parse_condition())));
+                    try!(self.parse_condition()));
                 self.depth -= 1;
                 subcond
             },
             Action::Attack => ActionTree::Attack(try!(self.next_valid(0))),
             Action::Defend => ActionTree::Defend(try!(self.next_valid(0))),
             Action::Signal => ActionTree::Signal(try!(self.next_valid(0))),
-            Action::Use => ActionTree::Use,
+            Action::Eat => ActionTree::Eat,
             Action::Take => ActionTree::Take,
             Action::Mate => ActionTree::Mate,
             Action::Wait => ActionTree::Wait,

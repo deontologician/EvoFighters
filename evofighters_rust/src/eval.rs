@@ -14,7 +14,7 @@ pub enum PerformableAction {
     Attack(DamageType),
     Defend(DamageType),
     Signal(Signal),
-    Use,
+    Eat,
     Take,
     Wait,
     Flee,
@@ -30,7 +30,7 @@ impl fmt::String for PerformableAction {
                 write!(f, "defend against damage type: {:?}", dmg),
             PerformableAction::Signal(sig) =>
                 write!(f, "signal with the color: {:?}", sig),
-            PerformableAction::Use =>
+            PerformableAction::Eat =>
                 write!(f, "use an item in his inventory"),
             PerformableAction::Take =>
                 write!(f, "take something from target"),
@@ -127,7 +127,7 @@ fn eval_action(me: &Creature,
         ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
         ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
         ActionTree::Signal(sig) => PerformableAction::Signal(sig),
-        ActionTree::Use => PerformableAction::Use,
+        ActionTree::Eat => PerformableAction::Eat,
         ActionTree::Take => PerformableAction::Take,
         ActionTree::Wait => PerformableAction::Wait,
         ActionTree::Flee => PerformableAction::Flee,

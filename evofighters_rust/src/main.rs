@@ -11,6 +11,7 @@ pub mod parsing;
 pub mod eval;
 pub mod settings;
 pub mod creatures;
+pub mod arena;
 
 fn main() {
     let mut v: Vec<u8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
