@@ -2,10 +2,10 @@
 extern crate core;
 
 use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
-          BinOp, ActorType};
+          BinOp, ActorType, Attribute};
 use creatures::Creature;
 use std::fmt;
-use std::ops::Deref;
+use std::rand;
 use std::cmp::{min, max, PartialOrd, PartialEq};
 
 // PerformableAction is the result of evaluating a thought tree
@@ -46,9 +46,11 @@ impl fmt::String for PerformableAction {
 
 pub fn evaluate(me: &Creature,
                 other: &Creature,
-                tree: &ConditionTree) -> PerformableAction {
+                tree: &ConditionTree,
+                rng: &mut rand::Rng) -> PerformableAction {
     match *tree {
-        ConditionTree::Always(ref action) => eval_action(me, other, action),
+        ConditionTree::Always(ref action) =>
+            eval_action(me, other, action, rng),
         ConditionTree::RangeCompare{
             ref value,
             ref bound_a,
@@ -56,15 +58,15 @@ pub fn evaluate(me: &Creature,
             ref affirmed,
             ref denied
         } => {
-            let a = eval_value(me, other, bound_a);
-            let b = eval_value(me, other, bound_b);
-            let check_val = eval_value(me, other, value);
+            let a = eval_value(me, other, bound_a, rng);
+            let b = eval_value(me, other, bound_b, rng);
+            let check_val = eval_value(me, other, value, rng);
             if min(a, b) <= check_val && check_val <= max(a, b) {
                 print3!("{} was between {} and {}", check_val, a, b);
-                eval_action(me, other, affirmed)
+                eval_action(me, other, affirmed, rng)
             } else {
                 print3!("{} was not between {} and {}", check_val, a, b);
-                eval_action(me, other, denied)
+                eval_action(me, other, denied, rng)
             }
         },
         ConditionTree::BinCompare{
@@ -74,22 +76,22 @@ pub fn evaluate(me: &Creature,
             ref affirmed,
             ref denied,
         } => {
-            let op: fn(&u8, &u8) -> bool = match *operation {
+            let op: fn(&usize, &usize) -> bool = match *operation {
                 BinOp::LT => PartialOrd::lt,
                 BinOp::GT => PartialOrd::gt,
                 BinOp::EQ => PartialEq::eq,
                 BinOp::NE => PartialEq::ne,
             };
-            let evaled_lhs = eval_value(me, other, lhs);
-            let evaled_rhs = eval_value(me, other, rhs);
+            let evaled_lhs = eval_value(me, other, lhs, rng);
+            let evaled_rhs = eval_value(me, other, rhs, rng);
             if op(&evaled_lhs, &evaled_rhs) {
                 print3!("{:?}({}) was {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, affirmed)
+                eval_action(me, other, affirmed, rng)
             } else {
                 print3!("{:?}({}) was not {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, denied)
+                eval_action(me, other, denied, rng)
             }
         },
         ConditionTree::ActionCompare{
@@ -102,15 +104,15 @@ pub fn evaluate(me: &Creature,
                 ActorType::Me => (me, "my"),
                 ActorType::Other => (other, "other's"),
             };
-            let my_action = eval_action(me, other, action);
+            let my_action = eval_action(me, other, action, rng);
             if my_action == actor.last_action {
                 print3!("{}'s last action was {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, affirmed)
+                eval_action(me, other, affirmed, rng)
             } else {
                 print3!("{}'s last action was not {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, denied)
+                eval_action(me, other, denied, rng)
             }
             
         }
@@ -119,7 +121,8 @@ pub fn evaluate(me: &Creature,
 
 fn eval_action(me: &Creature,
                other: &Creature,
-               action: &ActionTree) -> PerformableAction {
+               action: &ActionTree,
+               rng: &mut rand::Rng) -> PerformableAction {
     match *action {
         ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
         ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
@@ -130,13 +133,37 @@ fn eval_action(me: &Creature,
         ActionTree::Flee => PerformableAction::Flee,
         ActionTree::Mate => PerformableAction::Mate,
         ActionTree::Subcondition(box ref sub) => {
-            evaluate(me, other, sub)
+            evaluate(me, other, sub, rng)
         },
     }
 }
 
 fn eval_value(me: &Creature,
               other: &Creature,
-              val: &ValueTree) -> u8 {
-    8u8
+              val: &ValueTree,
+              rng: &mut rand::Rng) -> usize {
+    match *val {
+        ValueTree::Literal(x) => x as usize,
+        ValueTree::Random => rng.gen(),
+        ValueTree::Me(attr) => get_attr(me, attr),
+        ValueTree::Other(attr) => get_attr(other, attr),
+    }
+}
+
+fn get_attr(actor: &Creature, attr: Attribute) -> usize {
+    match attr {
+        Attribute::Energy => actor.energy,
+        Attribute::Signal => match actor.signal {
+            Some(sig) => sig as usize,
+            None => 0,
+        },
+        Attribute::Generation => actor.generation,
+        Attribute::Kills => actor.kills,
+        Attribute::Survived => actor.survived,
+        Attribute::NumChildren => actor.num_children,
+        Attribute::TopItem => match actor.top_item() {
+            Some(item) => item as usize,
+            None => 0,
+        },
+    }
 }

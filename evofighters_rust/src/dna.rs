@@ -61,7 +61,7 @@ impl fmt::String for Attribute {
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum Item {
-    Food,
+    Food = 1,
     GoodFood,
     BetterFood,
     ExcellentFood,
@@ -69,7 +69,7 @@ pub enum Item {
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum Signal {
-    Red,
+    Red = 1,
     Yellow,
     Blue,
     Purple,

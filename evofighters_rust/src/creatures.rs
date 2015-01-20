@@ -3,17 +3,13 @@ use eval;
 use parsing;
 use std::fmt;
 use settings;
-use util;
 
 #[derive(Show)]
 pub struct Creature <'a> {
     dna: &'a [u8],
     inv: Vec<dna::Item>,
-    pub energy: isize,
+    pub energy: usize,
     pub generation: usize,
-    // Omitted target, will deal with elsewhere. No reason for a
-    // creature to own another creature really, they just need to be
-    // present at the same time.
     pub num_children: usize,
     pub signal: Option<dna::Signal>,
     pub survived: usize,
@@ -121,8 +117,9 @@ impl <'a> Iterator for Creature<'a> {
                 ref icount,
                 ref skipped,
             } => {
-                print1!("{} was paralyzed by analysis and died: {:?}",
-                        self.id, reason);
+                print1!("{} was paralyzed by analysis and died: {:?} after \
+                        {} instructions and {} skipped",
+                        self.id, reason, icount, skipped);
                 self.energy = 0;
                 None
             }
