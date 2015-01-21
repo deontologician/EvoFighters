@@ -99,7 +99,7 @@ impl <'a> Creature<'a> {
     pub fn carryout(&mut self,
                     other: &mut Creature,
                     action: eval::PerformableAction,
-                    rng: &rand::Rng) -> arena::FightStatus {
+                    rng: &mut rand::Rng) -> arena::FightStatus {
         if self.dead() {
             return arena::FightStatus::End
         }
@@ -133,8 +133,13 @@ impl <'a> Creature<'a> {
             },
             eval::PerformableAction::Wait => print2!("{} waits", self.id),
             // This is only defending with no corresponding attack
-            eval::PerformableAction::Defend => print2!("{} defends", self.id),
-            
+            eval::PerformableAction::Defend(dmg) =>
+                print2!("{} defends with {:?} for no reason", self.id, dmg),
+            eval::PerformableAction::Flee => {
+                let enemy_roll: usize = rng.gen_range(0, 100);
+                let my_roll: usize = rng.gen_range(0, 100);
+                
+            }
             _ => panic!("I can't do that dave")
         }
         arena::FightStatus::Continue
