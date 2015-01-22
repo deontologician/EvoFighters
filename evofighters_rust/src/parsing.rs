@@ -1,7 +1,9 @@
-use dna::*;
 use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
+use std::rc;
+
+use dna::*;
 use settings;
 
 #[derive(Show, PartialEq, Eq, Copy)]
@@ -28,14 +30,14 @@ pub enum Thought {
 pub type ParseResult<T> = Result<T, Failure>;
 
 #[derive(Show)]
-pub struct DNAIter<'a> {
-    dna: &'a[u8],
+pub struct DNAIter {
+    dna: DNA,
     progress: usize,
     len: usize,
 }
 
-impl<'a> DNAIter<'a> {
-    fn new(dna: &'a[u8]) -> DNAIter<'a> {
+impl DNAIter {
+    fn new(dna: DNA) -> DNAIter {
         DNAIter {
             dna: dna,
             progress: 0us,
@@ -44,7 +46,7 @@ impl<'a> DNAIter<'a> {
     }
 }
 
-impl<'a> Iterator for DNAIter<'a> {
+impl Iterator for DNAIter {
     type Item = u8;
     fn next(&mut self) -> Option<u8> {
         self.progress = (self.progress + 1) % self.len;
@@ -56,18 +58,18 @@ impl<'a> Iterator for DNAIter<'a> {
 }
 
 #[derive(Show)]
-pub struct Parser<'a> {
+pub struct Parser {
     pub icount: usize,
     pub skipped: usize,
     pub depth: usize,
-    dna: DNAIter<'a>,
+    dna: DNAIter,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     /// Handles parsing from dna and returning a parse tree which
     /// represents a creature's thought process in making
     /// encounter decisions
-    pub fn new(dna: &'a[u8]) -> Parser {
+    pub fn new(dna: DNA) -> Parser {
         Parser {
             icount : 0,
             skipped : 0,
@@ -169,7 +171,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-impl<'a> Iterator for Parser<'a> {
+impl Iterator for Parser {
     type Item = Thought;
     fn next(&mut self) -> Option<Thought> {
         Some(match self.parse_condition() {

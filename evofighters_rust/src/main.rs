@@ -3,6 +3,8 @@
 
 use std::rand;
 use std::rand::Rng;
+use std::num::Int;
+use std::rc;
 
 #[macro_use]
 pub mod util;
@@ -14,14 +16,15 @@ pub mod creatures;
 pub mod arena;
 
 fn main() {
-    let mut v: Vec<u8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
     let mut rng = rand::thread_rng();
+    println!("We got {}", 12us.saturating_sub(13us));
+    let mut v: Vec<u8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
     for x in v.iter_mut() {
         *x = rng.gen();
     }
     
-    let mut parser = parsing::Parser::new(v.as_slice());
+    let mut parser = parsing::Parser::new(rc::Rc::new(v));
     let thought = parser.next().expect("No thought!");
     match thought {
         parsing::Thought::Decision {tree, icount, skipped} =>

@@ -1,4 +1,8 @@
 use std::fmt;
+use std::rc;
+use std::vec;
+
+pub type DNA = rc::Rc<vec::Vec<u8>>;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum Condition {

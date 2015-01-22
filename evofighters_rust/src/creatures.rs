@@ -1,5 +1,7 @@
 use std::fmt;
 use std::rand;
+use std::num::Int;
+use std::rc;
 
 use dna;
 use eval;
@@ -7,9 +9,35 @@ use parsing;
 use settings;
 use arena;
 
+trait Creature {
+    pub fn last_action(&self) -> eval::PerformableAction;
+    pub fn add_item(&mut self, item: dna::Item);
+    pub fn pop_item(&mut self) -> Option<dna::Item>;
+
+    pub fn top_item(&self) -> Option<dna::Item>;
+
+    pub fn eat(&mut self, item: dna::Item);
+
+    pub fn dead(&self) -> bool;
+
+    pub fn alive(&self) -> bool;
+
+    pub fn lose_life(&mut self, amount: usize);
+
+    pub fn carryout(&mut self,
+                    other: &mut Creature,
+                    action: eval::PerformableAction,
+                    rng: &mut rand::Rng) -> arena::FightStatus;
+    
+    pub fn new<'a>(id: usize,
+                   dna: dna::DNA,
+                   parents: (usize, usize)) -> Self;
+
+}
+
 #[derive(Show)]
-pub struct Creature <'a> {
-    dna: &'a [u8],
+pub struct RealCreature {
+    dna: dna::DNA,
     inv: Vec<dna::Item>,
     pub energy: usize,
     pub generation: usize,
@@ -25,22 +53,21 @@ pub struct Creature <'a> {
     pub eaten: usize,
     pub parents: (usize, usize),
     // These are used for the iterator
-    parser: parsing::Parser<'a>,
+    parser: parsing::Parser,
 }
 
-impl <'a> fmt::String for Creature<'a> {
+impl fmt::String for RealCreature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<]Creature {}[>", self.id)
+        write!(f, "<]RealCreature {}[>", self.id)
     }
 }
 
-impl <'a> Creature<'a> {
-
-    pub fn new(&mut self,
-           id: usize,
-           dna: &'a [u8],
-           parents: (usize, usize)) -> Creature<'a> {
-        Creature {
+impl RealCreature {
+    
+    pub fn new(id: usize,
+               dna: dna::DNA,
+               parents: (usize, usize)) -> RealCreature {
+        RealCreature {
             dna: dna,
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
@@ -60,6 +87,9 @@ impl <'a> Creature<'a> {
         }
     }
 
+}
+
+impl Creature for RealCreature {
     pub fn add_item(&mut self, item: dna::Item) {
         if self.inv.len() < settings::MAX_INV_SIZE {
             self.inv.push(item)
@@ -67,6 +97,10 @@ impl <'a> Creature<'a> {
             print2!("{} tries to add {:?} but has no more space",
                     self.id, item);
         }
+    }
+
+    pub fn last_action(&self) -> eval::PerformableAction {
+        self.last_action
     }
 
     pub fn pop_item(&mut self) -> Option<dna::Item> {
@@ -96,8 +130,12 @@ impl <'a> Creature<'a> {
         !self.dead()
     }
 
+    pub fn lose_life(&mut self, amount: usize) {
+        self.energy = self.energy.saturating_sub(amount)
+    }
+
     pub fn carryout(&mut self,
-                    other: &mut Creature,
+                    other: &mut RealCreature,
                     action: eval::PerformableAction,
                     rng: &mut rand::Rng) -> arena::FightStatus {
         if self.dead() {
@@ -136,17 +174,28 @@ impl <'a> Creature<'a> {
             eval::PerformableAction::Defend(dmg) =>
                 print2!("{} defends with {:?} for no reason", self.id, dmg),
             eval::PerformableAction::Flee => {
-                let enemy_roll: usize = rng.gen_range(0, 100);
-                let my_roll: usize = rng.gen_range(0, 100);
+                let my_roll: f64 = rng.gen_range(0.0, self.energy as f64);
+                let other_roll: f64 = rng.gen_range(0.0, other.energy as f64);
+                let dmg: usize = rng.gen_range(0, 3);
+                if other_roll < my_roll {
+                    print1!("{} flees the encounter and takes {} damage",
+                            self.id, dmg);
+                    self.lose_life(dmg);
+                    return arena::FightStatus::End
+                } else {
+                    print2!("{} tries to flee, but {} prevents it",
+                            self.id, other.id);
+                }
                 
-            }
-            _ => panic!("I can't do that dave")
+            },
+            invalid_action => panic!("Shouldn't have gotten {:?} here",
+                                     invalid_action)
         }
         arena::FightStatus::Continue
     }
 }
 
-impl <'a> Iterator for Creature<'a> {
+impl Iterator for RealCreature {
     type Item = (Box<dna::ConditionTree>, usize);
     fn next(&mut self) -> Option<(Box<dna::ConditionTree>, usize)> {
         let thought = self.parser.next().expect("parser ended somehow!");
