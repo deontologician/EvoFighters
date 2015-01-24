@@ -18,13 +18,17 @@ pub mod arena;
 fn main() {
     let mut rng = rand::thread_rng();
     println!("We got {}", 12us.saturating_sub(13us));
-    let mut v: Vec<u8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    let mut v: Vec<i8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
     for x in v.iter_mut() {
-        *x = rng.gen();
+        *x = rng.gen_range(-1, 8);
     }
-    
-    let mut parser = parsing::Parser::new(rc::Rc::new(v));
+    let owned_v = rc::Rc::new(v);
+    println!("Full: {:?}", owned_v);
+    let chunks = creatures::gene_primer(owned_v.clone());
+    println!("Chunked: {:?}", chunks);
+
+    let mut parser = parsing::Parser::new(owned_v.clone());
     let thought = parser.next().expect("No thought!");
     match thought {
         parsing::Thought::Decision {tree, icount, skipped} =>
@@ -34,5 +38,5 @@ fn main() {
             println!("icount: {}, skipped: {}, failed because: {:?}",
                      icount, skipped, reason)
     }
-            
+
 }

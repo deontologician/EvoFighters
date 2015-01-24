@@ -1,7 +1,6 @@
 use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
-use std::rc;
 
 use dna::*;
 use settings;
@@ -38,17 +37,18 @@ pub struct DNAIter {
 
 impl DNAIter {
     fn new(dna: DNA) -> DNAIter {
+        let len = dna.len(); // avoid borrow issues
         DNAIter {
-            dna: dna,
+            dna: dna.clone(),
             progress: 0us,
-            len: dna.len(),
+            len: len,
         }
     }
 }
 
 impl Iterator for DNAIter {
-    type Item = u8;
-    fn next(&mut self) -> Option<u8> {
+    type Item = i8;
+    fn next(&mut self) -> Option<i8> {
         self.progress = (self.progress + 1) % self.len;
         Some(self.dna[self.progress])
     }
@@ -78,14 +78,14 @@ impl Parser {
         }
     }
 
-    fn next_valid<T: FromPrimitive>(&mut self, minimum: u8) -> ParseResult<T> {
-        let mut next_u8 = self.dna.next();
+    fn next_valid<T: FromPrimitive>(&mut self, minimum: i8) -> ParseResult<T> {
+        let mut next_i8 = self.dna.next();
         let mut next_val : Option<T> =
-            next_u8.and_then(FromPrimitive::from_u8);
+            next_i8.and_then(FromPrimitive::from_i8);
         self.icount += 1;
-        while next_val.is_none() || next_u8.unwrap() < minimum {
-            next_u8 = self.dna.next();
-            next_val = next_u8.and_then(FromPrimitive::from_u8);
+        while next_val.is_none() || next_i8.unwrap() < minimum {
+            next_i8 = self.dna.next();
+            next_val = next_i8.and_then(FromPrimitive::from_i8);
             self.skipped += 1;
             if self.icount + self.skipped > settings::MAX_THINKING_STEPS {
                 return Err(Failure::TookTooLong)

@@ -1,9 +1,8 @@
-
 extern crate core;
 
 use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
           BinOp, ActorType, Attribute};
-use creatures::{Creature, RealCreature};
+use creatures::Creature;
 use std::fmt;
 use std::rand;
 use std::cmp::{min, max, PartialOrd, PartialEq};
@@ -44,7 +43,7 @@ impl fmt::String for PerformableAction {
     }
 }
 
-pub fn evaluate(me: &RealCreature,
+pub fn evaluate(me: &Creature,
                 other: &Creature,
                 tree: &ConditionTree,
                 rng: &mut rand::Rng) -> PerformableAction {
@@ -105,22 +104,21 @@ pub fn evaluate(me: &RealCreature,
                 ActorType::Other => (other, "other's"),
             };
             let my_action = eval_action(me, other, action, rng);
-            let actor_last_action = actor.last_action();
-            if my_action == actor_last_action {
+            if my_action == actor.last_action {
                 print3!("{}'s last action was {:?}",
                         actor_str, actor.last_action);
                 eval_action(me, other, affirmed, rng)
             } else {
                 print3!("{}'s last action was not {:?}",
-                        actor_str, actor_last_action);
+                        actor_str, actor.last_action);
                 eval_action(me, other, denied, rng)
             }
-            
+
         }
     }
 }
 
-fn eval_action(me: &RealCreature,
+fn eval_action(me: &Creature,
                other: &Creature,
                action: &ActionTree,
                rng: &mut rand::Rng) -> PerformableAction {
@@ -139,7 +137,7 @@ fn eval_action(me: &RealCreature,
     }
 }
 
-fn eval_value(me: &RealCreature,
+fn eval_value(me: &Creature,
               other: &Creature,
               val: &ValueTree,
               rng: &mut rand::Rng) -> usize {
@@ -153,15 +151,15 @@ fn eval_value(me: &RealCreature,
 
 fn get_attr(actor: &Creature, attr: Attribute) -> usize {
     match attr {
-        Attribute::Energy => actor.energy(),
-        Attribute::Signal => match actor.signal() {
+        Attribute::Energy => actor.energy,
+        Attribute::Signal => match actor.signal {
             Some(sig) => sig as usize,
             None => 0,
         },
-        Attribute::Generation => actor.generation(),
-        Attribute::Kills => actor.kills(),
-        Attribute::Survived => actor.survived(),
-        Attribute::NumChildren => actor.num_children(),
+        Attribute::Generation => actor.generation,
+        Attribute::Kills => actor.kills,
+        Attribute::Survived => actor.survived,
+        Attribute::NumChildren => actor.num_children,
         Attribute::TopItem => match actor.top_item() {
             Some(item) => item as usize,
             None => 0,
