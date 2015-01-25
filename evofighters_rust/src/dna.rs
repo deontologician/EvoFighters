@@ -18,6 +18,7 @@ pub enum Condition {
     NotEqualTo,
     MyLastAction,
     OtherLastAction,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
@@ -26,6 +27,7 @@ pub enum Value {
     Random,
     Me,
     Other,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
@@ -39,6 +41,7 @@ pub enum Action {
     Take,
     Wait,
     Flee,
+    // If adding an action, update settings::MAX_GENE_VALUE to match
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
@@ -50,9 +53,10 @@ pub enum Attribute {
     Survived,
     NumChildren,
     TopItem,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
-impl fmt::String for Attribute {
+impl fmt::Display for Attribute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Attribute::Energy => write!(f, "energy"),
@@ -73,6 +77,7 @@ pub enum Item {
     GoodFood,
     BetterFood,
     ExcellentFood,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
@@ -83,13 +88,15 @@ pub enum Signal {
     Purple,
     Orange,
     Green,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
 pub enum DamageType {
     Fire,
     Ice,
-    Electricity
+    Electricity,
+    // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
 
@@ -98,7 +105,7 @@ pub enum BinOp {
     LT, GT, EQ, NE
 }
 
-impl fmt::String for BinOp {
+impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             BinOp::LT => write!(f, "is less than"),
@@ -147,7 +154,7 @@ pub enum ValueTree {
     Other(Attribute),
 }
 
-impl fmt::String for ValueTree {
+impl fmt::Display for ValueTree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ValueTree::Literal(lit) =>

@@ -20,7 +20,7 @@ pub enum PerformableAction {
     Mate,
 }
 
-impl fmt::String for PerformableAction {
+impl fmt::Display for PerformableAction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             PerformableAction::Attack(dmg) =>

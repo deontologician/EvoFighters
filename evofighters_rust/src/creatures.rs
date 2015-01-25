@@ -1,6 +1,8 @@
 use std::fmt;
 use std::rand;
-use std::num::Int;
+use std::num::{Int, Float};
+use std::cmp::max;
+use std::rc;
 
 use dna;
 use eval;
@@ -31,7 +33,7 @@ pub struct Creature {
 }
 
 
-impl fmt::String for Creature {
+impl fmt::Display for Creature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_feeder() {
             write!(f, "[|Feeder|]")
@@ -45,12 +47,13 @@ impl Creature {
 
     pub fn new(id: usize,
                dna: dna::DNA,
+               generation: usize,
                parents: (usize, usize)) -> Creature {
         Creature {
             dna: dna.clone(),
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
-            generation: 0,
+            generation: generation,
             num_children: 0,
             signal: None,
             survived: 0,
@@ -90,6 +93,10 @@ impl Creature {
         self.id == FEEDER_ID
     }
 
+    pub fn has_items(&self) -> bool {
+        return !self.inv.is_empty()
+    }
+
     pub fn add_item(&mut self, item: dna::Item) {
         if self.inv.len() < settings::MAX_INV_SIZE {
             self.inv.push(item)
@@ -123,7 +130,7 @@ impl Creature {
 
     pub fn dead(&self) -> bool {
         if self.is_feeder() {
-            self.energy == 0 || self.inv.is_empty()
+            self.energy == 0 || self.has_items()
         } else {
             self.energy == 0 || self.dna.is_empty()
         }
@@ -187,7 +194,7 @@ impl Creature {
             eval::PerformableAction::Flee => {
                 let my_roll: f64 = rng.gen_range(0.0, self.energy as f64);
                 let other_roll: f64 = rng.gen_range(0.0, other.energy as f64);
-                let dmg: usize = rng.gen_range(0, 3);
+                let dmg: usize = rng.gen_range(0, 4);
                 if other_roll < my_roll {
                     print1!("{} flees the encounter and takes \
                             {} damage", self, dmg);
@@ -262,25 +269,164 @@ pub fn try_to_mate(
     second_mate: &mut Creature,
     sm_share: usize,
     rng: &mut rand::Rng,
-    ) {
-    if rng.gen_range(1, 100) > mating_chance
+    idbox: &mut usize) -> Option<Creature> {
+    if rng.gen_range(0, 100) > mating_chance
         || first_mate.dead()
         || second_mate.dead() {
-            return
+            return None
         }
     print1!("{} tried to mate with {}!", first_mate, second_mate);
     if first_mate.is_feeder() || second_mate.is_feeder() {
         print1!("{} tried to mate with {}", first_mate, second_mate);
+        // Mating kills the feeder
         if first_mate.is_feeder() {
             first_mate.energy = 0;
         }
         if second_mate.is_feeder() {
             second_mate.energy = 0;
         }
-        return
+        return None
     }
     print2!("Attempting to mate");
-    fn pay_cost(p, share) -> bool {
-        let cost = settings.MATING_COST * (share / 100.0); //wrong
+    fn pay_cost(p: &mut Creature, share: usize) -> bool {
+        let mut cost = (settings::MATING_COST as f64 *
+                    (share as f64 / 100.0)).round() as isize;
+        while cost > 0 {
+            match p.pop_item() {
+                Some(item) => {
+                    cost -= (item as isize) * 2;
+                },
+                None => {
+                    print1!("{} ran out of items and failed to mate", p);
+                    return false
+                }
+            }
+        }
+        true
+    }
+    if pay_cost(first_mate, fm_share) && pay_cost(second_mate, sm_share) {
+        Some(mate(first_mate, second_mate, rng, idbox))
+    } else {
+        None
+    }
+}
+
+pub fn mate(p1: &mut Creature,
+            p2: &mut Creature,
+            rng: &mut rand::Rng,
+            idbox: &mut usize) -> Creature {
+    let dna1_primer = gene_primer(p1.dna.clone());
+    let dna2_primer = gene_primer(p2.dna.clone());
+    let child_gene_len = max(dna1_primer.len(), dna2_primer.len());
+    let mut dna1 = dna1_primer.into_iter();
+    let mut dna2 = dna2_primer.into_iter();
+    let mut child_genes : Vec<Vec<i8>> = Vec::with_capacity(child_gene_len + 1);
+    loop {
+        let gene1 = dna1.next().unwrap_or(Vec::new());
+        let gene2 = dna2.next().unwrap_or(Vec::new());
+        if gene1.is_empty() && gene2.is_empty() {
+            break;
+        }
+        child_genes.push(if rng.gen() {
+            gene1
+        } else {
+            gene2
+        });
+    }
+    if rng.gen_range(0.0, 1.0) < settings::MUTATION_RATE {
+        mutate(&mut child_genes, rng)
+    }
+    let mut dna_vec = Vec::with_capacity(child_genes.len() * 12);
+    for gene in child_genes.into_iter() {
+        dna_vec.extend(gene.into_iter())
+    }
+
+    *idbox += 1;
+    let child = Creature::new(
+        *idbox, // id
+        rc::Rc::new(dna_vec), // dna
+        max(p1.generation, p2.generation) + 1, // generation
+        (p1.id, p2.id), // parents
+        );
+    p1.num_children += 1;
+    p2.num_children += 1;
+    child
+}
+
+pub fn mutate(genes: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
+    if rng.gen_weighted_bool(
+        (10000.0/settings::MUTATION_RATE) as usize) {
+        genome_level_mutation(genes, rng);
+    } else {
+        let index = rng.gen_range(0, genes.len());
+        let fixed_gene = &mut genes[index];
+        print2!("Mutating gene {}", index);
+        gene_level_mutation(fixed_gene, rng);
+    }
+}
+
+pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
+    match rng.gen_range(1, 4) {
+        1 => { // swap two genes
+            let i1 = rng.gen_range(0, genome.len());
+            let i2 = rng.gen_range(0, genome.len());
+            print2!("swapped genes {} and {}", i1, i2);
+            genome.as_mut_slice().swap(i1, i2);
+        },
+        2 => { // double a gene
+            let i = rng.gen_range(0, genome.len());
+            let gene = genome[i].clone();
+            print2!("doubled gene {}", i);
+            genome.insert(i, gene);
+        },
+        3 => { // deletes a gene
+            let i = rng.gen_range(0, genome.len());
+            print2!("Deleted gene {}", i);
+            // Avoid shifting items if we can, we're going to flatten
+            // this list anyway later
+            genome.push(Vec::new());
+            genome.swap_remove(i);
+        },
+        _ => panic!("Generated in range 1 - 3! Should not reach.")
+    }
+}
+
+pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::Rng) {
+    if gene.is_empty() {
+        print3!("Mutated an empty gene!");
+        return
+    }
+    match rng.gen_range(1, 6) {
+        1 => { // reverse the order of bases in a gene
+            gene.as_mut_slice().reverse();
+            print2!("reversed gene");
+        },
+        2 => { // deleting a gene
+            gene.clear();
+            print2!("deleted gene");
+        },
+        3 => { // insert an extra base in a gene
+            let val = rng.gen_range(-1, settings::MAX_GENE_VALUE);
+            let index = rng.gen_range(0, gene.len());
+            print2!("inserted {} at {}", val, index);
+            gene.insert(index, val);
+        },
+        4 => { // increment a base in a gene, modulo the
+            // max gene value
+            let inc = rng.gen_range(1, 3);
+            let index = rng.gen_range(0, gene.len());
+            let new_base = (gene[index] + 1 + inc) %
+                (settings::MAX_GENE_VALUE + 2) - 1;
+            print2!("added {} to base at {} with val {} to get {}",
+                    inc, index, gene[index], new_base);
+            gene[index] = new_base;
+        },
+        5 => { // swap two bases in the gene
+            let i1 = rng.gen_range(0, gene.len());
+            let i2 = rng.gen_range(0, gene.len());
+            gene.as_mut_slice().swap(i1, i2);
+            print2!("swapped bases {} and {}", i1, i2);
+        },
+        _ => panic!("Impossible. number between 1 and 6 exclusive")
     }
 }
