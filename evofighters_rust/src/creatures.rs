@@ -1,5 +1,6 @@
 use std::fmt;
 use std::rand;
+use std::rand::Rng;
 use std::num::{Int, Float};
 use std::cmp::max;
 use std::rc;
@@ -147,7 +148,7 @@ impl Creature {
     pub fn carryout(&mut self,
                     other: &mut Creature,
                     action: eval::PerformableAction,
-                    rng: &mut rand::Rng) -> arena::FightStatus {
+                    rng: &mut rand::ThreadRng) -> arena::FightStatus {
         if self.is_feeder() {
             print2!("Feeder does nothing");
             return arena::FightStatus::Continue;
@@ -268,7 +269,7 @@ pub fn try_to_mate(
     fm_share: usize,
     second_mate: &mut Creature,
     sm_share: usize,
-    rng: &mut rand::Rng,
+    rng: &mut rand::ThreadRng,
     idbox: &mut usize) -> Option<Creature> {
     if rng.gen_range(0, 100) > mating_chance
         || first_mate.dead()
@@ -313,7 +314,7 @@ pub fn try_to_mate(
 
 pub fn mate(p1: &mut Creature,
             p2: &mut Creature,
-            rng: &mut rand::Rng,
+            rng: &mut rand::ThreadRng,
             idbox: &mut usize) -> Creature {
     let dna1_primer = gene_primer(p1.dna.clone());
     let dna2_primer = gene_primer(p2.dna.clone());
@@ -353,7 +354,7 @@ pub fn mate(p1: &mut Creature,
     child
 }
 
-pub fn mutate(genes: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
+pub fn mutate(genes: &mut Vec<Vec<i8>>, rng: &mut rand::ThreadRng) {
     if rng.gen_weighted_bool(
         (10000.0/settings::MUTATION_RATE) as usize) {
         genome_level_mutation(genes, rng);
@@ -365,7 +366,7 @@ pub fn mutate(genes: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
     }
 }
 
-pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
+pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::ThreadRng) {
     match rng.gen_range(1, 4) {
         1 => { // swap two genes
             let i1 = rng.gen_range(0, genome.len());
@@ -391,7 +392,7 @@ pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::Rng) {
     }
 }
 
-pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::Rng) {
+pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::ThreadRng) {
     if gene.is_empty() {
         print3!("Mutated an empty gene!");
         return

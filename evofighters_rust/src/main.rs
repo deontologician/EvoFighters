@@ -2,7 +2,7 @@
 #![feature(box_syntax)]
 
 use std::rand;
-use std::rand::Rng;
+use std::rand::{ThreadRng,Rng};
 use std::rc;
 
 #[macro_use]
@@ -15,22 +15,21 @@ pub mod creatures;
 pub mod arena;
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    let mut rng: ThreadRng = rand::thread_rng();
     let mut v: Vec<i8> = vec![0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+    let mut v2: Vec<i8> = vec![0,0,0,0,0,0,0,0];
 
     for x in v.iter_mut() {
-        *x = rng.gen_range(-1, 8);
+        *x = rng.gen_range(-1, 9);
     }
 
-    let mut parser = parsing::Parser::new(rc::Rc::new(v));
-    let thought = parser.next().expect("No thought!");
-    match thought {
-        parsing::Thought::Decision {tree, icount, skipped} =>
-            println!("icount: {}, skipped: {}, tree:\n{:?}",
-                     icount, skipped, tree),
-        parsing::Thought::Indecision {reason, icount, skipped} =>
-            println!("icount: {}, skipped: {}, failed because: {:?}",
-                     icount, skipped, reason)
-    }
+    let mut creature_1 = creatures::Creature::new(1, rc::Rc::new(v), 0, (0,0));
+    let mut creature_2 = creatures::Creature::new(2, rc::Rc::new(v2), 0, (0,0));
 
+    creature_1.add_item(dna::Item::GoodFood);
+    creature_2.add_item(dna::Item::GoodFood);
+    let mut idbox = 2;
+
+    let child = creatures::mate(&mut creature_1, &mut creature_2, &mut rng, &mut idbox);
+    println!("Got child: {:?}", child);
 }

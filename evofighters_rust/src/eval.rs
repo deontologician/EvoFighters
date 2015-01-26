@@ -5,6 +5,7 @@ use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
 use creatures::Creature;
 use std::fmt;
 use std::rand;
+use std::rand::Rng;
 use std::cmp::{min, max, PartialOrd, PartialEq};
 
 // PerformableAction is the result of evaluating a thought tree
@@ -46,7 +47,7 @@ impl fmt::Display for PerformableAction {
 pub fn evaluate(me: &Creature,
                 other: &Creature,
                 tree: &ConditionTree,
-                rng: &mut rand::Rng) -> PerformableAction {
+                rng: &mut rand::ThreadRng) -> PerformableAction {
     match *tree {
         ConditionTree::Always(ref action) =>
             eval_action(me, other, action, rng),
@@ -121,7 +122,7 @@ pub fn evaluate(me: &Creature,
 fn eval_action(me: &Creature,
                other: &Creature,
                action: &ActionTree,
-               rng: &mut rand::Rng) -> PerformableAction {
+               rng: &mut rand::ThreadRng) -> PerformableAction {
     match *action {
         ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
         ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
@@ -140,7 +141,7 @@ fn eval_action(me: &Creature,
 fn eval_value(me: &Creature,
               other: &Creature,
               val: &ValueTree,
-              rng: &mut rand::Rng) -> usize {
+              rng: &mut rand::ThreadRng) -> usize {
     match *val {
         ValueTree::Literal(x) => x as usize,
         ValueTree::Random => rng.gen(),
