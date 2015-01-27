@@ -26,6 +26,37 @@ pub enum Thought {
     }
 }
 
+impl Thought {
+    pub fn decided(&self) -> bool {
+        match *self {
+            Thought::Decision{..} => true,
+            Thought::Indecision{..} => false,
+        }
+    }
+
+    pub fn icount(&self) -> usize {
+        match *self {
+            Thought::Decision{icount, ..} => icount,
+            Thought::Indecision{icount, ..} => icount,
+        }
+    }
+
+    pub fn skipped(&self) -> usize {
+        match *self {
+            Thought::Decision{skipped, ..} => skipped,
+            Thought::Indecision{skipped, ..} => skipped,
+        }
+    }
+
+    // Unsafe grabbing of the wrapped tree. Panics if not
+    pub fn tree(&self) -> Box<ConditionTree> {
+        match *self {
+            Thought::Decision{tree, ..} => tree,
+            _ => panic!("No valid tree! {:?}", self),
+        }
+    }
+}
+
 pub type ParseResult<T> = Result<T, Failure>;
 
 #[derive(Show)]
@@ -36,11 +67,11 @@ pub struct DNAIter {
 }
 
 impl DNAIter {
-    fn new(dna: DNA) -> DNAIter {
+    fn new(dna: DNA, offset: usize) -> DNAIter {
         let len = dna.len(); // avoid borrow issues
         DNAIter {
             dna: dna.clone(),
-            progress: 0us,
+            progress: offset % len,
             len: len,
         }
     }
@@ -69,11 +100,11 @@ impl Parser {
     /// Handles parsing from dna and returning a parse tree which
     /// represents a creature's thought process in making
     /// encounter decisions
-    pub fn new(dna: DNA) -> Parser {
+    pub fn new(dna: DNA, offset: usize) -> Parser {
         Parser {
             icount : 0,
             skipped : 0,
-            dna : DNAIter::new(dna),
+            dna : DNAIter::new(dna, offset),
             depth : 0,
         }
     }

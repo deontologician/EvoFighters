@@ -29,8 +29,6 @@ pub struct Creature {
     pub id: usize,
     pub eaten: usize,
     pub parents: (usize, usize),
-    // These are used for the iterator
-    parser: parsing::Parser,
 }
 
 
@@ -65,8 +63,12 @@ impl Creature {
             id: id,
             eaten: 0,
             parents: parents,
-            parser: parsing::Parser::new(dna.clone()),
         }
+    }
+
+    pub fn iter(&self) -> parsing::Parser {
+        parsing::Parser::new(
+            self.dna.clone(), self.instr_used + self.instr_skipped)
     }
 
     pub fn feeder() -> Creature {
@@ -86,7 +88,6 @@ impl Creature {
             last_action: eval::PerformableAction::Wait,
             eaten: 0,
             parents: (0, 0),
-            parser: parsing::Parser::new(dntel.clone()),
         }
     }
 
@@ -143,6 +144,18 @@ impl Creature {
 
     pub fn lose_life(&mut self, amount: usize) {
         self.energy = self.energy.saturating_sub(amount)
+    }
+
+    pub fn kill(&mut self) {
+        self.energy = 0;
+    }
+
+    pub fn update_from_thought(&mut self, thought: &parsing::Thought) {
+        self.instr_used += thought.skipped();
+        self.instr_skipped += thought.skipped();
+        if !thought.decided() {
+            self.kill()
+        }
     }
 
     pub fn carryout(&mut self,
@@ -214,38 +227,6 @@ impl Creature {
     }
 }
 
-impl Iterator for Creature {
-    type Item = (Box<dna::ConditionTree>, usize);
-    fn next(&mut self) -> Option<(Box<dna::ConditionTree>, usize)> {
-        let thought = self.parser.next().expect("parser ended somehow!");
-        match thought {
-            parsing::Thought::Decision{
-                tree,
-                icount,
-                skipped,
-            } => {
-                print3!("{}'s thought process: \n{:?}",
-                        self, tree);
-                print3!("which required {} instructions and {} \
-                        instructions skipped over", icount, skipped);
-                self.instr_used += icount;
-                self.instr_skipped += skipped;
-                Some((tree, icount + skipped))
-            },
-            parsing::Thought::Indecision{
-                ref reason,
-                ref icount,
-                ref skipped,
-            } => {
-                print1!("{} was paralyzed by analysis and died: {:?} after \
-                        {} instructions and {} skipped",
-                        self, reason, icount, skipped);
-                self.energy = 0;
-                None
-            }
-        }
-    }
-}
 
 pub fn gene_primer(dna: dna::DNA) -> Vec<Vec<i8>> {
     let mut result = Vec::new();

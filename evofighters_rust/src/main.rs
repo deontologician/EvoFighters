@@ -3,6 +3,7 @@
 
 use std::rand;
 use std::rand::{ThreadRng,Rng};
+use std::rand::distributions::{Normal,IndependentSample};
 use std::rc;
 
 #[macro_use]
@@ -30,6 +31,5 @@ fn main() {
     creature_2.add_item(dna::Item::GoodFood);
     let mut idbox = 2;
 
-    let child = creatures::mate(&mut creature_1, &mut creature_2, &mut rng, &mut idbox);
-    println!("Got child: {:?}", child);
+    arena::encounter(&mut creature_1, &mut creature_2, &mut rng);
 }
