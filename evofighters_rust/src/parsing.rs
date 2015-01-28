@@ -47,14 +47,6 @@ impl Thought {
             Thought::Indecision{skipped, ..} => skipped,
         }
     }
-
-    // Unsafe grabbing of the wrapped tree. Panics if not
-    pub fn tree(&self) -> Box<ConditionTree> {
-        match *self {
-            Thought::Decision{tree, ..} => tree,
-            _ => panic!("No valid tree! {:?}", self),
-        }
-    }
 }
 
 pub type ParseResult<T> = Result<T, Failure>;
@@ -129,7 +121,7 @@ impl Parser {
         if self.depth > settings::MAX_TREE_DEPTH {
             return Err(Failure::ParseTreeTooDeep)
         }
-        Ok(Box::new(match try!(self.next_valid(0)) {
+        Ok(box match try!(self.next_valid(0)) {
             Condition::Always =>
                 ConditionTree::Always(try!(self.parse_action())),
             Condition::InRange =>
@@ -169,7 +161,7 @@ impl Parser {
                     affirmed: try!(self.parse_action()),
                     denied: try!(self.parse_action()),
                 }
-        }))
+        })
     }
 
     fn parse_action(&mut self) -> ParseResult<ActionTree> {
