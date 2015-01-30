@@ -1,12 +1,10 @@
-extern crate core;
+use std::fmt;
+use std::cmp::{min, max, PartialOrd, PartialEq};
 
+use util;
 use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
           BinOp, ActorType, Attribute};
 use creatures::Creature;
-use std::fmt;
-use std::rand;
-use std::rand::Rng;
-use std::cmp::{min, max, PartialOrd, PartialEq};
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Show, Copy, PartialEq, Eq)]
@@ -47,10 +45,10 @@ impl fmt::Display for PerformableAction {
 pub fn evaluate(me: &Creature,
                 other: &Creature,
                 tree: &ConditionTree,
-                rng: &mut rand::ThreadRng) -> PerformableAction {
+                app: &mut util::AppState) -> PerformableAction {
     match *tree {
         ConditionTree::Always(ref action) =>
-            eval_action(me, other, action, rng),
+            eval_action(me, other, action, app),
         ConditionTree::RangeCompare{
             ref value,
             ref bound_a,
@@ -58,15 +56,15 @@ pub fn evaluate(me: &Creature,
             ref affirmed,
             ref denied
         } => {
-            let a = eval_value(me, other, bound_a, rng);
-            let b = eval_value(me, other, bound_b, rng);
-            let check_val = eval_value(me, other, value, rng);
+            let a = eval_value(me, other, bound_a, app);
+            let b = eval_value(me, other, bound_b, app);
+            let check_val = eval_value(me, other, value, app);
             if min(a, b) <= check_val && check_val <= max(a, b) {
                 print3!("{} was between {} and {}", check_val, a, b);
-                eval_action(me, other, affirmed, rng)
+                eval_action(me, other, affirmed, app)
             } else {
                 print3!("{} was not between {} and {}", check_val, a, b);
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied, app)
             }
         },
         ConditionTree::BinCompare{
@@ -82,16 +80,16 @@ pub fn evaluate(me: &Creature,
                 BinOp::EQ => PartialEq::eq,
                 BinOp::NE => PartialEq::ne,
             };
-            let evaled_lhs = eval_value(me, other, lhs, rng);
-            let evaled_rhs = eval_value(me, other, rhs, rng);
+            let evaled_lhs = eval_value(me, other, lhs, app);
+            let evaled_rhs = eval_value(me, other, rhs, app);
             if op(&evaled_lhs, &evaled_rhs) {
                 print3!("{:?}({}) was {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, affirmed, rng)
+                eval_action(me, other, affirmed, app)
             } else {
                 print3!("{:?}({}) was not {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied, app)
             }
         },
         ConditionTree::ActionCompare{
@@ -104,15 +102,15 @@ pub fn evaluate(me: &Creature,
                 ActorType::Me => (me, "my"),
                 ActorType::Other => (other, "other's"),
             };
-            let my_action = eval_action(me, other, action, rng);
+            let my_action = eval_action(me, other, action, app);
             if my_action == actor.last_action {
                 print3!("{}'s last action was {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, affirmed, rng)
+                eval_action(me, other, affirmed, app)
             } else {
                 print3!("{}'s last action was not {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied, app)
             }
 
         }
@@ -122,7 +120,7 @@ pub fn evaluate(me: &Creature,
 fn eval_action(me: &Creature,
                other: &Creature,
                action: &ActionTree,
-               rng: &mut rand::ThreadRng) -> PerformableAction {
+               app: &mut util::AppState) -> PerformableAction {
     match *action {
         ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
         ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
@@ -133,7 +131,7 @@ fn eval_action(me: &Creature,
         ActionTree::Flee => PerformableAction::Flee,
         ActionTree::Mate => PerformableAction::Mate,
         ActionTree::Subcondition(box ref sub) => {
-            evaluate(me, other, sub, rng)
+            evaluate(me, other, sub, app)
         },
     }
 }
@@ -141,10 +139,10 @@ fn eval_action(me: &Creature,
 fn eval_value(me: &Creature,
               other: &Creature,
               val: &ValueTree,
-              rng: &mut rand::ThreadRng) -> usize {
+              app: &mut util::AppState) -> usize {
     match *val {
         ValueTree::Literal(x) => x as usize,
-        ValueTree::Random => rng.gen(),
+        ValueTree::Random => app.rand(),
         ValueTree::Me(attr) => get_attr(me, attr),
         ValueTree::Other(attr) => get_attr(other, attr),
     }

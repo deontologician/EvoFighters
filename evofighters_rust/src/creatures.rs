@@ -1,6 +1,4 @@
 use std::fmt;
-use std::rand;
-use std::rand::Rng;
 use std::num::{Int, Float};
 use std::cmp::max;
 use std::rc;
@@ -10,6 +8,7 @@ use eval;
 use parsing;
 use settings;
 use arena;
+use util;
 
 static FEEDER_ID: usize = 0;
 
@@ -161,7 +160,7 @@ impl Creature {
     pub fn carryout(&mut self,
                     other: &mut Creature,
                     action: eval::PerformableAction,
-                    rng: &mut rand::ThreadRng) -> arena::FightStatus {
+                    app: &mut util::AppState) -> arena::FightStatus {
         if self.is_feeder() {
             print2!("Feeder does nothing");
             return arena::FightStatus::Continue;
@@ -206,9 +205,9 @@ impl Creature {
                 print2!("{} defends with {:?} fruitlessly",
                         self, dmg),
             eval::PerformableAction::Flee => {
-                let my_roll: f64 = rng.gen_range(0.0, self.energy as f64);
-                let other_roll: f64 = rng.gen_range(0.0, other.energy as f64);
-                let dmg: usize = rng.gen_range(0, 4);
+                let my_roll: f64 = app.rand_range(0.0, self.energy as f64);
+                let other_roll: f64 = app.rand_range(0.0, other.energy as f64);
+                let dmg: usize = app.rand_range(0, 4);
                 if other_roll < my_roll {
                     print1!("{} flees the encounter and takes \
                             {} damage", self, dmg);
@@ -247,12 +246,11 @@ pub fn gene_primer(dna: dna::DNA) -> Vec<Vec<i8>> {
 pub fn try_to_mate(
     mating_chance: usize,
     first_mate: &mut Creature,
-    fm_share: usize,
+    first_share: usize,
     second_mate: &mut Creature,
-    sm_share: usize,
-    rng: &mut rand::ThreadRng,
-    idbox: &mut usize) -> Option<Creature> {
-    if rng.gen_range(0, 100) > mating_chance
+    second_share: usize,
+    app: &mut util::AppState) -> Option<Creature> {
+    if app.rand_range(0, 100) > mating_chance
         || first_mate.dead()
         || second_mate.dead() {
             return None
@@ -286,8 +284,9 @@ pub fn try_to_mate(
         }
         true
     }
-    if pay_cost(first_mate, fm_share) && pay_cost(second_mate, sm_share) {
-        Some(mate(first_mate, second_mate, rng, idbox))
+    if pay_cost(first_mate, first_share) &&
+        pay_cost(second_mate, second_share) {
+        Some(mate(first_mate, second_mate, app))
     } else {
         None
     }
@@ -295,8 +294,7 @@ pub fn try_to_mate(
 
 pub fn mate(p1: &mut Creature,
             p2: &mut Creature,
-            rng: &mut rand::ThreadRng,
-            idbox: &mut usize) -> Creature {
+            app: &mut util::AppState) -> Creature {
     let dna1_primer = gene_primer(p1.dna.clone());
     let dna2_primer = gene_primer(p2.dna.clone());
     let child_gene_len = max(dna1_primer.len(), dna2_primer.len());
@@ -309,23 +307,22 @@ pub fn mate(p1: &mut Creature,
         if gene1.is_empty() && gene2.is_empty() {
             break;
         }
-        child_genes.push(if rng.gen() {
+        child_genes.push(if app.rand() {
             gene1
         } else {
             gene2
         });
     }
-    if rng.gen_range(0.0, 1.0) < settings::MUTATION_RATE {
-        mutate(&mut child_genes, rng)
+    if app.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
+        mutate(&mut child_genes, app)
     }
     let mut dna_vec = Vec::with_capacity(child_genes.len() * 12);
     for gene in child_genes.into_iter() {
         dna_vec.extend(gene.into_iter())
     }
 
-    *idbox += 1;
     let child = Creature::new(
-        *idbox, // id
+        app.next_creature_id(), // id
         rc::Rc::new(dna_vec), // dna
         max(p1.generation, p2.generation) + 1, // generation
         (p1.id, p2.id), // parents
@@ -335,34 +332,36 @@ pub fn mate(p1: &mut Creature,
     child
 }
 
-pub fn mutate(genes: &mut Vec<Vec<i8>>, rng: &mut rand::ThreadRng) {
-    if rng.gen_weighted_bool(
+pub fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
+    if app.rand_weighted_bool(
         (10000.0/settings::MUTATION_RATE) as usize) {
-        genome_level_mutation(genes, rng);
+        genome_level_mutation(genes, app);
     } else {
-        let index = rng.gen_range(0, genes.len());
+        let index = app.rand_range(0, genes.len());
         let fixed_gene = &mut genes[index];
         print2!("Mutating gene {}", index);
-        gene_level_mutation(fixed_gene, rng);
+        gene_level_mutation(fixed_gene, app);
     }
 }
 
-pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::ThreadRng) {
-    match rng.gen_range(1, 4) {
+pub fn genome_level_mutation(
+    genome: &mut Vec<Vec<i8>>,
+    app: &mut util::AppState) {
+    match app.rand_range(1, 4) {
         1 => { // swap two genes
-            let i1 = rng.gen_range(0, genome.len());
-            let i2 = rng.gen_range(0, genome.len());
+            let i1 = app.rand_range(0, genome.len());
+            let i2 = app.rand_range(0, genome.len());
             print2!("swapped genes {} and {}", i1, i2);
             genome.as_mut_slice().swap(i1, i2);
         },
         2 => { // double a gene
-            let i = rng.gen_range(0, genome.len());
+            let i = app.rand_range(0, genome.len());
             let gene = genome[i].clone();
             print2!("doubled gene {}", i);
             genome.insert(i, gene);
         },
         3 => { // deletes a gene
-            let i = rng.gen_range(0, genome.len());
+            let i = app.rand_range(0, genome.len());
             print2!("Deleted gene {}", i);
             // Avoid shifting items if we can, we're going to flatten
             // this list anyway later
@@ -373,12 +372,12 @@ pub fn genome_level_mutation(genome: &mut Vec<Vec<i8>>, rng: &mut rand::ThreadRn
     }
 }
 
-pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::ThreadRng) {
+pub fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
     if gene.is_empty() {
         print3!("Mutated an empty gene!");
         return
     }
-    match rng.gen_range(1, 6) {
+    match app.rand_range(1, 6) {
         1 => { // reverse the order of bases in a gene
             gene.as_mut_slice().reverse();
             print2!("reversed gene");
@@ -388,15 +387,15 @@ pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::ThreadRng) {
             print2!("deleted gene");
         },
         3 => { // insert an extra base in a gene
-            let val = rng.gen_range(-1, settings::MAX_GENE_VALUE);
-            let index = rng.gen_range(0, gene.len());
+            let val = app.rand_range(-1, settings::MAX_GENE_VALUE);
+            let index = app.rand_range(0, gene.len());
             print2!("inserted {} at {}", val, index);
             gene.insert(index, val);
         },
         4 => { // increment a base in a gene, modulo the
             // max gene value
-            let inc = rng.gen_range(1, 3);
-            let index = rng.gen_range(0, gene.len());
+            let inc = app.rand_range(1, 3);
+            let index = app.rand_range(0, gene.len());
             let new_base = (gene[index] + 1 + inc) %
                 (settings::MAX_GENE_VALUE + 2) - 1;
             print2!("added {} to base at {} with val {} to get {}",
@@ -404,8 +403,8 @@ pub fn gene_level_mutation(gene: &mut Vec<i8>, rng: &mut rand::ThreadRng) {
             gene[index] = new_base;
         },
         5 => { // swap two bases in the gene
-            let i1 = rng.gen_range(0, gene.len());
-            let i2 = rng.gen_range(0, gene.len());
+            let i1 = app.rand_range(0, gene.len());
+            let i2 = app.rand_range(0, gene.len());
             gene.as_mut_slice().swap(i1, i2);
             print2!("swapped bases {} and {}", i1, i2);
         },
