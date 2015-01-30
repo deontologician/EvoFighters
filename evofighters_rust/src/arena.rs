@@ -160,7 +160,7 @@ fn do_round(p1: &mut Creature,
     // is preferred in actions that happen to both creatures in
     // order. Conceivably, p2 could die without p1 paying any cost at
     // all, even if p2 initiated mating against p1's will
-    let maybe_child = creatures::try_to_mate(
+    let maybe_child: Option<Creature> = creatures::try_to_mate(
         mults.chance_to_mate,
         p2,
         mults.p2_share,

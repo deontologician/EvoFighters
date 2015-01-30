@@ -49,10 +49,10 @@ impl Thought {
     }
 }
 
-pub type ParseResult<T> = Result<T, Failure>;
+type ParseResult<T> = Result<T, Failure>;
 
 #[derive(Show)]
-pub struct DNAIter {
+struct DNAIter {
     dna: DNA,
     progress: usize,
     len: usize,
@@ -82,9 +82,9 @@ impl Iterator for DNAIter {
 
 #[derive(Show)]
 pub struct Parser {
-    pub icount: usize,
-    pub skipped: usize,
-    pub depth: usize,
+    icount: usize,
+    skipped: usize,
+    depth: usize,
     dna: DNAIter,
 }
 

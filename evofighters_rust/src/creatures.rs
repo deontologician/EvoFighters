@@ -90,11 +90,11 @@ impl Creature {
         }
     }
 
-    pub fn is_feeder(&self) -> bool {
+    fn is_feeder(&self) -> bool {
         self.id == FEEDER_ID
     }
 
-    pub fn has_items(&self) -> bool {
+    fn has_items(&self) -> bool {
         return !self.inv.is_empty()
     }
 
@@ -107,11 +107,11 @@ impl Creature {
         }
     }
 
-    pub fn set_signal(&mut self, signal:dna::Signal) {
+    fn set_signal(&mut self, signal:dna::Signal) {
         self.signal = Some(signal)
     }
 
-    pub fn pop_item(&mut self) -> Option<dna::Item> {
+    fn pop_item(&mut self) -> Option<dna::Item> {
         self.inv.pop()
     }
 
@@ -123,13 +123,13 @@ impl Creature {
         }
     }
 
-    pub fn eat(&mut self, item: dna::Item) {
+    fn eat(&mut self, item: dna::Item) {
         let energy_gain = 3 * item as usize;
         print2!("{} gains {} life from {:?}", self, energy_gain, item);
         self.energy += energy_gain
     }
 
-    pub fn dead(&self) -> bool {
+    fn dead(&self) -> bool {
         if self.is_feeder() {
             self.energy == 0 || self.has_items()
         } else {
@@ -137,15 +137,11 @@ impl Creature {
         }
     }
 
-    pub fn alive(&self) -> bool {
-        !self.dead()
-    }
-
-    pub fn lose_life(&mut self, amount: usize) {
+    fn lose_life(&mut self, amount: usize) {
         self.energy = self.energy.saturating_sub(amount)
     }
 
-    pub fn kill(&mut self) {
+    fn kill(&mut self) {
         self.energy = 0;
     }
 
@@ -157,7 +153,7 @@ impl Creature {
         }
     }
 
-    pub fn carryout(&mut self,
+    fn carryout(&mut self,
                     other: &mut Creature,
                     action: eval::PerformableAction,
                     app: &mut util::AppState) -> arena::FightStatus {
@@ -227,7 +223,7 @@ impl Creature {
 }
 
 
-pub fn gene_primer(dna: dna::DNA) -> Vec<Vec<i8>> {
+fn gene_primer(dna: dna::DNA) -> Vec<Vec<i8>> {
     let mut result = Vec::new();
     let mut chunk = Vec::new();
     for &base in dna.iter() {
@@ -292,7 +288,7 @@ pub fn try_to_mate(
     }
 }
 
-pub fn mate(p1: &mut Creature,
+fn mate(p1: &mut Creature,
             p2: &mut Creature,
             app: &mut util::AppState) -> Creature {
     let dna1_primer = gene_primer(p1.dna.clone());
@@ -332,7 +328,7 @@ pub fn mate(p1: &mut Creature,
     child
 }
 
-pub fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
+fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
     if app.rand_weighted_bool(
         (10000.0/settings::MUTATION_RATE) as usize) {
         genome_level_mutation(genes, app);
@@ -344,7 +340,7 @@ pub fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
     }
 }
 
-pub fn genome_level_mutation(
+fn genome_level_mutation(
     genome: &mut Vec<Vec<i8>>,
     app: &mut util::AppState) {
     match app.rand_range(1, 4) {
@@ -372,7 +368,7 @@ pub fn genome_level_mutation(
     }
 }
 
-pub fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
+fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
     if gene.is_empty() {
         print3!("Mutated an empty gene!");
         return
