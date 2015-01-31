@@ -45,7 +45,11 @@ impl AppState {
     }
     pub fn rand_range<T: PartialOrd + SampleRange>(
         &mut self, low: T, high: T) -> T {
-        self.rng.gen_range(low, high)
+        if low == high {
+            low
+        } else {
+            self.rng.gen_range(low, high)
+        }
     }
     pub fn normal_sample(&mut self, mean: f64, std_dev: f64) -> f64 {
         use std::rand::distributions::IndependentSample;

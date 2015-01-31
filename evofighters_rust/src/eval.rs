@@ -150,7 +150,7 @@ fn eval_value(me: &Creature,
 
 fn get_attr(actor: &Creature, attr: Attribute) -> usize {
     match attr {
-        Attribute::Energy => actor.energy,
+        Attribute::Energy => actor.energy(),
         Attribute::Signal => match actor.signal {
             Some(sig) => sig as usize,
             None => 0,

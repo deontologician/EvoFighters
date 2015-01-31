@@ -1,6 +1,6 @@
 use std::fmt;
 use std::num::{Int, Float};
-use std::cmp::max;
+use std::cmp::{max,min};
 use std::rc;
 
 use dna;
@@ -12,11 +12,16 @@ use util;
 
 static FEEDER_ID: usize = 0;
 
+#[derive(Show,PartialEq,Eq,Copy)]
+pub enum Liveness {
+    Alive, Dead
+}
+
 #[derive(Show)]
 pub struct Creature {
     dna: dna::DNA,
     inv: Vec<dna::Item>,
-    pub energy: usize,
+    energy: usize,
     pub generation: usize,
     pub num_children: usize,
     pub signal: Option<dna::Signal>,
@@ -90,7 +95,7 @@ impl Creature {
         }
     }
 
-    fn is_feeder(&self) -> bool {
+    pub fn is_feeder(&self) -> bool {
         self.id == FEEDER_ID
     }
 
@@ -105,6 +110,11 @@ impl Creature {
             print2!("{} tries to add {:?} but has no more space",
                     self, item);
         }
+    }
+
+    pub fn survived_encounter(&mut self) {
+        self.survived += 1;
+        self.last_action = eval::PerformableAction::Wait;
     }
 
     fn set_signal(&mut self, signal:dna::Signal) {
@@ -129,16 +139,44 @@ impl Creature {
         self.energy += energy_gain
     }
 
-    fn dead(&self) -> bool {
+    pub fn liveness(&self) -> Liveness {
+        use self::Liveness::{Alive, Dead};
         if self.is_feeder() {
-            self.energy == 0 || self.has_items()
+            if self.energy > 0 && self.has_items() {
+                Alive
+            } else {
+                Dead
+            }
         } else {
-            self.energy == 0 || self.dna.is_empty()
+            if self.energy > 0 && !self.dna.is_empty() {
+                Alive
+            } else {
+                Dead
+            }
         }
     }
 
-    fn lose_life(&mut self, amount: usize) {
+    pub fn dead(&self) -> bool {
+        self.liveness() == Liveness::Dead
+    }
+
+    pub fn steal_from(&mut self, other: &mut Creature) {
+        if let Some(item) = other.pop_item() {
+            self.add_item(item)
+        }
+    }
+
+    pub fn energy(&self) -> usize {
+        self.energy
+    }
+
+    pub fn lose_energy(&mut self, amount: usize) {
         self.energy = self.energy.saturating_sub(amount)
+    }
+
+    pub fn gain_energy(&mut self, amount: usize) {
+        self.energy += amount;
+        self.energy = min(settings::DEFAULT_ENERGY, self.energy);
     }
 
     fn kill(&mut self) {
@@ -153,7 +191,7 @@ impl Creature {
         }
     }
 
-    fn carryout(&mut self,
+    pub fn carryout(&mut self,
                     other: &mut Creature,
                     action: eval::PerformableAction,
                     app: &mut util::AppState) -> arena::FightStatus {
@@ -207,7 +245,7 @@ impl Creature {
                 if other_roll < my_roll {
                     print1!("{} flees the encounter and takes \
                             {} damage", self, dmg);
-                    self.lose_life(dmg);
+                    self.lose_energy(dmg);
                     return arena::FightStatus::End
                 } else {
                     print2!("{} tries to flee, but {} prevents it",

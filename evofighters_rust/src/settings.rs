@@ -5,3 +5,4 @@ pub static DEFAULT_ENERGY : usize = 40;
 pub static MATING_COST : usize = 40;
 pub static MUTATION_RATE : f64 = 0.10;
 pub static MAX_GENE_VALUE : i8 = 8;
+pub static WINNER_LIFE_BONUS : usize = 5;
