@@ -1,4 +1,5 @@
-#![allow(unstable)]
+#![feature(rand)]
+#![feature(core)]
 #![feature(box_syntax)]
 
 use std::rc;

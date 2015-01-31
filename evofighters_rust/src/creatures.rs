@@ -17,7 +17,7 @@ pub enum Liveness {
     Alive, Dead
 }
 
-#[derive(Show)]
+#[derive(Show,Copy)]
 pub struct Creature {
     dna: dna::DNA,
     inv: Vec<dna::Item>,

@@ -1,5 +1,6 @@
 use std::iter::IteratorExt;
 use std::cmp::{max};
+use std::clone::{Clone};
 
 use creatures;
 use creatures::Creature;
@@ -22,7 +23,7 @@ pub fn encounter(p1: &mut Creature,
     let mut children: Vec<Creature> = Vec::with_capacity(5); // dynamically adjust?
     print1!("Max rounds: {}", max_rounds);
     // combine thought tree iterators, limit rounds
-    let mut iterator = p1.iter().zip(p2.iter()).zip(range(0, max_rounds));
+    let mut iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
     let mut fight_timed_out = true;
     let mut p1_action;
     let mut p2_action;
@@ -420,3 +421,37 @@ fn do_round(p1: &mut Creature,
     print3!("{} has {} life left", p2, p2.energy());
     maybe_child
 }
+
+fn random_encounter(population: &mut Vec<Creature>,
+                    feeder_count: usize,
+                    copy: bool,
+                    app: &mut AppState) -> Option<(Creature, Creature)> {
+    if population.len() < 2 {
+        return None
+    }
+    let p1_index = app.rand_range(0, population.len());
+    let mut p2_index = app.rand_range(0, population.len() + feeder_count);
+    while p1_index == p2_index {
+        p2_index = app.rand_range(0, population.len() + feeder_count);
+    }
+    let p1;
+    let p2;
+    if copy {
+        p1 = population[p1_index].clone();
+    } else {
+        p1 = population.swap_remove(p1_index);
+    }
+    if p2_index < population.len() {
+        if copy {
+            p2 = population[p2_index].clone();
+        }else {
+            p2 = population.swap_remove(p2_index);
+        }
+    } else {
+        p2 = creatures::Creature::feeder();
+    }
+    Some((p1, p2))
+}
+
+// fn post_encounter_cleanup(
+//     population: &mut Vec<Creature>,
