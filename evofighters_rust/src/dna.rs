@@ -8,7 +8,7 @@ pub fn empty_dna() -> DNA {
     rc::Rc::new(Vec::with_capacity(0))
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone)]
 pub enum Condition {
     Always,
     InRange,
@@ -21,7 +21,7 @@ pub enum Condition {
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone)]
 pub enum Value {
     Literal,
     Random,
@@ -30,7 +30,7 @@ pub enum Value {
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone)]
 pub enum Action {
     Subcondition,
     Attack,
@@ -44,7 +44,7 @@ pub enum Action {
     // If adding an action, update settings::MAX_GENE_VALUE to match
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Attribute {
     Energy,
     Signal,
@@ -71,7 +71,7 @@ impl fmt::Display for Attribute {
 }
 
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Item {
     Food = 1,
     GoodFood,
@@ -80,7 +80,7 @@ pub enum Item {
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Signal {
     Red = 1,
     Yellow,
@@ -91,7 +91,7 @@ pub enum Signal {
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy)]
+#[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum DamageType {
     Fire,
     Ice,
@@ -100,7 +100,7 @@ pub enum DamageType {
 }
 
 
-#[derive(PartialEq, Eq, Show, Copy)]
+#[derive(PartialEq, Eq, Show, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum BinOp {
     LT, GT, EQ, NE
 }
@@ -116,12 +116,12 @@ impl fmt::Display for BinOp {
     }
 }
 
-#[derive(PartialEq, Eq, Show, Copy)]
+#[derive(PartialEq, Eq, Show, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum ActorType {
     Me, Other
 }
 
-#[derive(Show)]
+#[derive(Show, RustcEncodable, RustcDecodable)]
 pub enum ConditionTree {
     Always(ActionTree),
     RangeCompare {
@@ -146,7 +146,7 @@ pub enum ConditionTree {
     }
 }
 
-#[derive(Show, Copy)]
+#[derive(Show, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum ValueTree {
     Literal(u8),
     Random,
@@ -166,7 +166,7 @@ impl fmt::Display for ValueTree {
     }
 }
 
-#[derive(Show)]
+#[derive(Show, RustcEncodable, RustcDecodable)]
 pub enum ActionTree {
     Subcondition(Box<ConditionTree>),
     Attack(DamageType),

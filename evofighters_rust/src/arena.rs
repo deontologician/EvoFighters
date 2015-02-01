@@ -1,6 +1,7 @@
 use std::iter::IteratorExt;
 use std::cmp::{max};
 use std::clone::{Clone};
+use time;
 
 use creatures;
 use creatures::Creature;
@@ -453,5 +454,25 @@ fn random_encounter(population: &mut Vec<Creature>,
     Some((p1, p2))
 }
 
-// fn post_encounter_cleanup(
-//     population: &mut Vec<Creature>,
+fn post_encounter_cleanup(
+    p1: Creature,
+    p2: Creature,
+    population: &mut Vec<Creature>,
+    deadpool: &mut Vec<Creature>) {
+    if p1.dead() {
+        deadpool.push(p1);
+    } else {
+        population.push(p1);
+    }
+    if !p2.is_feeder() {
+        if p2.dead() {
+            deadpool.push(p2)
+        } else {
+            population.push(p2);
+        }
+    }
+}
+
+fn simulate(app: &mut AppState) {
+    let new_time = time::now();
+}

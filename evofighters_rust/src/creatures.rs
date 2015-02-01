@@ -2,6 +2,7 @@ use std::fmt;
 use std::num::{Int, Float};
 use std::cmp::{max,min};
 use std::rc;
+use rustc_serialize::json;
 
 use dna;
 use eval;
@@ -17,7 +18,7 @@ pub enum Liveness {
     Alive, Dead
 }
 
-#[derive(Show,Copy)]
+#[derive(Show,Clone, RustcDecodable, RustcEncodable)]
 pub struct Creature {
     dna: dna::DNA,
     inv: Vec<dna::Item>,

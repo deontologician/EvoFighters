@@ -2,7 +2,11 @@
 #![feature(core)]
 #![feature(box_syntax)]
 
+extern crate time;
+extern crate "rustc-serialize" as rustc_serialize;
+
 use std::rc;
+use rustc_serialize::json;
 
 #[macro_use]
 pub mod util;
@@ -32,4 +36,10 @@ fn main() {
     creature_2.add_item(dna::Item::GoodFood);
 
     arena::encounter(&mut creature_1, &mut creature_2, &mut app);
+
+    let p1_tree = match creature_1.iter().next().unwrap() {
+        parsing::Thought::Decision{tree, ..} => Some(tree),
+        _ => None
+    };
+    println!("{}", json::as_pretty_json(&p1_tree));
 }

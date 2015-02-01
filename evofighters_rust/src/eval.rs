@@ -7,7 +7,7 @@ use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
 use creatures::Creature;
 
 // PerformableAction is the result of evaluating a thought tree
-#[derive(Show, Copy, PartialEq, Eq)]
+#[derive(Show, Copy, PartialEq, Eq, Clone, RustcEncodable, RustcDecodable)]
 pub enum PerformableAction {
     Attack(DamageType),
     Defend(DamageType),
