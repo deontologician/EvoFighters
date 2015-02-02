@@ -2,10 +2,10 @@ use std::fmt;
 use std::rc;
 use std::vec;
 
-pub type DNA = rc::Rc<vec::Vec<i8>>;
+pub type DNA = Vec<i8>;
 
 pub fn empty_dna() -> DNA {
-    rc::Rc::new(Vec::with_capacity(0))
+    Vec::with_capacity(0)
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Show, FromPrimitive, Copy, Clone)]

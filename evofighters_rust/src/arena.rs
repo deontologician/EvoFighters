@@ -18,9 +18,9 @@ pub enum FightStatus {
 }
 
 
-pub fn encounter(p1: &mut Creature,
-                 p2: &mut Creature,
-                 app: &mut AppState) -> Vec<Creature> {
+fn encounter(p1: &mut Creature,
+             p2: &mut Creature,
+             app: &mut AppState) -> Vec<Creature> {
     use parsing::Thought::{Decision, Indecision};
     use creatures::Liveness::{Alive,Dead};
     let max_rounds = app.normal_sample(200.0, 30.0) as usize;
@@ -445,10 +445,7 @@ fn do_round(p1: &mut Creature,
 fn random_encounter(population: &mut Vec<Creature>,
                     feeder_count: usize,
                     copy: bool,
-                    app: &mut AppState) -> Option<(Creature, Creature)> {
-    if population.len() < 2 {
-        return None
-    }
+                    app: &mut AppState) -> (Creature, Creature) {
     let p1_index = app.rand_range(0, population.len());
     let mut p2_index = app.rand_range(0, population.len() + feeder_count);
     while p1_index == p2_index {
@@ -470,22 +467,32 @@ fn random_encounter(population: &mut Vec<Creature>,
     } else {
         p2 = creatures::Creature::feeder();
     }
-    Some((p1, p2))
+    (p1, p2)
 }
 
 fn post_encounter_cleanup(
     p1: Creature,
     p2: Creature,
     population: &mut Vec<Creature>,
-    deadpool: &mut Vec<Creature>) {
+    feeders: &mut usize,
+    encounters: &mut usize,
+    //deadpool: &mut Vec<Creature>,
+    ) {
+    if !p2.is_feeder() && !p1.is_feeder() {
+        *encounters += 1;
+    } else if p2.dead() {
+        *feeders -= 1;
+    }
     if p1.dead() {
-        deadpool.push(p1);
+        ()
+        //deadpool.push(p1);
     } else {
         population.push(p1);
     }
     if !p2.is_feeder() {
         if p2.dead() {
-            deadpool.push(p2)
+            ()
+            //deadpool.push(p2)
         } else {
             population.push(p2);
         }
@@ -507,10 +514,14 @@ struct SaveFile {
     max_gene_value: i8,
     winner_life_bonus: usize,
     max_population_size: usize,
+    num_encounters: usize,
+    feeder_count: usize,
     creatures: Vec<Creature>,
 }
 
-fn save(creatures: &Vec<Creature>) {
+fn save(creatures: &Vec<Creature>,
+        feeder_count: usize,
+        num_encounters: usize) {
     let savefile = SaveFile {
         max_thinking_steps: settings::MAX_THINKING_STEPS,
         max_tree_depth: settings::MAX_TREE_DEPTH,
@@ -521,6 +532,8 @@ fn save(creatures: &Vec<Creature>) {
         max_gene_value: settings::MAX_GENE_VALUE,
         winner_life_bonus: settings::WINNER_LIFE_BONUS,
         max_population_size: settings::MAX_POPULATION_SIZE,
+        num_encounters: num_encounters,
+        feeder_count: feeder_count,
         creatures: creatures.clone(),
     };
     let encoded = match json::encode(&savefile) {
@@ -529,19 +542,21 @@ fn save(creatures: &Vec<Creature>) {
     };
     let path = Path::new("evofighters.save");
     let display = path.display();
-    let mut file = match File::create(&path) {
-        Err(why) => panic!("couldn't create {}: {}", display, why.desc),
+    let mut file = match File::create(&Path::new("evofighters.save"))
+        .write_str(encoded.as_slice()) {
+        Err(why) => panic!("Couldn't save to {}: {}", display, why.desc),
         Ok(file) => file,
     };
-    match file.write_str(encoded.as_slice()) {
-        Err(why) => panic!("Couldn't write to {}: {}", display, why.desc),
-        Ok(_) => println!("Successfully saved to {}", display),
-    }
 }
 
-fn simulate(creatures: &mut Vec<Creature>, app: &mut AppState) {
+pub fn simulate(creatures: &mut Vec<Creature>,
+            feeder_count: usize,
+            num_encounters: usize,
+            app: &mut AppState) {
     let mut update_time = time::get_time();
     let mut timestamp = update_time;
+    let mut feeders = feeder_count;
+    let mut encounters = num_encounters;
     let sim_status;
     loop {
         let new_time = time::get_time();
@@ -550,8 +565,28 @@ fn simulate(creatures: &mut Vec<Creature>, app: &mut AppState) {
             break;
         }
         if new_time - timestamp > Duration::seconds(90) {
-            println!("\nCurrently {} creatures alive", creatures.len());
-
+            println!("\nCurrently {} creatures alive\n", creatures.len());
+            save(creatures, feeders, encounters);
+            timestamp = time::get_time();
+        }
+        // TODO: maybe print progress bar stuff here
+        if creatures.len() + feeders < settings::MAX_POPULATION_SIZE {
+            feeders += 1;
+        }
+        let (mut p1, mut p2) = random_encounter(creatures, feeders, false, app);
+        print1!("{} encounters {} in the wild", p1, p2);
+        creatures.append(&mut encounter(&mut p1, &mut p2, app));
+        post_encounter_cleanup(
+            p1, p2, creatures, &mut encounters, &mut feeders);
+    }
+    match sim_status {
+        SimStatus::NotEnoughCreatures => {
+            println!("You need at least two creatures in your population \
+                     to have an encounter. Unfortunately, this means the \
+                     end for your population.");
+            if creatures.len() == 1 {
+                println!("Here is the last of its kind:\n{:?}", creatures[0]);
+            }
         }
     }
 }

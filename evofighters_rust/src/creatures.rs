@@ -54,7 +54,7 @@ impl Creature {
                generation: usize,
                parents: (usize, usize)) -> Creature {
         Creature {
-            dna: dna.clone(),
+            dna: dna,
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
             generation: generation,
@@ -71,16 +71,38 @@ impl Creature {
         }
     }
 
+    pub fn seed_creature(id: usize) -> Creature {
+        Creature {
+            dna: vec![dna::Condition::Always as i8,
+                      dna::Action::Mate as i8,
+                      dna::Condition::Always as i8,
+                      dna::Action::Flee as i8,
+                      ],
+            inv: Vec::with_capacity(settings::MAX_INV_SIZE),
+            energy: settings::DEFAULT_ENERGY,
+            generation: 0,
+            num_children: 0,
+            signal: None,
+            survived: 0,
+            kills: 0,
+            instr_used: 0,
+            instr_skipped: 0,
+            last_action: eval::PerformableAction::Wait,
+            id: id,
+            eaten: 0,
+            parents: (0, 0),
+        }
+    }
+
     pub fn iter(&self) -> parsing::Parser {
         parsing::Parser::new(
             self.dna.clone(), self.instr_used + self.instr_skipped)
     }
 
     pub fn feeder() -> Creature {
-        let dntel: dna::DNA = dna::empty_dna();
         Creature {
             id: FEEDER_ID,
-            dna: dntel.clone(),
+            dna: dna::empty_dna(),
             inv: Vec::new(),
             energy: 1,
             generation: 0,
@@ -358,7 +380,7 @@ fn mate(p1: &mut Creature,
 
     let child = Creature::new(
         app.next_creature_id(), // id
-        rc::Rc::new(dna_vec), // dna
+        dna_vec, // dna
         max(p1.generation, p2.generation) + 1, // generation
         (p1.id, p2.id), // parents
         );
