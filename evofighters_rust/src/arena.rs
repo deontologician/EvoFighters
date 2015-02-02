@@ -2,6 +2,9 @@ use std::iter::IteratorExt;
 use std::cmp::{max};
 use std::clone::{Clone};
 use time;
+use std::time::duration::Duration;
+use std::old_io::File;
+use rustc_serialize::json;
 
 use creatures;
 use creatures::Creature;
@@ -18,7 +21,7 @@ pub enum FightStatus {
 pub fn encounter(p1: &mut Creature,
                  p2: &mut Creature,
                  app: &mut AppState) -> Vec<Creature> {
-    use parsing::Thought::{Decision};
+    use parsing::Thought::{Decision, Indecision};
     use creatures::Liveness::{Alive,Dead};
     let max_rounds = app.normal_sample(200.0, 30.0) as usize;
     let mut children: Vec<Creature> = Vec::with_capacity(5); // dynamically adjust?
@@ -39,9 +42,11 @@ pub fn encounter(p1: &mut Creature,
                 let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
                 if p1_cost < p2_cost {
                     print3!("{} is going first", p1);
+                    print3!("{} intends to {}", p1, p1_action);
                     maybe_child = do_round(p1, p1_action, p2, p2_action, app);
                 } else if p2_cost > p1_cost {
                     print3!("{} is going first", p2);
+                    print3!("{} intends to {}", p2, p2_action);
                     maybe_child = do_round(p2, p2_action, p1, p1_action, app);
                 } else {
                     if app.rand() {
@@ -59,6 +64,20 @@ pub fn encounter(p1: &mut Creature,
                 // Somebody was undecided, and the fight is over.
                 p1.update_from_thought(&p1_thought);
                 p2.update_from_thought(&p2_thought);
+                match p1_thought {
+                    Indecision{reason, icount, skipped} => {
+                        print1!("{} died because {:?}. using {} instructions,\
+                        with {} skipped", p1, reason, icount, skipped);
+                    },
+                    _ => ()
+                }
+                match p2_thought {
+                    Indecision{reason, icount, skipped} => {
+                        print1!("{} died because {:?}. using {} instructions,\
+                        with {} skipped", p1, reason, icount, skipped);
+                    },
+                    _=> ()
+                }
                 print3!("The fight ended before it timed out");
                 fight_timed_out = false;
                 break;
@@ -473,6 +492,66 @@ fn post_encounter_cleanup(
     }
 }
 
-fn simulate(app: &mut AppState) {
-    let new_time = time::now();
+enum SimStatus {
+    NotEnoughCreatures
+}
+
+#[derive(Show,RustcDecodable,RustcEncodable)]
+struct SaveFile {
+    max_thinking_steps: usize,
+    max_tree_depth: usize,
+    max_inv_size: usize,
+    default_energy: usize,
+    mating_cost: usize,
+    mutation_rate: f64,
+    max_gene_value: i8,
+    winner_life_bonus: usize,
+    max_population_size: usize,
+    creatures: Vec<Creature>,
+}
+
+fn save(creatures: &Vec<Creature>) {
+    let savefile = SaveFile {
+        max_thinking_steps: settings::MAX_THINKING_STEPS,
+        max_tree_depth: settings::MAX_TREE_DEPTH,
+        max_inv_size: settings::MAX_INV_SIZE,
+        default_energy: settings::DEFAULT_ENERGY,
+        mating_cost: settings::MATING_COST,
+        mutation_rate: settings::MUTATION_RATE,
+        max_gene_value: settings::MAX_GENE_VALUE,
+        winner_life_bonus: settings::WINNER_LIFE_BONUS,
+        max_population_size: settings::MAX_POPULATION_SIZE,
+        creatures: creatures.clone(),
+    };
+    let encoded = match json::encode(&savefile) {
+        Err(why) => panic!("couldn't encode savefile: {}", why),
+        Ok(encoded) => encoded,
+    };
+    let path = Path::new("evofighters.save");
+    let display = path.display();
+    let mut file = match File::create(&path) {
+        Err(why) => panic!("couldn't create {}: {}", display, why.desc),
+        Ok(file) => file,
+    };
+    match file.write_str(encoded.as_slice()) {
+        Err(why) => panic!("Couldn't write to {}: {}", display, why.desc),
+        Ok(_) => println!("Successfully saved to {}", display),
+    }
+}
+
+fn simulate(creatures: &mut Vec<Creature>, app: &mut AppState) {
+    let mut update_time = time::get_time();
+    let mut timestamp = update_time;
+    let sim_status;
+    loop {
+        let new_time = time::get_time();
+        if creatures.len() < 2 {
+            sim_status = SimStatus::NotEnoughCreatures;
+            break;
+        }
+        if new_time - timestamp > Duration::seconds(90) {
+            println!("\nCurrently {} creatures alive", creatures.len());
+
+        }
+    }
 }

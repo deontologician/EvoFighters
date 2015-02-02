@@ -108,10 +108,10 @@ pub enum BinOp {
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            BinOp::LT => write!(f, "is less than"),
-            BinOp::GT => write!(f, "is greater than"),
-            BinOp::EQ => write!(f, "is equal to"),
-            BinOp::NE => write!(f, "is not equal to"),
+            BinOp::LT => write!(f, "less than"),
+            BinOp::GT => write!(f, "greater than"),
+            BinOp::EQ => write!(f, "equal to"),
+            BinOp::NE => write!(f, "not equal to"),
         }
     }
 }

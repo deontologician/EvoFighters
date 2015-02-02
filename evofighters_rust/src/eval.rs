@@ -5,6 +5,7 @@ use util;
 use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
           BinOp, ActorType, Attribute};
 use creatures::Creature;
+use settings;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Show, Copy, PartialEq, Eq, Clone, RustcEncodable, RustcDecodable)]
@@ -142,7 +143,8 @@ fn eval_value(me: &Creature,
               app: &mut util::AppState) -> usize {
     match *val {
         ValueTree::Literal(x) => x as usize,
-        ValueTree::Random => app.rand(),
+        ValueTree::Random =>
+            app.rand_range(0, settings::MAX_GENE_VALUE as usize),
         ValueTree::Me(attr) => get_attr(me, attr),
         ValueTree::Other(attr) => get_attr(other, attr),
     }

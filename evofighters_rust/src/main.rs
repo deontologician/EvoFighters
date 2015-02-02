@@ -37,9 +37,4 @@ fn main() {
 
     arena::encounter(&mut creature_1, &mut creature_2, &mut app);
 
-    let p1_tree = match creature_1.iter().next().unwrap() {
-        parsing::Thought::Decision{tree, ..} => Some(tree),
-        _ => None
-    };
-    println!("{}", json::as_pretty_json(&p1_tree));
 }

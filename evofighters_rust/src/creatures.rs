@@ -137,7 +137,7 @@ impl Creature {
     fn eat(&mut self, item: dna::Item) {
         let energy_gain = 3 * item as usize;
         print2!("{} gains {} life from {:?}", self, energy_gain, item);
-        self.energy += energy_gain
+        self.gain_energy(energy_gain)
     }
 
     pub fn liveness(&self) -> Liveness {

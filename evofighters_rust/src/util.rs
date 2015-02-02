@@ -7,7 +7,7 @@ use std::rand::distributions::range::SampleRange;
 #[macro_export]
 macro_rules! print1 {
     ($($arg:tt)*) => (
-        if cfg!(any(v1,v2,v3)){
+        if cfg!(any(ndebug,v1,v2,v3)){
             println!($($arg)*);
         })
 }
@@ -15,7 +15,7 @@ macro_rules! print1 {
 #[macro_export]
 macro_rules! print2 {
     ($($arg:tt)*) => (
-        if cfg!(any(v2,v3)){
+        if cfg!(any(ndebug, v2,v3)){
             println!($($arg)*);
         })
 }
@@ -23,7 +23,7 @@ macro_rules! print2 {
 #[macro_export]
 macro_rules! print3 {
     ($($arg:tt)*) => (
-        if cfg!(v3){
+        if cfg!(any(ndebug, v3)){
             println!($($arg)*);
         })
 }
