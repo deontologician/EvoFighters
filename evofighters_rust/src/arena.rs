@@ -4,6 +4,7 @@ use std::clone::{Clone};
 use time;
 use std::time::duration::Duration;
 use std::old_io::File;
+use std::num::{Int};
 use rustc_serialize::json;
 
 use creatures;
@@ -472,37 +473,15 @@ fn random_encounter(population: &mut Vec<Creature>,
 
 fn post_encounter_cleanup(
     p1: Creature,
-    p2: Creature,
     population: &mut Vec<Creature>,
     feeders: &mut usize,
-    encounters: &mut usize,
-    //deadpool: &mut Vec<Creature>,
     ) {
     use creatures::Liveness::{Alive,Dead};
     match (p1.is_feeder(), p1.liveness()) {
-    };
-    match (p2.is_feeder(), p2.liveness()) {
-        (true, _, true, _) =>
-            panic!("Should never have only feeders! {:?} {:?}", p1, p2),
-        (true, Dead, false, Dead) => {
-            *feeders -= 1;
-        },
-        (false, Alive, false, Alive) => {
-            population.push(p1);
-            population.push(p2);
-            *encounters += 1;
-        },
-        (false, Alive, false, Dead) => {
-            population.push(p1);
-            *encounters += 1;
-        },
-        (false, Dead, false, Alive) => {
-            population.push(p2);
-            *encounters += 1;
-        }
-        (false, Dead, false, Dead) => {
-            *encounters += 1;
-        }
+        (false, Alive) => population.push(p1),
+        (false, Dead) => (),
+        (true, Dead) => *feeders = feeders.saturating_sub(1),
+        (true, Alive) => (),
     }
 }
 
@@ -568,9 +547,9 @@ pub fn simulate(creatures: &mut Vec<Creature>,
     let sim_status;
     loop {
         if total_events % 1000 == 0 {
-            print!("\rCreatures: {}, Feeders: {}", creatures.len(), feeders);
+            print!("\rCreatures: {}, Feeders: {}, Total: {}      ",
+                   creatures.len(), feeders, creatures.len() + feeders);
             timestamp = time::get_time();
-            print!(".");
         }
         if creatures.len() < 2 {
             sim_status = SimStatus::NotEnoughCreatures;
@@ -582,15 +561,18 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             println!("Saved.");
             update_time = time::get_time();
         }
-        if creatures.len() + feeders < settings::MAX_POPULATION_SIZE {
+        if (creatures.len() + feeders) < settings::MAX_POPULATION_SIZE {
             feeders += 1;
         }
         let (mut p1, mut p2) = random_encounter(creatures, feeders, false, app);
         print1!("{} encounters {} in the wild", p1, p2);
         creatures.append(&mut encounter(&mut p1, &mut p2, app));
-        post_encounter_cleanup(
-            p1, p2, creatures, &mut encounters, &mut feeders);
+        if !p1.is_feeder() && !p2.is_feeder() {
+            encounters += 1;
+        }
         total_events += 1;
+        post_encounter_cleanup(p1, creatures, &mut feeders);
+        post_encounter_cleanup(p2, creatures, &mut feeders);
     }
     match sim_status {
         SimStatus::NotEnoughCreatures => {

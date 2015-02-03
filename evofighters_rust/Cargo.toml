@@ -10,10 +10,16 @@ time = "0.1.15"
 rustc-serialize = "0.2.10"
 
 [profile.dev]
-opt-level = 0  # Controls the --opt-level the compiler builds with
-debug = true   # Controls whether the compiler passes -g or `--cfg ndebug`
-rpath = false  # Controls whether the compiler passes `-C rpath`
+opt-level = 3  # Controls the --opt-level the compiler builds with
+debug = false   # Controls whether the compiler passes -g or `--cfg ndebug`
 lto = false    # Controls `-C lto` for binaries and staticlibs
+rpath = false  # Controls whether the compiler passes `-C rpath`
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = true
+rpath = false
 
 [[bin]]
 
