@@ -34,6 +34,14 @@ impl Thought {
         }
     }
 
+    fn feeder_decision() -> Thought {
+        Thought::Decision {
+            tree: Box::new(ConditionTree::Always(ActionTree::Wait)),
+            icount: 0,
+            skipped: settings::MAX_THINKING_STEPS + 1,
+        }
+    }
+
     pub fn icount(&self) -> usize {
         match *self {
             Thought::Decision{icount, ..} => icount,
@@ -62,7 +70,7 @@ impl DNAIter {
     fn new(dna: DNA, offset: usize) -> DNAIter {
         let len = dna.len(); // avoid borrow issues
         DNAIter {
-            dna: dna.clone(),
+            dna: dna,
             progress: offset % len,
             len: len,
         }
@@ -85,6 +93,7 @@ pub struct Parser {
     icount: usize,
     skipped: usize,
     depth: usize,
+    for_feeder: bool,
     dna: DNAIter,
 }
 
@@ -98,8 +107,20 @@ impl Parser {
             skipped : 0,
             dna : DNAIter::new(dna, offset),
             depth : 0,
+            for_feeder: false,
         }
     }
+
+    pub fn feeder_new() -> Parser {
+        Parser {
+            icount: 0,
+            skipped: 0,
+            dna : DNAIter::new(Vec::new(), 0),
+            depth: 0,
+            for_feeder: true,
+        }
+    }
+
 
     fn next_valid<T: FromPrimitive>(&mut self, minimum: i8) -> ParseResult<T> {
         let mut next_i8 = self.dna.next();
@@ -197,6 +218,9 @@ impl Parser {
 impl Iterator for Parser {
     type Item = Thought;
     fn next(&mut self) -> Option<Thought> {
+        if self.for_feeder {
+            return Some(Thought::feeder_decision());
+        }
         Some(match self.parse_condition() {
             Err(msg) => Thought::Indecision {
                 icount: self.icount,

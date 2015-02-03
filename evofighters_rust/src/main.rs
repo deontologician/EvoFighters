@@ -1,12 +1,13 @@
 #![feature(rand)]
 #![feature(core)]
 #![feature(box_syntax)]
+#![feature(collections)]
+#![feature(path)]
+#![feature(std_misc)]
+#![feature(io)]
 
 extern crate time;
 extern crate "rustc-serialize" as rustc_serialize;
-
-use std::rc;
-use rustc_serialize::json;
 
 #[macro_use]
 pub mod util;
@@ -17,13 +18,18 @@ pub mod settings;
 pub mod creatures;
 pub mod arena;
 
+use creatures::Creature;
+use std::iter::FromIterator;
+
+
 fn main() {
     let mut app = util::AppState::new(1);
     println!("Creating initial population");
-    let mut population: dna::DNA = (1..settings::MAX_POPULATION_SIZE).map(
-        |id|).from_iter();
+    let mut population: Vec<Creature> = FromIterator::from_iter(
+        (1..settings::MAX_POPULATION_SIZE + 1)
+            .map(|id| Creature::seed_creature(id)));
+    app.set_id_box(settings::MAX_POPULATION_SIZE + 1);
 
-
-    arena::simulate(&mut creature_1, &mut creature_2, &mut app);
+    arena::simulate(&mut population, 0, 0, &mut app);
 
 }

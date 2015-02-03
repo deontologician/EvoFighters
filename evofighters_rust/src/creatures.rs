@@ -1,8 +1,6 @@
 use std::fmt;
 use std::num::{Int, Float};
 use std::cmp::{max,min};
-use std::rc;
-use rustc_serialize::json;
 
 use dna;
 use eval;
@@ -95,8 +93,12 @@ impl Creature {
     }
 
     pub fn iter(&self) -> parsing::Parser {
-        parsing::Parser::new(
-            self.dna.clone(), self.instr_used + self.instr_skipped)
+        if self.is_feeder() {
+            parsing::Parser::feeder_new()
+        } else {
+            parsing::Parser::new(
+                self.dna.clone(), self.instr_used + self.instr_skipped)
+        }
     }
 
     pub fn feeder() -> Creature {

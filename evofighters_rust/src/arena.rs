@@ -112,7 +112,7 @@ fn encounter(p1: &mut Creature,
 }
 
 fn victory(winner: &mut Creature, loser: &mut Creature, app: &mut AppState) {
-    print!("{} has killed {}", winner, loser);
+    print1!("{} has killed {}", winner, loser);
     winner.steal_from(loser);
     if loser.is_feeder() {
         winner.eaten += 1;
@@ -542,10 +542,10 @@ fn save(creatures: &Vec<Creature>,
     };
     let path = Path::new("evofighters.save");
     let display = path.display();
-    let mut file = match File::create(&Path::new("evofighters.save"))
+    match File::create(&Path::new("evofighters.save"))
         .write_str(encoded.as_slice()) {
         Err(why) => panic!("Couldn't save to {}: {}", display, why.desc),
-        Ok(file) => file,
+        _ => (),
     };
 }
 
@@ -559,15 +559,19 @@ pub fn simulate(creatures: &mut Vec<Creature>,
     let mut encounters = num_encounters;
     let sim_status;
     loop {
-        let new_time = time::get_time();
+        if encounters % 10000 == 0 {
+            timestamp = time::get_time();
+            print!(".");
+        }
         if creatures.len() < 2 {
             sim_status = SimStatus::NotEnoughCreatures;
             break;
         }
-        if new_time - timestamp > Duration::seconds(90) {
+        if timestamp - update_time > Duration::seconds(90) {
             println!("\nCurrently {} creatures alive\n", creatures.len());
             save(creatures, feeders, encounters);
-            timestamp = time::get_time();
+            println!("Saved.");
+            update_time = time::get_time();
         }
         // TODO: maybe print progress bar stuff here
         if creatures.len() + feeders < settings::MAX_POPULATION_SIZE {
