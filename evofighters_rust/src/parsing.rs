@@ -115,7 +115,7 @@ impl Parser {
         Parser {
             icount: 0,
             skipped: 0,
-            dna : DNAIter::new(Vec::new(), 0),
+            dna : DNAIter::new(vec![-1], 0),
             depth: 0,
             for_feeder: true,
         }

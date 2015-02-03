@@ -478,23 +478,30 @@ fn post_encounter_cleanup(
     encounters: &mut usize,
     //deadpool: &mut Vec<Creature>,
     ) {
-    if !p2.is_feeder() && !p1.is_feeder() {
-        *encounters += 1;
-    } else if p2.dead() {
-        *feeders -= 1;
-    }
-    if p1.dead() {
-        ()
-        //deadpool.push(p1);
-    } else {
-        population.push(p1);
-    }
-    if !p2.is_feeder() {
-        if p2.dead() {
-            ()
-            //deadpool.push(p2)
-        } else {
+    use creatures::Liveness::{Alive,Dead};
+    match (p1.is_feeder(), p1.liveness()) {
+    };
+    match (p2.is_feeder(), p2.liveness()) {
+        (true, _, true, _) =>
+            panic!("Should never have only feeders! {:?} {:?}", p1, p2),
+        (true, Dead, false, Dead) => {
+            *feeders -= 1;
+        },
+        (false, Alive, false, Alive) => {
+            population.push(p1);
             population.push(p2);
+            *encounters += 1;
+        },
+        (false, Alive, false, Dead) => {
+            population.push(p1);
+            *encounters += 1;
+        },
+        (false, Dead, false, Alive) => {
+            population.push(p2);
+            *encounters += 1;
+        }
+        (false, Dead, false, Dead) => {
+            *encounters += 1;
         }
     }
 }
@@ -557,9 +564,11 @@ pub fn simulate(creatures: &mut Vec<Creature>,
     let mut timestamp = update_time;
     let mut feeders = feeder_count;
     let mut encounters = num_encounters;
+    let mut total_events = 0;
     let sim_status;
     loop {
-        if encounters % 10000 == 0 {
+        if total_events % 1000 == 0 {
+            print!("\rCreatures: {}, Feeders: {}", creatures.len(), feeders);
             timestamp = time::get_time();
             print!(".");
         }
@@ -573,7 +582,6 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             println!("Saved.");
             update_time = time::get_time();
         }
-        // TODO: maybe print progress bar stuff here
         if creatures.len() + feeders < settings::MAX_POPULATION_SIZE {
             feeders += 1;
         }
@@ -582,6 +590,7 @@ pub fn simulate(creatures: &mut Vec<Creature>,
         creatures.append(&mut encounter(&mut p1, &mut p2, app));
         post_encounter_cleanup(
             p1, p2, creatures, &mut encounters, &mut feeders);
+        total_events += 1;
     }
     match sim_status {
         SimStatus::NotEnoughCreatures => {

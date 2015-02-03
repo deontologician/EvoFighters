@@ -38,9 +38,9 @@ pub struct Creature {
 impl fmt::Display for Creature {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_feeder() {
-            write!(f, "[|Feeder|]")
+            write!(f, "[Feeder]")
         } else {
-            write!(f, "<]Creature {}[>", self.id)
+            write!(f, "[Creature {}]", self.id)
         }
     }
 }

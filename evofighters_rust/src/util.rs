@@ -60,9 +60,6 @@ impl AppState {
         self.id_box += 1;
         self.id_box
     }
-    pub fn set_id_box(&mut self, val: usize) {
-        self.id_box = val;
-    }
     pub fn rand_weighted_bool(&mut self, n: usize) -> bool {
         self.rng.gen_weighted_bool(n)
     }
