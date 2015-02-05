@@ -11,12 +11,12 @@ use util;
 
 static FEEDER_ID: usize = 0;
 
-#[derive(Show,PartialEq,Eq,Copy)]
+#[derive(Debug,PartialEq,Eq,Copy)]
 pub enum Liveness {
     Alive, Dead
 }
 
-#[derive(Show,Clone, RustcDecodable, RustcEncodable)]
+#[derive(Debug,Clone, RustcDecodable, RustcEncodable)]
 pub struct Creature {
     dna: dna::DNA,
     inv: Vec<dna::Item>,
@@ -62,7 +62,7 @@ impl Creature {
             kills: 0,
             instr_used: 0,
             instr_skipped: 0,
-            last_action: eval::PerformableAction::Wait,
+            last_action: eval::PerformableAction::NoAction,
             id: id,
             eaten: 0,
             parents: parents,
@@ -85,7 +85,7 @@ impl Creature {
             kills: 0,
             instr_used: 0,
             instr_skipped: 0,
-            last_action: eval::PerformableAction::Wait,
+            last_action: eval::PerformableAction::NoAction,
             id: id,
             eaten: 0,
             parents: (0, 0),
@@ -105,7 +105,7 @@ impl Creature {
         Creature {
             id: FEEDER_ID,
             dna: dna::empty_dna(),
-            inv: Vec::new(),
+            inv: vec![dna::Item::Food],
             energy: 1,
             generation: 0,
             num_children: 0,
@@ -114,7 +114,7 @@ impl Creature {
             survived: 0,
             instr_used: 0,
             instr_skipped: 0,
-            last_action: eval::PerformableAction::Wait,
+            last_action: eval::PerformableAction::NoAction,
             eaten: 0,
             parents: (0, 0),
         }
@@ -139,7 +139,7 @@ impl Creature {
 
     pub fn survived_encounter(&mut self) {
         self.survived += 1;
-        self.last_action = eval::PerformableAction::Wait;
+        self.last_action = eval::PerformableAction::NoAction;
     }
 
     fn set_signal(&mut self, signal:dna::Signal) {
@@ -309,7 +309,7 @@ pub fn try_to_mate(
     second_mate: &mut Creature,
     second_share: usize,
     app: &mut util::AppState) -> Option<Creature> {
-    if app.rand_range(0, 100) > mating_chance
+    if app.rand_range(1, 101) > mating_chance
         || first_mate.dead()
         || second_mate.dead() {
             return None
@@ -345,7 +345,8 @@ pub fn try_to_mate(
     }
     if pay_cost(first_mate, first_share) &&
         pay_cost(second_mate, second_share) {
-        Some(mate(first_mate, second_mate, app))
+            print2!("Both paid their debts, so they get to mate");
+            Some(mate(first_mate, second_mate, app))
     } else {
         None
     }
@@ -373,6 +374,7 @@ fn mate(p1: &mut Creature,
         });
     }
     if app.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
+        app.mutations += 1;
         mutate(&mut child_genes, app)
     }
     let mut dna_vec = Vec::with_capacity(child_genes.len() * 12);

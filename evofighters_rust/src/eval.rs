@@ -8,7 +8,7 @@ use creatures::Creature;
 use settings;
 
 // PerformableAction is the result of evaluating a thought tree
-#[derive(Show, Copy, PartialEq, Eq, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Copy, PartialEq, Eq, Clone, RustcEncodable, RustcDecodable)]
 pub enum PerformableAction {
     Attack(DamageType),
     Defend(DamageType),
@@ -18,6 +18,7 @@ pub enum PerformableAction {
     Wait,
     Flee,
     Mate,
+    NoAction,
 }
 
 impl fmt::Display for PerformableAction {
@@ -39,6 +40,8 @@ impl fmt::Display for PerformableAction {
                 write!(f, "flee the encounter"),
             PerformableAction::Mate =>
                 write!(f, "mate with the target"),
+            PerformableAction::NoAction =>
+                write!(f, "(no action)"),
         }
     }
 }

@@ -1,18 +1,19 @@
 use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
+use std::fmt::Debug;
 
 use dna::*;
 use settings;
 
-#[derive(Show, PartialEq, Eq, Copy)]
+#[derive(Debug, PartialEq, Eq, Copy)]
 pub enum Failure {
     NoThoughtsYet,
     TookTooLong,
     ParseTreeTooDeep,
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Thought {
     Decision {
         tree: Box<ConditionTree>,
@@ -59,7 +60,7 @@ impl Thought {
 
 type ParseResult<T> = Result<T, Failure>;
 
-#[derive(Show)]
+#[derive(Debug)]
 struct DNAIter {
     dna: DNA,
     progress: usize,
@@ -80,15 +81,16 @@ impl DNAIter {
 impl Iterator for DNAIter {
     type Item = i8;
     fn next(&mut self) -> Option<i8> {
+        let ret = Some(self.dna[self.progress]);
         self.progress = (self.progress + 1) % self.len;
-        Some(self.dna[self.progress])
+        ret
     }
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.len, None)
     }
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct Parser {
     icount: usize,
     skipped: usize,

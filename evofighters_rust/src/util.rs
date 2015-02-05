@@ -7,7 +7,7 @@ use std::rand::distributions::range::SampleRange;
 #[macro_export]
 macro_rules! print1 {
     ($($arg:tt)*) => (
-        if cfg!(any(ndebug,v1,v2,v3)){
+        if cfg!(not(ndebug)){
             println!($($arg)*);
         })
 }
@@ -15,7 +15,7 @@ macro_rules! print1 {
 #[macro_export]
 macro_rules! print2 {
     ($($arg:tt)*) => (
-        if cfg!(any(ndebug, v2,v3)){
+        if cfg!(not(ndebug)){
             println!($($arg)*);
         })
 }
@@ -23,7 +23,7 @@ macro_rules! print2 {
 #[macro_export]
 macro_rules! print3 {
     ($($arg:tt)*) => (
-        if cfg!(any(ndebug, v3)){
+        if cfg!(not(ndebug)){
             println!($($arg)*);
         })
 }
@@ -31,6 +31,11 @@ macro_rules! print3 {
 pub struct AppState {
     rng: ThreadRng,
     id_box: usize,
+    pub mutations: usize,
+    pub children_born: usize,
+    pub feeders_eaten: usize,
+    pub kills: usize,
+    pub rounds: usize,
 }
 
 impl AppState {
@@ -38,6 +43,11 @@ impl AppState {
         AppState {
             rng: rand::thread_rng(),
             id_box: id_start,
+            mutations: 0,
+            children_born: 0,
+            feeders_eaten: 0,
+            kills: 0,
+            rounds: 0,
         }
     }
     pub fn rand<T: Rand>(&mut self) -> T {

@@ -7,19 +7,7 @@ authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 [dependencies]
 
 time = "0.1.15"
-rustc-serialize = "0.2.10"
-
-[profile.dev]
-opt-level = 3  # Controls the --opt-level the compiler builds with
-debug = false   # Controls whether the compiler passes -g or `--cfg ndebug`
-lto = false    # Controls `-C lto` for binaries and staticlibs
-rpath = false  # Controls whether the compiler passes `-C rpath`
-
-[profile.release]
-opt-level = 3
-debug = false
-lto = true
-rpath = false
+rustc-serialize = "0.2.11"
 
 [[bin]]
 

@@ -13,7 +13,7 @@ use eval;
 use settings;
 use util::AppState;
 
-#[derive(Show, PartialEq, Eq, Copy)]
+#[derive(Debug, PartialEq, Eq, Copy)]
 pub enum FightStatus {
     End, Continue,
 }
@@ -28,37 +28,35 @@ fn encounter(p1: &mut Creature,
     let mut children: Vec<Creature> = Vec::with_capacity(5); // dynamically adjust?
     print1!("Max rounds: {}", max_rounds);
     // combine thought tree iterators, limit rounds
-    let mut iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
-    let mut fight_timed_out = true;
-    let mut p1_action;
-    let mut p2_action;
+    let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
+    let mut fight_timed_out = false;
+    let mut p1_action = eval::PerformableAction::NoAction;
+    let mut p2_action = eval::PerformableAction::NoAction;
     for (thoughts, round) in iterator {
         print2!("Round {}", round);
-        let mut maybe_child;
-        match thoughts {
+        app.rounds += 1;
+        let (fight_status, maybe_child) = match thoughts {
             (Decision{tree: box tree1, icount:i1, skipped:s1},
              Decision{tree: box tree2, icount:i2, skipped:s2}) => {
+                print2!("{} thinks {:?}", p1, tree1);
+                print2!("{} thinks {:?}", p2, tree2);
                 p1_action = eval::evaluate(p1, p2, &tree1, app);
                 p2_action = eval::evaluate(p2, p1, &tree2, app);
                 let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
                 if p1_cost < p2_cost {
                     print3!("{} is going first", p1);
                     print3!("{} intends to {}", p1, p1_action);
-                    maybe_child = do_round(p1, p1_action, p2, p2_action, app);
+                    do_round(p1, p1_action, p2, p2_action, app)
                 } else if p2_cost > p1_cost {
                     print3!("{} is going first", p2);
                     print3!("{} intends to {}", p2, p2_action);
-                    maybe_child = do_round(p2, p2_action, p1, p1_action, app);
+                    do_round(p2, p2_action, p1, p1_action, app)
+                } else if app.rand() {
+                    print3!("{} is going first", p1);
+                    do_round(p1, p1_action, p2, p2_action, app)
                 } else {
-                    if app.rand() {
-                        print3!("{} is going first", p1);
-                        maybe_child = do_round(
-                            p1, p1_action, p2, p2_action, app);
-                    } else {
-                        print3!("{} is going first", p2);
-                        maybe_child = do_round(
-                            p2, p2_action, p1, p1_action, app);
-                    }
+                    print3!("{} is going first", p2);
+                    do_round(p2, p2_action, p1, p1_action, app)
                 }
             },
             (p1_thought, p2_thought) => {
@@ -81,13 +79,14 @@ fn encounter(p1: &mut Creature,
                 }
                 print3!("The fight ended before it timed out");
                 fight_timed_out = false;
-                break;
+                (FightStatus::End, None)
             }
-        }
+        };
         if let Some(child) = maybe_child {
+            app.children_born += 1;
             children.push(child)
         }
-        if p1.dead() || p2.dead() {
+        if let FightStatus::End = fight_status {
             fight_timed_out = false;
             break;
         }
@@ -116,12 +115,14 @@ fn victory(winner: &mut Creature, loser: &mut Creature, app: &mut AppState) {
     print1!("{} has killed {}", winner, loser);
     winner.steal_from(loser);
     if loser.is_feeder() {
+        app.feeders_eaten += 1;
         winner.eaten += 1;
         winner.gain_energy(app.rand_range(0, 1));
         winner.last_action = eval::PerformableAction::Wait;
     } else {
         winner.gain_energy(app.rand_range(0, settings::WINNER_LIFE_BONUS));
         winner.kills += 1;
+        app.kills += 1;
         winner.survived_encounter();
     }
 }
@@ -393,7 +394,7 @@ fn do_round(p1: &mut Creature,
             p1_act: eval::PerformableAction,
             p2: &mut Creature,
             p2_act: eval::PerformableAction,
-            app: &mut AppState) -> Option<Creature> {
+            app: &mut AppState) -> (FightStatus,Option<Creature>) {
     let chances = damage_matrix(p1_act, p2_act);
     let p1_dmg = chances.p1.damage(app);
     let p2_dmg = chances.p2.damage(app);
@@ -430,17 +431,17 @@ fn do_round(p1: &mut Creature,
         });
     if not_attack_mate_defend(p1_act) {
         if let FightStatus::End = p1.carryout(p2, p1_act, app) {
-            return maybe_child
+            return (FightStatus::End, maybe_child)
         }
     }
     if not_attack_mate_defend(p2_act) {
         if let FightStatus::End = p2.carryout(p1, p2_act, app) {
-            return maybe_child
+            return (FightStatus::End, maybe_child)
         }
     }
     print3!("{} has {} life left", p1, p1.energy());
     print3!("{} has {} life left", p2, p2.energy());
-    maybe_child
+    (FightStatus::Continue, maybe_child)
 }
 
 fn random_encounter(population: &mut Vec<Creature>,
@@ -489,7 +490,7 @@ enum SimStatus {
     NotEnoughCreatures
 }
 
-#[derive(Show,RustcDecodable,RustcEncodable)]
+#[derive(Debug,RustcDecodable,RustcEncodable)]
 struct SaveFile {
     max_thinking_steps: usize,
     max_tree_depth: usize,
@@ -544,11 +545,20 @@ pub fn simulate(creatures: &mut Vec<Creature>,
     let mut feeders = feeder_count;
     let mut encounters = num_encounters;
     let mut total_events = 0;
+    let mut events = 0;
     let sim_status;
     loop {
         if total_events % 1000 == 0 {
-            print!("\rCreatures: {}, Feeders: {}, Total: {}      ",
-                   creatures.len(), feeders, creatures.len() + feeders);
+            if events > 1000000 {
+                events -= 1000000;
+                app.rounds = 0;
+            }
+            print!("\rCreatures: {}, Feeders: {}, Mutations: {}, \
+                   events: {}, born: {}, eaten: {}, kills: {}, \
+                   avg rnds: {}   ",
+                   creatures.len(), feeders, app.mutations, total_events,
+                   app.children_born, app.feeders_eaten, app.kills,
+                   if events != 0 {app.rounds / events} else {0});
             timestamp = time::get_time();
         }
         if creatures.len() < 2 {
@@ -571,6 +581,7 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             encounters += 1;
         }
         total_events += 1;
+        events += 1;
         post_encounter_cleanup(p1, creatures, &mut feeders);
         post_encounter_cleanup(p2, creatures, &mut feeders);
     }
