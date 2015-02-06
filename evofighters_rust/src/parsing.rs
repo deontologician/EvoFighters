@@ -1,7 +1,6 @@
 use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
-use std::fmt::Debug;
 
 use dna::*;
 use settings;

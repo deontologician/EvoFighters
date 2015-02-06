@@ -8,3 +8,4 @@ grammar.txt
 *.coverage
 *htmlcov*
 target/
+*.xz

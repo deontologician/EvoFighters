@@ -9,6 +9,12 @@ authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 time = "0.1.15"
 rustc-serialize = "0.2.11"
 
+[profile.release]
+debug = true
+opt-level = 3
+rpath = false
+lto = true
+
 [[bin]]
 
 name = "main"

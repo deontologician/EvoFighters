@@ -377,10 +377,12 @@ fn mate(p1: &mut Creature,
         app.mutations += 1;
         mutate(&mut child_genes, app)
     }
-    let mut dna_vec = Vec::with_capacity(child_genes.len() * 12);
+    let mut dna_vec = Vec::with_capacity(max(p1.dna.len(), p2.dna.len()));
+    //dna_vec.from_iter(child_genes.into_iter().flat_map())
     for gene in child_genes.into_iter() {
         dna_vec.extend(gene.into_iter())
     }
+    dna_vec.shrink_to_fit();
 
     let child = Creature::new(
         app.next_creature_id(), // id
