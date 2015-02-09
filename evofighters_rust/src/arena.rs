@@ -21,11 +21,11 @@ pub enum FightStatus {
 
 fn encounter(p1: &mut Creature,
              p2: &mut Creature,
-             app: &mut AppState) -> Vec<Creature> {
+             app: &mut AppState) -> Option<Vec<Creature>> {
     use parsing::Thought::{Decision, Indecision};
     use creatures::Liveness::{Alive,Dead};
     let max_rounds = app.normal_sample(200.0, 30.0) as usize;
-    let mut children: Vec<Creature> = Vec::with_capacity(5); // dynamically adjust?
+    let mut maybe_children: Option<Vec<Creature>> = None;
     print1!("Max rounds: {}", max_rounds);
     // combine thought tree iterators, limit rounds
     let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
@@ -83,8 +83,15 @@ fn encounter(p1: &mut Creature,
             }
         };
         if let Some(child) = maybe_child {
+            match maybe_children {
+                None => {
+                    maybe_children = Some(vec![child]);
+                },
+                Some(ref mut children) => {
+                    children.push(child)
+                },
+            }
             app.children_born += 1;
-            children.push(child)
         }
         if let FightStatus::End = fight_status {
             fight_timed_out = false;
@@ -108,7 +115,7 @@ fn encounter(p1: &mut Creature,
             p2.survived_encounter();
         }
     }
-    children
+    maybe_children
 }
 
 fn victory(winner: &mut Creature, loser: &mut Creature, app: &mut AppState) {
@@ -576,7 +583,9 @@ pub fn simulate(creatures: &mut Vec<Creature>,
         }
         let (mut p1, mut p2) = random_encounter(creatures, feeders, false, app);
         print1!("{} encounters {} in the wild", p1, p2);
-        creatures.append(&mut encounter(&mut p1, &mut p2, app));
+        if let Some(ref mut new_children) = encounter(&mut p1, &mut p2, app) {
+            creatures.append(new_children);
+        }
         if !p1.is_feeder() && !p2.is_feeder() {
             encounters += 1;
         }
@@ -593,6 +602,9 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             if creatures.len() == 1 {
                 println!("Here is the last of its kind:\n{:?}", creatures[0]);
             }
+        },
+        SimStatus::Apocalypse => {
+            println!("Whelp, looks like the world ended!");
         }
     }
 }
