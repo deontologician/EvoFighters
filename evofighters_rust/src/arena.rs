@@ -29,7 +29,7 @@ fn encounter(p1: &mut Creature,
     print1!("Max rounds: {}", max_rounds);
     // combine thought tree iterators, limit rounds
     let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
-    let mut fight_timed_out = false;
+    let mut fight_timed_out = true;
     let mut p1_action = eval::PerformableAction::NoAction;
     let mut p2_action = eval::PerformableAction::NoAction;
     for (thoughts, round) in iterator {
@@ -494,7 +494,8 @@ fn post_encounter_cleanup(
 }
 
 enum SimStatus {
-    NotEnoughCreatures
+    NotEnoughCreatures,
+    Apocalypse,
 }
 
 #[derive(Debug,RustcDecodable,RustcEncodable)]
