@@ -6,15 +6,15 @@ authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 
 [dependencies]
 
-time = "0.1.15"
-rustc-serialize = "0.2.11"
+time = "0.1.16"
+rustc-serialize = "0.2.12"
 
 [profile.release]
-debug = true
+debug = false
 opt-level = 3
 rpath = false
 lto = true
 
 [[bin]]
 
-name = "main"
+name = "evofighters"
