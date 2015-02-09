@@ -225,7 +225,7 @@ impl Iterator for Parser {
         if self.for_feeder {
             return Some(Thought::feeder_decision());
         }
-        Some(match self.parse_condition() {
+        let value = Some(match self.parse_condition() {
             Err(msg) => Thought::Indecision {
                 icount: self.icount,
                 skipped: self.skipped,
@@ -236,6 +236,10 @@ impl Iterator for Parser {
                 skipped: self.skipped,
                 tree: tree,
             }
-        })
+        });
+        // Reset counts so the creatures get a new budget next time!
+        self.icount = 0;
+        self.skipped = 0;
+        value
     }
 }
