@@ -5,14 +5,14 @@ use std::num::FromPrimitive;
 use dna::*;
 use settings;
 
-#[derive(Debug, PartialEq, Eq, Copy)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Failure {
     NoThoughtsYet,
     TookTooLong,
     ParseTreeTooDeep,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Thought {
     Decision {
         tree: Box<ConditionTree>,
@@ -89,7 +89,7 @@ impl Iterator for DNAIter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parser {
     icount: usize,
     skipped: usize,
@@ -122,6 +122,9 @@ impl Parser {
         }
     }
 
+    pub fn current_offset(&self) -> usize {
+        self.dna.progress
+    }
 
     fn next_valid<T: FromPrimitive>(&mut self, minimum: i8) -> ParseResult<T> {
         let mut next_i8 = self.dna.next();
