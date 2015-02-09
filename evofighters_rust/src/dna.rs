@@ -119,7 +119,7 @@ pub enum ActorType {
     Me, Other
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, Clone)]
 pub enum ConditionTree {
     Always(ActionTree),
     RangeCompare {
@@ -144,7 +144,7 @@ pub enum ConditionTree {
     }
 }
 
-#[derive(Debug, Copy, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Copy, Clone, RustcEncodable, RustcDecodable, PartialEq, Eq)]
 pub enum ValueTree {
     Literal(u8),
     Random,
@@ -164,7 +164,7 @@ impl fmt::Display for ValueTree {
     }
 }
 
-#[derive(Debug, RustcEncodable, RustcDecodable)]
+#[derive(Debug, RustcEncodable, RustcDecodable, PartialEq, Eq, Clone)]
 pub enum ActionTree {
     Subcondition(Box<ConditionTree>),
     Attack(DamageType),

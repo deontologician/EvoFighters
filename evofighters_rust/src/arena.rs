@@ -63,19 +63,13 @@ fn encounter(p1: &mut Creature,
                 // Somebody was undecided, and the fight is over.
                 p1.update_from_thought(&p1_thought);
                 p2.update_from_thought(&p2_thought);
-                match p1_thought {
-                    Indecision{reason, icount, skipped} => {
-                        print1!("{} died because {:?}. using {} instructions,\
+                if let Indecision{reason, icount, skipped} = p1_thought {
+                    print1!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
-                    },
-                    _ => ()
-                }
-                match p2_thought {
-                    Indecision{reason, icount, skipped} => {
-                        print1!("{} died because {:?}. using {} instructions,\
+                };
+                if let Indecision{reason, icount, skipped} = p2_thought {
+                    print1!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
-                    },
-                    _=> ()
                 }
                 print3!("The fight ended before it timed out");
                 fight_timed_out = false;
@@ -101,7 +95,7 @@ fn encounter(p1: &mut Creature,
         p2.last_action = p2_action;
     }
     if fight_timed_out {
-        let penalty = app.rand_range(1, 6);
+        let penalty = app.rand_range(1, 7);
         print1!("Time is up! both combatants take {} damage", penalty);
         p1.lose_energy(penalty);
         p2.lose_energy(penalty);

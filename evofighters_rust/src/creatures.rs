@@ -73,6 +73,7 @@ impl Creature {
         Creature {
             dna: vec![dna::Condition::Always as i8,
                       dna::Action::Mate as i8,
+                      -1, // gene separator
                       dna::Condition::Always as i8,
                       dna::Action::Flee as i8,
                       ],
@@ -204,7 +205,7 @@ impl Creature {
         self.energy = min(settings::DEFAULT_ENERGY, self.energy);
     }
 
-    fn kill(&mut self) {
+    pub fn kill(&mut self) {
         self.energy = 0;
     }
 

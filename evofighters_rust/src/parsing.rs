@@ -59,10 +59,10 @@ impl Thought {
 
 type ParseResult<T> = Result<T, Failure>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DNAIter {
     dna: DNA,
-    progress: usize,
+    pub progress: usize,
     len: usize,
 }
 
