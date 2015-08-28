@@ -1,6 +1,7 @@
 use std::iter::Iterator;
 use std::option::Option::*;
 use std::num::FromPrimitive;
+use std::error::FromError;
 
 use dna::*;
 use settings;
@@ -13,47 +14,48 @@ pub enum Failure {
 }
 
 #[derive(Debug, Clone)]
-pub enum Thought {
-    Decision {
-        tree: Box<ConditionTree>,
-        icount: usize,
-        skipped: usize,
-    },
-    Indecision {
-        reason: Failure,
-        icount: usize,
-        skipped: usize,
+pub struct Decision {
+    tree: Box<ConditionTree>,
+    icount: usize,
+    skipped: usize,
+    offset: usize,
+}
+
+pub struct Indecision {
+    reason: Failure,
+    icount: usize,
+    skipped: usize,
+    offset: usize,
+}
+
+impl FromError<Indecision> for Failure {
+    fn from_error(indecision: Indecision) -> Failure {
+        indecision.reason
     }
 }
 
-impl Thought {
-    pub fn decided(&self) -> bool {
-        match *self {
-            Thought::Decision{..} => true,
-            Thought::Indecision{..} => false,
-        }
-    }
+type Thought = Result<Decision, Indecision>;
 
-    fn feeder_decision() -> Thought {
-        Thought::Decision {
-            tree: Box::new(ConditionTree::Always(ActionTree::Wait)),
-            icount: 0,
-            skipped: settings::MAX_THINKING_STEPS + 1,
-        }
-    }
+fn feeder_decision() -> Thought {
+    Ok(Decision {
+        tree: Box::new(ConditionTree::Always(ActionTree::Wait)),
+        icount: 0,
+        skipped: settings::MAX_THINKING_STEPS + 1,
+        offset: 0,
+    })
+}
 
-    pub fn icount(&self) -> usize {
-        match *self {
-            Thought::Decision{icount, ..} => icount,
-            Thought::Indecision{icount, ..} => icount,
-        }
+pub fn icount(thought: &Thought) -> usize {
+    match *thought {
+        Ok(Decision{icount, ..}) => icount,
+        Err(Indecision{icount, ..}) => icount,
     }
+}
 
-    pub fn skipped(&self) -> usize {
-        match *self {
-            Thought::Decision{skipped, ..} => skipped,
-            Thought::Indecision{skipped, ..} => skipped,
-        }
+pub fn skipped(thought: &Thought) -> usize {
+    match *thought {
+        Ok(Decision{skipped, ..}) => skipped,
+        Err(Indecision{skipped, ..}) => skipped,
     }
 }
 
@@ -223,19 +225,21 @@ impl Iterator for Parser {
     type Item = Thought;
     fn next(&mut self) -> Option<Thought> {
         if self.for_feeder {
-            return Some(Thought::feeder_decision());
+            return Some(feeder_decision());
         }
         let value = Some(match self.parse_condition() {
-            Err(msg) => Thought::Indecision {
+            Err(msg) => Err(Indecision {
                 icount: self.icount,
                 skipped: self.skipped,
                 reason: msg,
-            },
-            Ok(tree) => Thought::Decision {
+                offset: self.current_offset(),
+            }),
+            Ok(tree) => Ok(Decision {
                 icount: self.icount,
                 skipped: self.skipped,
                 tree: tree,
-            }
+                offset: self.current_offset(),
+            })
         });
         // Reset counts so the creatures get a new budget next time!
         self.icount = 0;

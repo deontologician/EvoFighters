@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc;
 
 pub type DNA = Vec<i8>;
 

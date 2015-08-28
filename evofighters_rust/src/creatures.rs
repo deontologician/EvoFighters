@@ -73,9 +73,10 @@ impl Creature {
         Creature {
             dna: vec![dna::Condition::Always as i8,
                       dna::Action::Mate as i8,
-                      -1, // gene separator
+                      -1,
                       dna::Condition::Always as i8,
                       dna::Action::Flee as i8,
+                      -1,
                       ],
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
@@ -210,9 +211,9 @@ impl Creature {
     }
 
     pub fn update_from_thought(&mut self, thought: &parsing::Thought) {
-        self.instr_used += thought.skipped();
-        self.instr_skipped += thought.skipped();
-        if !thought.decided() {
+        self.instr_used += parsing::skipped(thought);
+        self.instr_skipped += parsing::skipped(thought);
+        if thought.is_err() {
             self.kill()
         }
     }
@@ -287,13 +288,23 @@ impl Creature {
 }
 
 
-fn gene_primer(dna: dna::DNA) -> Vec<Vec<i8>> {
+fn gene_primer(dna: dna::DNA, app: &mut util::AppState) -> Vec<Vec<i8>> {
     let mut result = Vec::new();
     let mut chunk = Vec::new();
     for &base in dna.iter() {
         chunk.push(base);
-        if base == -1 {
-            result.push(chunk);
+        if base < 0 {
+            if chunk.len() > settings::GENE_MIN_SIZE
+                && app.rand_weighted_bool(10000) {
+                    // nonsense mutation
+                    let split_index = app.rand_range(0, chunk.len());
+                    let chunk2 = chunk.split_off(split_index);
+                    chunk.push(-2);
+                    result.push(chunk);
+                    result.push(chunk2);
+                } else {
+                    result.push(chunk);
+                }
             chunk = Vec::new();
         }
     }
@@ -356,16 +367,16 @@ pub fn try_to_mate(
 fn mate(p1: &mut Creature,
             p2: &mut Creature,
             app: &mut util::AppState) -> Creature {
-    let dna1_primer = gene_primer(p1.dna.clone());
-    let dna2_primer = gene_primer(p2.dna.clone());
-    let child_gene_len = max(dna1_primer.len(), dna2_primer.len());
+    let dna1_primer = gene_primer(p1.dna.clone(), app);
+    let dna2_primer = gene_primer(p2.dna.clone(), app);
     let mut dna1 = dna1_primer.into_iter();
     let mut dna2 = dna2_primer.into_iter();
-    let mut child_genes : Vec<Vec<i8>> = Vec::with_capacity(child_gene_len + 1);
+    let mut child_genes : Vec<Vec<i8>> = Vec::new();
+    let loop_ender = vec![-2];
     loop {
-        let gene1 = dna1.next().unwrap_or(Vec::new());
-        let gene2 = dna2.next().unwrap_or(Vec::new());
-        if gene1.is_empty() && gene2.is_empty() {
+        let gene1 = dna1.next().unwrap_or(vec![-2]);
+        let gene2 = dna2.next().unwrap_or(vec![-2]);
+        if gene1 == loop_ender && gene2 == loop_ender {
             break;
         }
         child_genes.push(if app.rand() {

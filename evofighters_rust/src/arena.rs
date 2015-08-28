@@ -22,7 +22,7 @@ pub enum FightStatus {
 fn encounter(p1: &mut Creature,
              p2: &mut Creature,
              app: &mut AppState) -> Option<Vec<Creature>> {
-    use parsing::Thought::{Decision, Indecision};
+    use parsing::{Decision, Indecision};
     use creatures::Liveness::{Alive,Dead};
     let max_rounds = app.normal_sample(200.0, 30.0) as usize;
     let mut maybe_children: Option<Vec<Creature>> = None;
@@ -36,8 +36,8 @@ fn encounter(p1: &mut Creature,
         print2!("Round {}", round);
         app.rounds += 1;
         let (fight_status, maybe_child) = match thoughts {
-            (Decision{tree: box tree1, icount:i1, skipped:s1},
-             Decision{tree: box tree2, icount:i2, skipped:s2}) => {
+            (Ok(Decision{tree: box tree1, icount:i1, skipped:s1, ..}),
+             Ok(Decision{tree: box tree2, icount:i2, skipped:s2, ..})) => {
                 print2!("{} thinks {:?}", p1, tree1);
                 print2!("{} thinks {:?}", p2, tree2);
                 p1_action = eval::evaluate(p1, p2, &tree1, app);
@@ -63,11 +63,11 @@ fn encounter(p1: &mut Creature,
                 // Somebody was undecided, and the fight is over.
                 p1.update_from_thought(&p1_thought);
                 p2.update_from_thought(&p2_thought);
-                if let Indecision{reason, icount, skipped} = p1_thought {
+                if let Err(Indecision{reason, icount, skipped, ..}) = p1_thought {
                     print1!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
                 };
-                if let Indecision{reason, icount, skipped} = p2_thought {
+                if let Err(Indecision{reason, icount, skipped, ..}) = p2_thought {
                     print1!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
                 }
@@ -503,6 +503,7 @@ struct SaveFile {
     max_gene_value: i8,
     winner_life_bonus: usize,
     max_population_size: usize,
+    gene_min_size: usize,
     num_encounters: usize,
     feeder_count: usize,
     creatures: Vec<Creature>,
@@ -521,6 +522,7 @@ fn save(creatures: &Vec<Creature>,
         max_gene_value: settings::MAX_GENE_VALUE,
         winner_life_bonus: settings::WINNER_LIFE_BONUS,
         max_population_size: settings::MAX_POPULATION_SIZE,
+        gene_min_size: settings::GENE_MIN_SIZE,
         num_encounters: num_encounters,
         feeder_count: feeder_count,
         creatures: creatures.clone(),

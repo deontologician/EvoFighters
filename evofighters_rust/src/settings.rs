@@ -8,3 +8,4 @@ pub static MAX_GENE_VALUE : i8 = 8;
 pub static WINNER_LIFE_BONUS : usize = 5;
 pub static MAX_POPULATION_SIZE : usize = 120000;
 pub static VERBOSITY : usize = 3;
+pub static GENE_MIN_SIZE : usize = 7;
