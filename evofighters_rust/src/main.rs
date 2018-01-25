@@ -1,22 +1,15 @@
-#![feature(rand)]
-#![feature(core)]
-#![feature(box_syntax)]
-#![feature(collections)]
-#![feature(path)]
-#![feature(std_misc)]
-#![feature(io)]
-#![feature(os)]
-#![feature(env)]
-
 extern crate time;
-extern crate "rustc-serialize" as rustc_serialize;
+extern crate rustc_serialize;
+extern crate rand;
+#[macro_use] extern crate enum_primitive;
+extern crate num;
+
 
 use std::env;
 use std::ffi::OsString;
 use std::str::FromStr;
 
-#[macro_use]
-pub mod util;
+#[macro_use] pub mod util;
 pub mod dna;
 pub mod parsing;
 pub mod eval;

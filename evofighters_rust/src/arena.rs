@@ -4,7 +4,6 @@ use std::clone::{Clone};
 use time;
 use std::time::duration::Duration;
 use std::old_io::File;
-use std::num::{Int};
 use rustc_serialize::json;
 
 use creatures;

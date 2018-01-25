@@ -1,5 +1,4 @@
 use std::fmt;
-use std::num::{Int, Float};
 use std::cmp::{max,min};
 
 use dna;

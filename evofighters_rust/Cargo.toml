@@ -5,9 +5,11 @@ version = "0.0.1"
 authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 
 [dependencies]
-
-time = "0.1.16"
-rustc-serialize = "0.2.12"
+time = "0.1.32"
+rustc-serialize = "0.3"
+rand = "0.4"
+enum_primitive = "0.1.1"
+num = "0.1.41"
 
 [profile.release]
 debug = false

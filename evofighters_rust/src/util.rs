@@ -1,7 +1,7 @@
-use std::rand;
-use std::rand::{Rng,ThreadRng,Rand};
-use std::rand::distributions;
-use std::rand::distributions::range::SampleRange;
+use rand;
+use rand::{Rng,ThreadRng,Rand};
+use rand::distributions;
+use rand::distributions::range::SampleRange;
 
 // TODO: add the stars to different debug statements
 #[macro_export]
@@ -62,7 +62,7 @@ impl AppState {
         }
     }
     pub fn normal_sample(&mut self, mean: f64, std_dev: f64) -> f64 {
-        use std::rand::distributions::IndependentSample;
+        use rand::distributions::IndependentSample;
         let normal = distributions::Normal::new(mean, std_dev);
         normal.ind_sample(&mut self.rng)
     }

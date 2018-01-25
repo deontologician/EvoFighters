@@ -7,7 +7,8 @@ pub fn empty_dna() -> DNA {
     Vec::with_capacity(0)
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Condition {
     Always,
     InRange,
@@ -19,8 +20,10 @@ pub enum Condition {
     OtherLastAction,
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
+}
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Value {
     Literal,
     Random,
@@ -28,8 +31,11 @@ pub enum Value {
     Other,
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
+}
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone)]
+
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
 pub enum Action {
     Subcondition,
     Attack,
@@ -42,8 +48,10 @@ pub enum Action {
     Flee,
     // If adding an action, update settings::MAX_GENE_VALUE to match
 }
+}
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Attribute {
     Energy,
     Signal,
@@ -53,6 +61,7 @@ pub enum Attribute {
     NumChildren,
     TopItem,
     // pay attention to settings::MAX_GENE_VALUE if adding items
+}
 }
 
 impl fmt::Display for Attribute {
@@ -69,8 +78,8 @@ impl fmt::Display for Attribute {
     }
 }
 
-
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Item {
     Food = 1,
     GoodFood,
@@ -78,8 +87,10 @@ pub enum Item {
     ExcellentFood,
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
+}
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum Signal {
     Red = 1,
     Yellow,
@@ -89,13 +100,16 @@ pub enum Signal {
     Green,
     // pay attention to settings::MAX_GENE_VALUE if adding items
 }
+}
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, FromPrimitive, Copy, Clone, RustcEncodable, RustcDecodable)]
+enum_from_primitive! {
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, RustcEncodable, RustcDecodable)]
 pub enum DamageType {
     Fire,
     Ice,
     Electricity,
     // pay attention to settings::MAX_GENE_VALUE if adding items
+}
 }
 
 

@@ -1,7 +1,7 @@
 use std::iter::Iterator;
 use std::option::Option::*;
-use std::num::FromPrimitive;
-use std::error::FromError;
+use std::convert::From;
+use num::FromPrimitive;
 
 use dna::*;
 use settings;
@@ -28,8 +28,8 @@ pub struct Indecision {
     offset: usize,
 }
 
-impl FromError<Indecision> for Failure {
-    fn from_error(indecision: Indecision) -> Failure {
+impl From<Indecision> for Failure {
+    fn from(indecision: Indecision) -> Failure {
         indecision.reason
     }
 }
