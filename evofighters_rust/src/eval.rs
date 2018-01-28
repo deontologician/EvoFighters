@@ -2,17 +2,16 @@ use std::fmt;
 use std::cmp::{min, max, PartialOrd, PartialEq};
 
 use util;
-use dna::{Signal, DamageType, ConditionTree, ActionTree, ValueTree,
-          BinOp, ActorType, Attribute};
+use dna::{lex,ast};
 use creatures::Creature;
 use settings;
 
 // PerformableAction is the result of evaluating a thought tree
-#[derive(Debug, Copy, PartialEq, Eq, Clone, RustcEncodable, RustcDecodable)]
+#[derive(Debug, Copy, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum PerformableAction {
-    Attack(DamageType),
-    Defend(DamageType),
-    Signal(Signal),
+    Attack(lex::DamageType),
+    Defend(lex::DamageType),
+    Signal(lex::Signal),
     Eat,
     Take,
     Wait,
@@ -48,12 +47,12 @@ impl fmt::Display for PerformableAction {
 
 pub fn evaluate(me: &Creature,
                 other: &Creature,
-                tree: &ConditionTree,
+                tree: &ast::Condition,
                 app: &mut util::AppState) -> PerformableAction {
     match *tree {
-        ConditionTree::Always(ref action) =>
+        ast::Condition::Always(ref action) =>
             eval_action(me, other, action, app),
-        ConditionTree::RangeCompare{
+        ast::Condition::RangeCompare{
             ref value,
             ref bound_a,
             ref bound_b,
@@ -71,7 +70,7 @@ pub fn evaluate(me: &Creature,
                 eval_action(me, other, denied, app)
             }
         },
-        ConditionTree::BinCompare{
+        ast::Condition::BinCompare{
             ref operation,
             ref lhs,
             ref rhs,
@@ -79,10 +78,10 @@ pub fn evaluate(me: &Creature,
             ref denied,
         } => {
             let op: fn(&usize, &usize) -> bool = match *operation {
-                BinOp::LT => PartialOrd::lt,
-                BinOp::GT => PartialOrd::gt,
-                BinOp::EQ => PartialEq::eq,
-                BinOp::NE => PartialEq::ne,
+                ast::BinOp::LT => PartialOrd::lt,
+                ast::BinOp::GT => PartialOrd::gt,
+                ast::BinOp::EQ => PartialEq::eq,
+                ast::BinOp::NE => PartialEq::ne,
             };
             let evaled_lhs = eval_value(me, other, lhs, app);
             let evaled_rhs = eval_value(me, other, rhs, app);
@@ -96,15 +95,15 @@ pub fn evaluate(me: &Creature,
                 eval_action(me, other, denied, app)
             }
         },
-        ConditionTree::ActionCompare{
+        ast::Condition::ActionCompare{
             ref actor_type,
             ref action,
             ref affirmed,
             ref denied,
         } => {
             let (actor, actor_str) = match *actor_type {
-                ActorType::Me => (me, "my"),
-                ActorType::Other => (other, "other's"),
+                ast::ActorType::Me => (me, "my"),
+                ast::ActorType::Other => (other, "other's"),
             };
             let my_action = eval_action(me, other, action, app);
             if my_action == actor.last_action {
@@ -123,18 +122,18 @@ pub fn evaluate(me: &Creature,
 
 fn eval_action(me: &Creature,
                other: &Creature,
-               action: &ActionTree,
+               action: &ast::Action,
                app: &mut util::AppState) -> PerformableAction {
     match *action {
-        ActionTree::Attack(dmg) => PerformableAction::Attack(dmg),
-        ActionTree::Defend(dmg) => PerformableAction::Defend(dmg),
-        ActionTree::Signal(sig) => PerformableAction::Signal(sig),
-        ActionTree::Eat => PerformableAction::Eat,
-        ActionTree::Take => PerformableAction::Take,
-        ActionTree::Wait => PerformableAction::Wait,
-        ActionTree::Flee => PerformableAction::Flee,
-        ActionTree::Mate => PerformableAction::Mate,
-        ActionTree::Subcondition(box ref sub) => {
+        ast::Action::Attack(dmg) => PerformableAction::Attack(dmg),
+        ast::Action::Defend(dmg) => PerformableAction::Defend(dmg),
+        ast::Action::Signal(sig) => PerformableAction::Signal(sig),
+        ast::Action::Eat => PerformableAction::Eat,
+        ast::Action::Take => PerformableAction::Take,
+        ast::Action::Wait => PerformableAction::Wait,
+        ast::Action::Flee => PerformableAction::Flee,
+        ast::Action::Mate => PerformableAction::Mate,
+        ast::Action::Subcondition(ref sub) => {
             evaluate(me, other, sub, app)
         },
     }
@@ -142,29 +141,29 @@ fn eval_action(me: &Creature,
 
 fn eval_value(me: &Creature,
               other: &Creature,
-              val: &ValueTree,
+              val: &ast::Value,
               app: &mut util::AppState) -> usize {
     match *val {
-        ValueTree::Literal(x) => x as usize,
-        ValueTree::Random =>
+        ast::Value::Literal(x) => x as usize,
+        ast::Value::Random =>
             app.rand_range(0, settings::MAX_GENE_VALUE as usize),
-        ValueTree::Me(attr) => get_attr(me, attr),
-        ValueTree::Other(attr) => get_attr(other, attr),
+        ast::Value::Me(attr) => get_attr(me, attr),
+        ast::Value::Other(attr) => get_attr(other, attr),
     }
 }
 
-fn get_attr(actor: &Creature, attr: Attribute) -> usize {
+fn get_attr(actor: &Creature, attr: lex::Attribute) -> usize {
     match attr {
-        Attribute::Energy => actor.energy(),
-        Attribute::Signal => match actor.signal {
+        lex::Attribute::Energy => actor.energy(),
+        lex::Attribute::Signal => match actor.signal {
             Some(sig) => sig as usize,
             None => 0,
         },
-        Attribute::Generation => actor.generation,
-        Attribute::Kills => actor.kills,
-        Attribute::Survived => actor.survived,
-        Attribute::NumChildren => actor.num_children,
-        Attribute::TopItem => match actor.top_item() {
+        lex::Attribute::Generation => actor.generation,
+        lex::Attribute::Kills => actor.kills,
+        lex::Attribute::Survived => actor.survived,
+        lex::Attribute::NumChildren => actor.num_children,
+        lex::Attribute::TopItem => match actor.top_item() {
             Some(item) => item as usize,
             None => 0,
         },

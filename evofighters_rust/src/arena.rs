@@ -1,10 +1,10 @@
-use std::iter::IteratorExt;
 use std::cmp::{max};
+use std::io::prelude::*;
 use std::clone::{Clone};
-use time;
-use std::time::duration::Duration;
-use std::old_io::File;
-use rustc_serialize::json;
+use std::time::{Duration,Instant};
+use std::fs::File;
+
+use bincode::{serialize,Infinite};
 
 use creatures;
 use creatures::Creature;
@@ -12,7 +12,7 @@ use eval;
 use settings;
 use util::AppState;
 
-#[derive(Debug, PartialEq, Eq, Copy)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum FightStatus {
     End, Continue,
 }
@@ -491,7 +491,7 @@ enum SimStatus {
     Apocalypse,
 }
 
-#[derive(Debug,RustcDecodable,RustcEncodable)]
+#[derive(Debug,Deserialize,Serialize)]
 struct SaveFile {
     max_thinking_steps: usize,
     max_tree_depth: usize,
@@ -526,24 +526,19 @@ fn save(creatures: &Vec<Creature>,
         feeder_count: feeder_count,
         creatures: creatures.clone(),
     };
-    let encoded = match json::encode(&savefile) {
+    let encoded = match serialize(&savefile, Infinite) {
         Err(why) => panic!("couldn't encode savefile: {}", why),
         Ok(encoded) => encoded,
     };
-    let path = Path::new("evofighters.save");
-    let display = path.display();
-    match File::create(&Path::new("evofighters.save"))
-        .write_str(encoded.as_slice()) {
-        Err(why) => panic!("Couldn't save to {}: {}", display, why.desc),
-        _ => (),
-    };
+    let mut save_file = File::create("evofighters.save").unwrap();
+    save_file.write_all(encoded.as_ref()).unwrap();
 }
 
 pub fn simulate(creatures: &mut Vec<Creature>,
             feeder_count: usize,
             num_encounters: usize,
             app: &mut AppState) {
-    let mut update_time = time::get_time();
+    let mut update_time = Instant::now();
     let mut timestamp = update_time;
     let mut feeders = feeder_count;
     let mut encounters = num_encounters;
@@ -562,17 +557,17 @@ pub fn simulate(creatures: &mut Vec<Creature>,
                    creatures.len(), feeders, app.mutations, total_events,
                    app.children_born, app.feeders_eaten, app.kills,
                    if events != 0 {app.rounds / events} else {0});
-            timestamp = time::get_time();
+            timestamp = Instant::now();
         }
         if creatures.len() < 2 {
             sim_status = SimStatus::NotEnoughCreatures;
             break;
         }
-        if timestamp - update_time > Duration::seconds(90) {
+        if timestamp - update_time > Duration::from_secs(90) {
             println!("\nCurrently {} creatures alive\n", creatures.len());
             save(creatures, feeders, encounters);
             println!("Saved.");
-            update_time = time::get_time();
+            update_time = Instant::now();
         }
         if (creatures.len() + feeders) < settings::MAX_POPULATION_SIZE {
             feeders += 1;

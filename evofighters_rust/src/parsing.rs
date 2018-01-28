@@ -3,7 +3,7 @@ use std::option::Option::*;
 use std::convert::From;
 use num::FromPrimitive;
 
-use dna::*;
+use dna::{lex,ast,DNA};
 use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -15,17 +15,17 @@ pub enum Failure {
 
 #[derive(Debug, Clone)]
 pub struct Decision {
-    tree: Box<ConditionTree>,
-    icount: usize,
-    skipped: usize,
-    offset: usize,
+    pub tree: Box<ast::Condition>,
+    pub offset: usize,
+    pub icount: usize,
+    pub skipped: usize,
 }
 
 pub struct Indecision {
-    reason: Failure,
-    icount: usize,
-    skipped: usize,
-    offset: usize,
+    pub reason: Failure,
+    pub icount: usize,
+    pub skipped: usize,
+    pub offset: usize,
 }
 
 impl From<Indecision> for Failure {
@@ -34,11 +34,11 @@ impl From<Indecision> for Failure {
     }
 }
 
-type Thought = Result<Decision, Indecision>;
+pub type Thought = Result<Decision, Indecision>;
 
 fn feeder_decision() -> Thought {
     Ok(Decision {
-        tree: Box::new(ConditionTree::Always(ActionTree::Wait)),
+        tree: Box::new(ast::Condition::Always(ast::Action::Wait)),
         icount: 0,
         skipped: settings::MAX_THINKING_STEPS + 1,
         offset: 0,
@@ -144,79 +144,79 @@ impl Parser {
         Ok(next_val.unwrap())
     }
 
-    fn parse_condition(&mut self) -> ParseResult<Box<ConditionTree>> {
+    fn parse_condition(&mut self) -> ParseResult<Box<ast::Condition>> {
         if self.depth > settings::MAX_TREE_DEPTH {
             return Err(Failure::ParseTreeTooDeep)
         }
-        Ok(box match try!(self.next_valid(0)) {
-            Condition::Always =>
-                ConditionTree::Always(try!(self.parse_action())),
-            Condition::InRange =>
-                ConditionTree::RangeCompare {
-                    value: try!(self.parse_value()),
-                    bound_a: try!(self.parse_value()),
-                    bound_b: try!(self.parse_value()),
-                    affirmed: try!(self.parse_action()),
-                    denied: try!(self.parse_action()),
+        Ok(Box::new(match self.next_valid(0)? {
+            lex::Condition::Always =>
+                ast::Condition::Always(self.parse_action()?),
+            lex::Condition::InRange =>
+                ast::Condition::RangeCompare {
+                    value: self.parse_value()?,
+                    bound_a: self.parse_value()?,
+                    bound_b: self.parse_value()?,
+                    affirmed: self.parse_action()?,
+                    denied: self.parse_action()?,
                 },
-            cnd @ Condition::LessThan |
-            cnd @ Condition::GreaterThan |
-            cnd @ Condition::EqualTo |
-            cnd @ Condition::NotEqualTo =>
-                ConditionTree::BinCompare {
+            cnd @ lex::Condition::LessThan |
+            cnd @ lex::Condition::GreaterThan |
+            cnd @ lex::Condition::EqualTo |
+            cnd @ lex::Condition::NotEqualTo =>
+                ast::Condition::BinCompare {
                     operation: match cnd {
-                        Condition::LessThan => BinOp::LT,
-                        Condition::GreaterThan => BinOp::GT,
-                        Condition::EqualTo => BinOp::EQ,
-                        Condition::NotEqualTo => BinOp::NE,
+                        lex::Condition::LessThan => ast::BinOp::LT,
+                        lex::Condition::GreaterThan => ast::BinOp::GT,
+                        lex::Condition::EqualTo => ast::BinOp::EQ,
+                        lex::Condition::NotEqualTo => ast::BinOp::NE,
                         _ => panic!("Not possible")
                     },
-                    lhs: try!(self.parse_value()),
-                    rhs: try!(self.parse_value()),
-                    affirmed: try!(self.parse_action()),
-                    denied: try!(self.parse_action()),
+                    lhs: self.parse_value()?,
+                    rhs: self.parse_value()?,
+                    affirmed: self.parse_action()?,
+                    denied: self.parse_action()?,
                 },
-            actor @ Condition::MyLastAction |
-            actor @ Condition::OtherLastAction =>
-                ConditionTree::ActionCompare {
+            actor @ lex::Condition::MyLastAction |
+            actor @ lex::Condition::OtherLastAction =>
+                ast::Condition::ActionCompare {
                     actor_type: match actor {
-                        Condition::MyLastAction => ActorType::Me,
-                        Condition::OtherLastAction => ActorType::Other,
+                        lex::Condition::MyLastAction => ast::ActorType::Me,
+                        lex::Condition::OtherLastAction => ast::ActorType::Other,
                         _ => panic!("Not possible")
                     },
-                    action: try!(self.parse_action()),
-                    affirmed: try!(self.parse_action()),
-                    denied: try!(self.parse_action()),
+                    action: self.parse_action()?,
+                    affirmed: self.parse_action()?,
+                    denied: self.parse_action()?,
                 }
-        })
+        }))
     }
 
-    fn parse_action(&mut self) -> ParseResult<ActionTree> {
-        Ok(match try!(self.next_valid(0)) {
-            Action::Subcondition => {
+    fn parse_action(&mut self) -> ParseResult<ast::Action> {
+        Ok(match self.next_valid(0)? {
+            lex::Action::Subcondition => {
                 self.depth += 1;
-                let subcond = ActionTree::Subcondition(
-                    try!(self.parse_condition()));
+                let subcond = ast::Action::Subcondition(
+                    self.parse_condition()?);
                 self.depth -= 1;
                 subcond
             },
-            Action::Attack => ActionTree::Attack(try!(self.next_valid(0))),
-            Action::Defend => ActionTree::Defend(try!(self.next_valid(0))),
-            Action::Signal => ActionTree::Signal(try!(self.next_valid(0))),
-            Action::Eat => ActionTree::Eat,
-            Action::Take => ActionTree::Take,
-            Action::Mate => ActionTree::Mate,
-            Action::Wait => ActionTree::Wait,
-            Action::Flee => ActionTree::Flee,
+            lex::Action::Attack => ast::Action::Attack(self.next_valid(0)?),
+            lex::Action::Defend => ast::Action::Defend(self.next_valid(0)?),
+            lex::Action::Signal => ast::Action::Signal(self.next_valid(0)?),
+            lex::Action::Eat    => ast::Action::Eat,
+            lex::Action::Take   => ast::Action::Take,
+            lex::Action::Mate   => ast::Action::Mate,
+            lex::Action::Wait   => ast::Action::Wait,
+            lex::Action::Flee   => ast::Action::Flee,
         })
     }
 
-    fn parse_value(&mut self) -> ParseResult<ValueTree> {
-        Ok(match try!(self.next_valid(0)) {
-            Value::Literal => ValueTree::Literal(try!(self.next_valid(0))),
-            Value::Random => ValueTree::Random,
-            Value::Me => ValueTree::Me(try!(self.next_valid(0))),
-            Value::Other => ValueTree::Other(try!(self.next_valid(0))),
+    fn parse_value(&mut self) -> ParseResult<ast::Value> {
+        Ok(match self.next_valid(0)? {
+            lex::Value::Literal => ast::Value::Literal(self.next_valid(0)?),
+            lex::Value::Random  => ast::Value::Random,
+            lex::Value::Me      => ast::Value::Me(self.next_valid(0)?),
+            lex::Value::Other   => ast::Value::Other(self.next_valid(0)?),
         })
     }
 }

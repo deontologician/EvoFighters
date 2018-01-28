@@ -6,10 +6,12 @@ authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 
 [dependencies]
 time = "0.1.32"
-rustc-serialize = "0.3"
 rand = "0.4"
 enum_primitive = "0.1.1"
 num = "0.1.41"
+serde = "1.0"
+serde_derive = "1.0"
+bincode = "0.9"
 
 [profile.release]
 debug = false
@@ -17,6 +19,11 @@ opt-level = 3
 rpath = false
 lto = true
 
-[[bin]]
+[features]
+print1 = []
+print2 = []
+print3 = []
 
+[[bin]]
 name = "evofighters"
+path = "src/main.rs"

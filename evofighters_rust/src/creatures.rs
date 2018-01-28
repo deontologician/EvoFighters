@@ -8,21 +8,22 @@ use settings;
 use arena;
 use util;
 
+
 static FEEDER_ID: usize = 0;
 
-#[derive(Debug,PartialEq,Eq,Copy)]
+#[derive(Debug,PartialEq,Eq,Copy,Clone)]
 pub enum Liveness {
     Alive, Dead
 }
 
-#[derive(Debug,Clone, RustcDecodable, RustcEncodable)]
+#[derive(Debug,Clone, Deserialize, Serialize)]
 pub struct Creature {
     dna: dna::DNA,
-    inv: Vec<dna::Item>,
+    inv: Vec<dna::lex::Item>,
     energy: usize,
     pub generation: usize,
     pub num_children: usize,
-    pub signal: Option<dna::Signal>,
+    pub signal: Option<dna::lex::Signal>,
     pub survived: usize,
     pub kills: usize,
     pub instr_used: usize,
@@ -70,11 +71,11 @@ impl Creature {
 
     pub fn seed_creature(id: usize) -> Creature {
         Creature {
-            dna: vec![dna::Condition::Always as i8,
-                      dna::Action::Mate as i8,
+            dna: vec![dna::lex::Condition::Always as i8,
+                      dna::lex::Action::Mate as i8,
                       -1,
-                      dna::Condition::Always as i8,
-                      dna::Action::Flee as i8,
+                      dna::lex::Condition::Always as i8,
+                      dna::lex::Action::Flee as i8,
                       -1,
                       ],
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
@@ -106,11 +107,11 @@ impl Creature {
         Creature {
             id: FEEDER_ID,
             dna: dna::empty_dna(),
-            inv: vec![dna::Item::Food],
+            inv: vec![dna::lex::Item::Food],
             energy: 1,
             generation: 0,
             num_children: 0,
-            signal: Some(dna::Signal::Green),
+            signal: Some(dna::lex::Signal::Green),
             kills: 0,
             survived: 0,
             instr_used: 0,
@@ -129,7 +130,7 @@ impl Creature {
         return !self.inv.is_empty()
     }
 
-    pub fn add_item(&mut self, item: dna::Item) {
+    pub fn add_item(&mut self, item: dna::lex::Item) {
         if self.inv.len() < settings::MAX_INV_SIZE {
             self.inv.push(item)
         } else {
@@ -143,15 +144,15 @@ impl Creature {
         self.last_action = eval::PerformableAction::NoAction;
     }
 
-    fn set_signal(&mut self, signal:dna::Signal) {
+    fn set_signal(&mut self, signal:dna::lex::Signal) {
         self.signal = Some(signal)
     }
 
-    fn pop_item(&mut self) -> Option<dna::Item> {
+    fn pop_item(&mut self) -> Option<dna::lex::Item> {
         self.inv.pop()
     }
 
-    pub fn top_item(&self) -> Option<dna::Item> {
+    pub fn top_item(&self) -> Option<dna::lex::Item> {
         if !self.inv.is_empty() {
             Some(self.inv[self.inv.len() - 1])
         } else {
@@ -159,7 +160,7 @@ impl Creature {
         }
     }
 
-    fn eat(&mut self, item: dna::Item) {
+    fn eat(&mut self, item: dna::lex::Item) {
         let energy_gain = 3 * item as usize;
         print2!("{} gains {} life from {:?}", self, energy_gain, item);
         self.gain_energy(energy_gain)
@@ -408,7 +409,7 @@ fn mate(p1: &mut Creature,
 
 fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
     if app.rand_weighted_bool(
-        (10000.0/settings::MUTATION_RATE) as usize) {
+        (10000.0/settings::MUTATION_RATE) as u32) {
         genome_level_mutation(genes, app);
     } else {
         let index = app.rand_range(0, genes.len());

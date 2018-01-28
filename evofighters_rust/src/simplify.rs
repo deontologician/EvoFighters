@@ -2,19 +2,22 @@
 
 use std::cmp::{min, max, PartialEq, PartialOrd};
 
-use dna;
-use dna::{ConditionTree,ActionTree,ValueTree};
-use parsing::{Thought};
+use dna::{ast, DNA};
 use parsing;
 
-
-pub fn simplify(cond: ConditionTree) -> ConditionTree {
-
-    // First, go through and determine what kind of conditionals can
-    // be evaluated statically (i.e. they always come out to the same
-    // result), and replace them with their appropriate branch Also,
-    // any conditionals that have the same result, whatever the
-    // condition ends up being, can be replaced by one of the branches.
+/// Simplifies a condition tree by replacing it with another condition
+/// tree that takes less (or at least not more) time to execute at
+/// runtime.
+///
+/// Evolutionary algorithms are good at generating code that "works"
+/// but does so by being very redundant, or by doing straightforward
+/// things in roundabout ways. This is essentially a compiler that
+/// reduces these "bushy" trees to "trim and fit" versions that are
+/// equivalent.
+///
+/// As a bonus, the behavior of the simplified trees is often easier
+/// to interpret by a human.
+pub fn simplify(cond: ast::Condition) -> ast::Condition {
     let stage_1_cond = eval_static_conditionals(cond);
     // Next, evaluate redundant Always -> Subcondition branches
     let stage_2_cond = eval_redundant_conditions(stage_1_cond);
@@ -22,11 +25,17 @@ pub fn simplify(cond: ConditionTree) -> ConditionTree {
     stage_2_cond
 }
 
-fn eval_static_conditionals(cond: ConditionTree) -> ConditionTree {
+
+/// Evaluates static conditionals at compile time.
+///
+/// Static conditionals always evaluate to the same thing, so they can
+/// be compiled to one branch or the other before we ever run
+/// anything, saving a check at runtime.
+fn eval_static_conditionals(cond: ast::Condition) -> ast::Condition {
     // Evaluate in line anywhere in the tree that contains only literals.
-    use dna::ConditionTree::{Always, RangeCompare, BinCompare, ActionCompare};
-    use dna::ValueTree::Literal;
-    use dna::BinOp::{LT,GT,EQ,NE};
+    use dna::ast::Condition::{Always, RangeCompare, BinCompare, ActionCompare};
+    use dna::ast::Value::Literal;
+    use dna::ast::BinOp::{LT,GT,EQ,NE};
     match cond {
         Always(act) => Always(esc_action(act)),
         RangeCompare{
@@ -106,21 +115,26 @@ fn eval_static_conditionals(cond: ConditionTree) -> ConditionTree {
     }
 }
 
-fn esc_action(act: ActionTree) -> ActionTree {
-    use dna::ActionTree::Subcondition;
-    use dna::ConditionTree::{Always};
+fn esc_action(act: ast::Action) -> ast::Action {
+    use dna::ast::Action::Subcondition;
+    use dna::ast::Condition::Always;
     match act {
         Subcondition(box Always(act)) =>
             esc_action(act),
         Subcondition(box cond) =>
-            Subcondition(box eval_static_conditionals(cond)),
+            Subcondition(Box::new(eval_static_conditionals(cond))),
         otherwise => otherwise
     }
 }
 
-fn eval_redundant_conditions(cond: ConditionTree) -> ConditionTree {
-    use dna::ConditionTree::{Always, RangeCompare, BinCompare, ActionCompare};
-    use dna::ActionTree::Subcondition;
+
+/// Simplifies redundant conditionals.
+///
+/// For example, "Always(Always(action))" is equivalent to
+/// "Always(action)".
+fn eval_redundant_conditions(cond: ast::Condition) -> ast::Condition {
+    use dna::ast::Condition::{Always, RangeCompare, BinCompare, ActionCompare};
+    use dna::ast::Action::Subcondition;
     match cond {
         Always(Subcondition(box cond)) =>
             eval_redundant_conditions(cond),
@@ -152,26 +166,27 @@ fn eval_redundant_conditions(cond: ConditionTree) -> ConditionTree {
     }
 }
 
-fn erc_action(act: ActionTree) -> ActionTree {
-    use dna::ActionTree::Subcondition;
+fn erc_action(act: ast::Action) -> ast::Action {
+    use dna::ast::Action::Subcondition;
     match act {
         Subcondition(box cond) =>
-            Subcondition(box eval_redundant_conditions(cond)),
+            Subcondition(Box::new(eval_redundant_conditions(cond))),
         otherwise => otherwise
     }
 }
 
 pub struct ThoughtCycle {
-    thoughts: Vec<parsing::Decision>,
+    thoughts: Vec<ast::Condition>,
     cycle_offset: usize,
 }
 
 
-pub fn cycle_detect(dna: &Vec<i8>) -> Result<ThoughtCycle, parsing::Failure> {
+//// Commented out until I get this shit working
+pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
 
     let f = |offset: usize| -> usize {
         let mut parser = parsing::Parser::new(dna.clone(), offset);
-        parser.next().unwrap().ok().offset
+        parser.next().unwrap().ok().unwrap().offset
     };
 
     let mut tortoise = f(0);
@@ -196,17 +211,16 @@ pub fn cycle_detect(dna: &Vec<i8>) -> Result<ThoughtCycle, parsing::Failure> {
     }
     let mut new_iter = parsing::Parser::new(dna.clone(), 0);
     let mut thought: parsing::Decision;
-    let thought_tree: ConditionTree;
+    let mut thought_tree: ast::Condition;
     let mut thoughts = Vec::new();
     for i in 0..(mu + lam) {
         let mut offset = new_iter.current_offset();
-        box thought = try!(new_iter.next().unwrap());
-        box thought_tree = thought.tree;
-        println!("{}: {:?}", i, thought.tree);
-        let mut simplified = simplify(thought_tree.clone());
+        thought = new_iter.next().unwrap()?;
+        thought_tree = *thought.tree;
+        println!("{}: {:?}", i, &thought_tree);
+        let simplified = simplify(thought_tree.clone());
         if thought_tree != simplified {
             println!("  -> {:?}", simplified);
-            thought.tree = simplified;
         }
         thoughts.push(simplified);
     }

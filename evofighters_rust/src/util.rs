@@ -7,7 +7,9 @@ use rand::distributions::range::SampleRange;
 #[macro_export]
 macro_rules! print1 {
     ($($arg:tt)*) => (
-        if cfg!(not(ndebug)){
+        if cfg!(feature = "print3") ||
+            cfg!(feature = "print2") ||
+            cfg!(feature = "print1") {
             println!($($arg)*);
         })
 }
@@ -15,7 +17,7 @@ macro_rules! print1 {
 #[macro_export]
 macro_rules! print2 {
     ($($arg:tt)*) => (
-        if cfg!(not(ndebug)){
+        if cfg!(feature = "print2") || cfg!(feature = "print1") {
             println!($($arg)*);
         })
 }
@@ -23,7 +25,7 @@ macro_rules! print2 {
 #[macro_export]
 macro_rules! print3 {
     ($($arg:tt)*) => (
-        if cfg!(not(ndebug)){
+        if cfg!(feature = "print3") {
             println!($($arg)*);
         })
 }
@@ -70,7 +72,7 @@ impl AppState {
         self.id_box += 1;
         self.id_box
     }
-    pub fn rand_weighted_bool(&mut self, n: usize) -> bool {
+    pub fn rand_weighted_bool(&mut self, n: u32) -> bool {
         self.rng.gen_weighted_bool(n)
     }
 
