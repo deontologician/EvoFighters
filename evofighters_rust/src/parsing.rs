@@ -3,7 +3,7 @@ use std::option::Option::*;
 use std::convert::From;
 use num::FromPrimitive;
 
-use dna::{lex,ast,DNA};
+use dna::{lex,ast,DNA,DNAIter};
 use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -62,42 +62,12 @@ pub fn skipped(thought: &Thought) -> usize {
 type ParseResult<T> = Result<T, Failure>;
 
 #[derive(Debug, Clone)]
-struct DNAIter {
-    dna: DNA,
-    pub progress: usize,
-    len: usize,
-}
-
-impl DNAIter {
-    fn new(dna: DNA, offset: usize) -> DNAIter {
-        let len = dna.len(); // avoid borrow issues
-        DNAIter {
-            dna: dna,
-            progress: offset % len,
-            len: len,
-        }
-    }
-}
-
-impl Iterator for DNAIter {
-    type Item = i8;
-    fn next(&mut self) -> Option<i8> {
-        let ret = Some(self.dna[self.progress]);
-        self.progress = (self.progress + 1) % self.len;
-        ret
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len, None)
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Parser {
     icount: usize,
     skipped: usize,
     depth: usize,
     for_feeder: bool,
-    dna: DNAIter,
+    dna_stream: DNAIter,
 }
 
 impl Parser {
@@ -106,10 +76,10 @@ impl Parser {
     /// encounter decisions
     pub fn new(dna: DNA, offset: usize) -> Parser {
         Parser {
-            icount : 0,
-            skipped : 0,
-            dna : DNAIter::new(dna, offset),
-            depth : 0,
+            icount: 0,
+            skipped: 0,
+            dna_stream: dna.base_stream(offset),
+            depth: 0,
             for_feeder: false,
         }
     }
@@ -118,23 +88,23 @@ impl Parser {
         Parser {
             icount: 0,
             skipped: 0,
-            dna : DNAIter::new(vec![-1], 0),
+            dna_stream : DNA::feeder().base_stream(0),
             depth: 0,
             for_feeder: true,
         }
     }
 
     pub fn current_offset(&self) -> usize {
-        self.dna.progress
+        self.dna_stream.offset()
     }
 
     fn next_valid<T: FromPrimitive>(&mut self, minimum: i8) -> ParseResult<T> {
-        let mut next_i8 = self.dna.next();
+        let mut next_i8 = self.dna_stream.next();
         let mut next_val : Option<T> =
             next_i8.and_then(FromPrimitive::from_i8);
         self.icount += 1;
         while next_val.is_none() || next_i8.unwrap() < minimum {
-            next_i8 = self.dna.next();
+            next_i8 = self.dna_stream.next();
             next_val = next_i8.and_then(FromPrimitive::from_i8);
             self.skipped += 1;
             if self.icount + self.skipped > settings::MAX_THINKING_STEPS {

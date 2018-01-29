@@ -1,10 +1,226 @@
-/// Basic type alias to hold DNA information
-pub type DNA = Vec<i8>;
+use std::convert::From;
+use std::cmp::max;
 
-/// Produce an empty DNA value. This is used by feeders.
-pub fn empty_dna() -> DNA {
-    Vec::with_capacity(0)
+use util;
+use settings;
+
+/// Core DNA data structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DNA(Vec<i8>);
+
+impl DNA {
+    pub const STOP_CODON: i8 = -1;
+
+    /// Produce feeder DNA, which is just a stop codon
+    pub fn feeder() -> DNA {
+        DNA(vec![DNA::STOP_CODON])
+    }
+
+    /// Produce the default seed DNA, which evaluates to "always mate,
+    /// always flee"
+    pub fn seed() -> DNA {
+        DNA(vec![
+            lex::Condition::Always as i8,
+            lex::Action::Mate as i8,
+            DNA::STOP_CODON,
+            lex::Condition::Always as i8,
+            lex::Action::Flee as i8,
+            DNA::STOP_CODON,
+        ])
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn base_stream(&self, offset: usize) -> DNAIter {
+        DNAIter::new(self.0.clone(), offset)
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.0.len() > 0 && self.0.iter().any(|&v| v >= 0)
+    }
+
+    pub fn combine(m: &mut DNA, f: &mut DNA, app: &mut util::AppState) -> DNA {
+        let dna1_primer = m.gene_primer(app);
+        let dna2_primer = f.gene_primer(app);
+        let mut dna1 = dna1_primer.into_iter();
+        let mut dna2 = dna2_primer.into_iter();
+        let mut child_genes : Vec<Vec<i8>> = Vec::new();
+        let loop_ender = vec![DNA::STOP_CODON];
+        loop {
+            let gene1 = dna1.next().unwrap_or(vec![DNA::STOP_CODON]);
+            let gene2 = dna2.next().unwrap_or(vec![DNA::STOP_CODON]);
+            if gene1 == loop_ender && gene2 == loop_ender {
+                break;
+            }
+            child_genes.push(if app.rand() {
+                gene1
+            } else {
+                gene2
+            });
+        }
+        if app.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
+            app.mutations += 1;
+            DNA::mutate(&mut child_genes, app)
+        }
+        let mut dna_vec = Vec::with_capacity(max(m.len(), f.len()));
+        //dna_vec.from_iter(child_genes.into_iter().flat_map())
+        for gene in child_genes.into_iter() {
+            dna_vec.extend(gene.into_iter())
+        }
+        dna_vec.shrink_to_fit();
+        DNA(dna_vec)
+    }
+
+    /// Breaks dna into chunks based on dna
+    fn gene_primer(&self, app: &mut util::AppState) -> Vec<Vec<i8>> {
+        let mut result = Vec::new();
+        let mut chunk = Vec::new();
+        for &base in self.0.iter() {
+            chunk.push(base);
+            if base < 0 {
+                if chunk.len() > settings::GENE_MIN_SIZE
+                    && app.rand_weighted_bool(10000) {
+                        // nonsense mutation
+                        let split_index = app.rand_range(0, chunk.len());
+                        let chunk2 = chunk.split_off(split_index);
+                        chunk.push(DNA::STOP_CODON);
+                        result.push(chunk);
+                        result.push(chunk2);
+                    } else {
+                        result.push(chunk);
+                    }
+                chunk = Vec::new();
+            }
+        }
+        if !chunk.is_empty() {
+            result.push(chunk);
+        }
+        result
+    }
+
+
+    fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
+        if app.rand_weighted_bool(
+            (10000.0/settings::MUTATION_RATE) as u32) {
+            DNA::genome_level_mutation(genes, app);
+        } else {
+            let index = app.rand_range(0, genes.len());
+            let fixed_gene = &mut genes[index];
+            print2!("Mutating gene {}", index);
+            DNA::gene_level_mutation(fixed_gene, app);
+        }
+    }
+
+    fn genome_level_mutation(
+        genome: &mut Vec<Vec<i8>>,
+        app: &mut util::AppState) {
+        match app.rand_range(1, 4) {
+            1 => { // swap two genes
+                let i1 = app.rand_range(0, genome.len());
+                let i2 = app.rand_range(0, genome.len());
+                print2!("swapped genes {} and {}", i1, i2);
+                genome.as_mut_slice().swap(i1, i2);
+            },
+            2 => { // double a gene
+                let i = app.rand_range(0, genome.len());
+                let gene = genome[i].clone();
+                print2!("doubled gene {}", i);
+                genome.insert(i, gene);
+            },
+            3 => { // deletes a gene
+                let i = app.rand_range(0, genome.len());
+                print2!("Deleted gene {}", i);
+                // Avoid shifting items if we can, we're going to flatten
+                // this list anyway later
+                genome.push(Vec::new());
+                genome.swap_remove(i);
+            },
+            _ => panic!("Generated in range 1 - 3! Should not reach.")
+        }
+    }
+
+    fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
+        if gene.is_empty() {
+            print3!("Mutated an empty gene!");
+            return
+        }
+        match app.rand_range(1, 6) {
+            1 => { // reverse the order of bases in a gene
+                gene.as_mut_slice().reverse();
+                print2!("reversed gene");
+            },
+            2 => { // deleting a gene
+                gene.clear();
+                print2!("deleted gene");
+            },
+            3 => { // insert an extra base in a gene
+                let val = app.rand_range(DNA::STOP_CODON, settings::MAX_GENE_VALUE);
+                let index = app.rand_range(0, gene.len());
+                print2!("inserted {} at {}", val, index);
+                gene.insert(index, val);
+            },
+            4 => { // increment a base in a gene, modulo the
+                // max gene value
+                let inc = app.rand_range(1, 3);
+                let index = app.rand_range(0, gene.len());
+                let new_base = (gene[index] + 1 + inc) %
+                    (settings::MAX_GENE_VALUE + 2) - 1;
+                print2!("added {} to base at {} with val {} to get {}",
+                        inc, index, gene[index], new_base);
+                gene[index] = new_base;
+            },
+            5 => { // swap two bases in the gene
+                let i1 = app.rand_range(0, gene.len());
+                let i2 = app.rand_range(0, gene.len());
+                gene.as_mut_slice().swap(i1, i2);
+                print2!("swapped bases {} and {}", i1, i2);
+            },
+            _ => panic!("Impossible. number between 1 and 6 exclusive")
+        }
+    }
 }
+
+impl From<Vec<i8>> for DNA {
+    fn from(other: Vec<i8>) -> DNA {
+        DNA(other)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DNAIter {
+    dna: Vec<i8>,
+    offset: usize,
+}
+
+impl DNAIter {
+    fn new(dna: Vec<i8>, offset: usize) -> DNAIter {
+        let len = dna.len(); // avoid borrow issues
+        DNAIter {
+            dna: dna,
+            offset: offset % len,
+        }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
+    }
+}
+
+impl Iterator for DNAIter {
+    type Item = i8;
+    fn next(&mut self) -> Option<i8> {
+        let ret = Some(self.dna[self.offset]);
+        self.offset = (self.offset + 1) % self.dna.len();
+        ret
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.dna.len(), None)
+    }
+}
+
 
 /// The lexical module is for raw enums that are used as tokens from
 /// the `DNA`, and are fed to the parser.

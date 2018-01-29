@@ -25,7 +25,7 @@ use std::iter::FromIterator;
 
 
 fn main() {
-    let mut args: Vec<String> = FromIterator::from_iter(env::args());
+    let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         run_simulation();
         return
@@ -43,7 +43,7 @@ fn run_simulation() {
     println!("Creating initial population");
     let mut population: Vec<Creature> = FromIterator::from_iter(
         (1..settings::MAX_POPULATION_SIZE + 1)
-            .map(|id| Creature::seed_creature(id)));
+            .map(Creature::seed_creature));
     println!("Created {} creatures", settings::MAX_POPULATION_SIZE + 1);
 
     arena::simulate(&mut population, 0, 0, &mut app);
@@ -51,8 +51,13 @@ fn run_simulation() {
 
 fn cycle_check(args: Vec<String>) {
 
-    let dna_args: Vec<i8> = args.iter()
-        .map(|x| x.parse().expect("Well that wasn't an integer"))
-        .collect();
-    simplify::cycle_detect(&dna_args);
+    let dna_args: dna::DNA = dna::DNA::from(
+        args.iter()
+            .map(|x| x.parse().expect("Well that wasn't an integer"))
+            .collect::<Vec<i8>>()
+    );
+    match simplify::cycle_detect(&dna_args) {
+        Ok(_thought_cycle) => println!("Got a cycle!"),
+        Err(failure) => println!("Failed to get a cycle: {:?}", failure),
+    }
 }

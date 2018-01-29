@@ -176,17 +176,19 @@ fn erc_action(act: ast::Action) -> ast::Action {
 }
 
 pub struct ThoughtCycle {
-    thoughts: Vec<ast::Condition>,
-    cycle_offset: usize,
+    pub thoughts: Vec<ast::Condition>,
+    pub cycle_offset: usize,
 }
 
 
-//// Commented out until I get this shit working
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
 
     let f = |offset: usize| -> usize {
         let mut parser = parsing::Parser::new(dna.clone(), offset);
-        parser.next().unwrap().ok().unwrap().offset
+        match parser.next().unwrap() {
+            Ok(decision) => decision.offset,
+            Err(indecision) => indecision.offset,
+        }
     };
 
     let mut tortoise = f(0);

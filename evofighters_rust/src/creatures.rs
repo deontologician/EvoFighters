@@ -71,13 +71,7 @@ impl Creature {
 
     pub fn seed_creature(id: usize) -> Creature {
         Creature {
-            dna: vec![dna::lex::Condition::Always as i8,
-                      dna::lex::Action::Mate as i8,
-                      -1,
-                      dna::lex::Condition::Always as i8,
-                      dna::lex::Action::Flee as i8,
-                      -1,
-                      ],
+            dna: dna::DNA::seed(),
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
             generation: 0,
@@ -106,7 +100,7 @@ impl Creature {
     pub fn feeder() -> Creature {
         Creature {
             id: FEEDER_ID,
-            dna: dna::empty_dna(),
+            dna: dna::DNA::feeder(),
             inv: vec![dna::lex::Item::Food],
             energy: 1,
             generation: 0,
@@ -127,7 +121,7 @@ impl Creature {
     }
 
     fn has_items(&self) -> bool {
-        return !self.inv.is_empty()
+        !self.inv.is_empty()
     }
 
     pub fn add_item(&mut self, item: dna::lex::Item) {
@@ -168,18 +162,12 @@ impl Creature {
 
     pub fn liveness(&self) -> Liveness {
         use self::Liveness::{Alive, Dead};
-        if self.is_feeder() {
-            if self.energy > 0 && self.has_items() {
-                Alive
-            } else {
-                Dead
-            }
+        if self.energy > 0 && (self.is_feeder() && self.has_items() ||
+            // TODO: move dna validity check to new creature since it's expensive
+                               self.dna.is_valid()) {
+            Alive
         } else {
-            if self.energy > 0 && !self.dna.is_empty() {
-                Alive
-            } else {
-                Dead
-            }
+            Dead
         }
     }
 
@@ -287,33 +275,6 @@ impl Creature {
     }
 }
 
-
-fn gene_primer(dna: dna::DNA, app: &mut util::AppState) -> Vec<Vec<i8>> {
-    let mut result = Vec::new();
-    let mut chunk = Vec::new();
-    for &base in dna.iter() {
-        chunk.push(base);
-        if base < 0 {
-            if chunk.len() > settings::GENE_MIN_SIZE
-                && app.rand_weighted_bool(10000) {
-                    // nonsense mutation
-                    let split_index = app.rand_range(0, chunk.len());
-                    let chunk2 = chunk.split_off(split_index);
-                    chunk.push(-2);
-                    result.push(chunk);
-                    result.push(chunk2);
-                } else {
-                    result.push(chunk);
-                }
-            chunk = Vec::new();
-        }
-    }
-    if !chunk.is_empty() {
-        result.push(chunk);
-    }
-    result
-}
-
 pub fn try_to_mate(
     mating_chance: usize,
     first_mate: &mut Creature,
@@ -367,122 +328,14 @@ pub fn try_to_mate(
 fn mate(p1: &mut Creature,
             p2: &mut Creature,
             app: &mut util::AppState) -> Creature {
-    let dna1_primer = gene_primer(p1.dna.clone(), app);
-    let dna2_primer = gene_primer(p2.dna.clone(), app);
-    let mut dna1 = dna1_primer.into_iter();
-    let mut dna2 = dna2_primer.into_iter();
-    let mut child_genes : Vec<Vec<i8>> = Vec::new();
-    let loop_ender = vec![-2];
-    loop {
-        let gene1 = dna1.next().unwrap_or(vec![-2]);
-        let gene2 = dna2.next().unwrap_or(vec![-2]);
-        if gene1 == loop_ender && gene2 == loop_ender {
-            break;
-        }
-        child_genes.push(if app.rand() {
-            gene1
-        } else {
-            gene2
-        });
-    }
-    if app.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
-        app.mutations += 1;
-        mutate(&mut child_genes, app)
-    }
-    let mut dna_vec = Vec::with_capacity(max(p1.dna.len(), p2.dna.len()));
-    //dna_vec.from_iter(child_genes.into_iter().flat_map())
-    for gene in child_genes.into_iter() {
-        dna_vec.extend(gene.into_iter())
-    }
-    dna_vec.shrink_to_fit();
-
+    let child_dna = dna::DNA::combine(&mut p1.dna, &mut p2.dna, app);
     let child = Creature::new(
         app.next_creature_id(), // id
-        dna_vec, // dna
+        child_dna, // dna
         max(p1.generation, p2.generation) + 1, // generation
         (p1.id, p2.id), // parents
-        );
+    );
     p1.num_children += 1;
     p2.num_children += 1;
     child
-}
-
-fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
-    if app.rand_weighted_bool(
-        (10000.0/settings::MUTATION_RATE) as u32) {
-        genome_level_mutation(genes, app);
-    } else {
-        let index = app.rand_range(0, genes.len());
-        let fixed_gene = &mut genes[index];
-        print2!("Mutating gene {}", index);
-        gene_level_mutation(fixed_gene, app);
-    }
-}
-
-fn genome_level_mutation(
-    genome: &mut Vec<Vec<i8>>,
-    app: &mut util::AppState) {
-    match app.rand_range(1, 4) {
-        1 => { // swap two genes
-            let i1 = app.rand_range(0, genome.len());
-            let i2 = app.rand_range(0, genome.len());
-            print2!("swapped genes {} and {}", i1, i2);
-            genome.as_mut_slice().swap(i1, i2);
-        },
-        2 => { // double a gene
-            let i = app.rand_range(0, genome.len());
-            let gene = genome[i].clone();
-            print2!("doubled gene {}", i);
-            genome.insert(i, gene);
-        },
-        3 => { // deletes a gene
-            let i = app.rand_range(0, genome.len());
-            print2!("Deleted gene {}", i);
-            // Avoid shifting items if we can, we're going to flatten
-            // this list anyway later
-            genome.push(Vec::new());
-            genome.swap_remove(i);
-        },
-        _ => panic!("Generated in range 1 - 3! Should not reach.")
-    }
-}
-
-fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
-    if gene.is_empty() {
-        print3!("Mutated an empty gene!");
-        return
-    }
-    match app.rand_range(1, 6) {
-        1 => { // reverse the order of bases in a gene
-            gene.as_mut_slice().reverse();
-            print2!("reversed gene");
-        },
-        2 => { // deleting a gene
-            gene.clear();
-            print2!("deleted gene");
-        },
-        3 => { // insert an extra base in a gene
-            let val = app.rand_range(-1, settings::MAX_GENE_VALUE);
-            let index = app.rand_range(0, gene.len());
-            print2!("inserted {} at {}", val, index);
-            gene.insert(index, val);
-        },
-        4 => { // increment a base in a gene, modulo the
-            // max gene value
-            let inc = app.rand_range(1, 3);
-            let index = app.rand_range(0, gene.len());
-            let new_base = (gene[index] + 1 + inc) %
-                (settings::MAX_GENE_VALUE + 2) - 1;
-            print2!("added {} to base at {} with val {} to get {}",
-                    inc, index, gene[index], new_base);
-            gene[index] = new_base;
-        },
-        5 => { // swap two bases in the gene
-            let i1 = app.rand_range(0, gene.len());
-            let i2 = app.rand_range(0, gene.len());
-            gene.as_mut_slice().swap(i1, i2);
-            print2!("swapped bases {} and {}", i1, i2);
-        },
-        _ => panic!("Impossible. number between 1 and 6 exclusive")
-    }
 }
