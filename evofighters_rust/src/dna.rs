@@ -108,7 +108,7 @@ impl DNA {
         } else {
             let index = app.rand_range(0, genes.len());
             let fixed_gene = &mut genes[index];
-            print2!("Mutating gene {}", index);
+            debug!("Mutating gene {}", index);
             DNA::gene_level_mutation(fixed_gene, app);
         }
     }
@@ -120,18 +120,18 @@ impl DNA {
             1 => { // swap two genes
                 let i1 = app.rand_range(0, genome.len());
                 let i2 = app.rand_range(0, genome.len());
-                print2!("swapped genes {} and {}", i1, i2);
+                debug!("swapped genes {} and {}", i1, i2);
                 genome.as_mut_slice().swap(i1, i2);
             },
             2 => { // double a gene
                 let i = app.rand_range(0, genome.len());
                 let gene = genome[i].clone();
-                print2!("doubled gene {}", i);
+                debug!("doubled gene {}", i);
                 genome.insert(i, gene);
             },
             3 => { // deletes a gene
                 let i = app.rand_range(0, genome.len());
-                print2!("Deleted gene {}", i);
+                debug!("Deleted gene {}", i);
                 // Avoid shifting items if we can, we're going to flatten
                 // this list anyway later
                 genome.push(Vec::new());
@@ -143,22 +143,22 @@ impl DNA {
 
     fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
         if gene.is_empty() {
-            print3!("Mutated an empty gene!");
+            trace!("Mutated an empty gene!");
             return
         }
         match app.rand_range(1, 6) {
             1 => { // reverse the order of bases in a gene
                 gene.as_mut_slice().reverse();
-                print2!("reversed gene");
+                debug!("reversed gene");
             },
             2 => { // deleting a gene
                 gene.clear();
-                print2!("deleted gene");
+                debug!("deleted gene");
             },
             3 => { // insert an extra base in a gene
                 let val = app.rand_range(DNA::STOP_CODON, settings::MAX_GENE_VALUE);
                 let index = app.rand_range(0, gene.len());
-                print2!("inserted {} at {}", val, index);
+                debug!("inserted {} at {}", val, index);
                 gene.insert(index, val);
             },
             4 => { // increment a base in a gene, modulo the
@@ -167,7 +167,7 @@ impl DNA {
                 let index = app.rand_range(0, gene.len());
                 let new_base = (gene[index] + 1 + inc) %
                     (settings::MAX_GENE_VALUE + 2) - 1;
-                print2!("added {} to base at {} with val {} to get {}",
+                debug!("added {} to base at {} with val {} to get {}",
                         inc, index, gene[index], new_base);
                 gene[index] = new_base;
             },
@@ -175,7 +175,7 @@ impl DNA {
                 let i1 = app.rand_range(0, gene.len());
                 let i2 = app.rand_range(0, gene.len());
                 gene.as_mut_slice().swap(i1, i2);
-                print2!("swapped bases {} and {}", i1, i2);
+                debug!("swapped bases {} and {}", i1, i2);
             },
             _ => panic!("Impossible. number between 1 and 6 exclusive")
         }

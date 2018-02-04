@@ -63,10 +63,10 @@ pub fn evaluate(me: &Creature,
             let b = eval_value(me, other, bound_b, app);
             let check_val = eval_value(me, other, value, app);
             if min(a, b) <= check_val && check_val <= max(a, b) {
-                print3!("{} was between {} and {}", check_val, a, b);
+                trace!("{} was between {} and {}", check_val, a, b);
                 eval_action(me, other, affirmed, app)
             } else {
-                print3!("{} was not between {} and {}", check_val, a, b);
+                trace!("{} was not between {} and {}", check_val, a, b);
                 eval_action(me, other, denied, app)
             }
         },
@@ -86,11 +86,11 @@ pub fn evaluate(me: &Creature,
             let evaled_lhs = eval_value(me, other, lhs, app);
             let evaled_rhs = eval_value(me, other, rhs, app);
             if op(&evaled_lhs, &evaled_rhs) {
-                print3!("{:?}({}) was {} {:?}({})",
+                trace!("{:?}({}) was {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
                 eval_action(me, other, affirmed, app)
             } else {
-                print3!("{:?}({}) was not {} {:?}({})",
+                trace!("{:?}({}) was not {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
                 eval_action(me, other, denied, app)
             }
@@ -107,11 +107,11 @@ pub fn evaluate(me: &Creature,
             };
             let my_action = eval_action(me, other, action, app);
             if my_action == actor.last_action {
-                print3!("{}'s last action was {:?}",
+                trace!("{}'s last action was {:?}",
                         actor_str, actor.last_action);
                 eval_action(me, other, affirmed, app)
             } else {
-                print3!("{}'s last action was not {:?}",
+                trace!("{}'s last action was not {:?}",
                         actor_str, actor.last_action);
                 eval_action(me, other, denied, app)
             }

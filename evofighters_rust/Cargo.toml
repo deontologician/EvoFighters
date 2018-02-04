@@ -20,9 +20,9 @@ rpath = false
 lto = true
 
 [features]
-print1 = []
-print2 = []
-print3 = []
+log_info = []
+log_debug = []
+log_trace = []
 
 [[bin]]
 name = "evofighters"

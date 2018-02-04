@@ -128,7 +128,7 @@ impl Creature {
         if self.inv.len() < settings::MAX_INV_SIZE {
             self.inv.push(item)
         } else {
-            print2!("{} tries to add {:?} but has no more space",
+            debug!("{} tries to add {:?} but has no more space",
                     self, item);
         }
     }
@@ -156,7 +156,7 @@ impl Creature {
 
     fn eat(&mut self, item: dna::lex::Item) {
         let energy_gain = 3 * item as usize;
-        print2!("{} gains {} life from {:?}", self, energy_gain, item);
+        debug!("{} gains {} life from {:?}", self, energy_gain, item);
         self.gain_energy(energy_gain)
     }
 
@@ -211,7 +211,7 @@ impl Creature {
                     action: eval::PerformableAction,
                     app: &mut util::AppState) -> arena::FightStatus {
         if self.is_feeder() {
-            print2!("Feeder does nothing");
+            debug!("Feeder does nothing");
             return arena::FightStatus::Continue;
         }
         if self.dead() {
@@ -224,46 +224,46 @@ impl Creature {
             eval::PerformableAction::Eat => {
                 match self.pop_item() {
                     Some(item) => {
-                        print1!("{} eats {:?}",
+                        info!("{} eats {:?}",
                                 self, self.top_item());
                         self.eat(item);
                     },
                     None =>
-                        print2!("{} tries to eat an item, but \
+                        debug!("{} tries to eat an item, but \
                                 doesn't have one", self)
                 }
             },
             eval::PerformableAction::Take => {
                 match other.pop_item() {
                     Some(item) => {
-                        print1!("{} takes {:?} from {}",
+                        info!("{} takes {:?} from {}",
                                 self, item, other.id);
                         self.add_item(item);
                     },
                     None => {
-                        print2!("{} tries to take an item from {}, \
+                        debug!("{} tries to take an item from {}, \
                                 but there's nothing to take.",
                                 self, other.id);
                     }
                 }
             },
-            eval::PerformableAction::Wait => print2!(
+            eval::PerformableAction::Wait => debug!(
                 "{} waits", self),
             // This is only defending with no corresponding attack
             eval::PerformableAction::Defend(dmg) =>
-                print2!("{} defends with {:?} fruitlessly",
+                debug!("{} defends with {:?} fruitlessly",
                         self, dmg),
             eval::PerformableAction::Flee => {
                 let my_roll: f64 = app.rand_range(0.0, self.energy as f64);
                 let other_roll: f64 = app.rand_range(0.0, other.energy as f64);
                 let dmg: usize = app.rand_range(0, 4);
                 if other_roll < my_roll {
-                    print1!("{} flees the encounter and takes \
+                    info!("{} flees the encounter and takes \
                             {} damage", self, dmg);
                     self.lose_energy(dmg);
                     return arena::FightStatus::End
                 } else {
-                    print2!("{} tries to flee, but {} prevents it",
+                    debug!("{} tries to flee, but {} prevents it",
                             self, other);
                 }
 
@@ -287,9 +287,9 @@ pub fn try_to_mate(
         || second_mate.dead() {
             return None
         }
-    print1!("{} tried to mate with {}!", first_mate, second_mate);
+    info!("{} tried to mate with {}!", first_mate, second_mate);
     if first_mate.is_feeder() || second_mate.is_feeder() {
-        print1!("{} tried to mate with {}", first_mate, second_mate);
+        info!("{} tried to mate with {}", first_mate, second_mate);
         // Mating kills the feeder
         if first_mate.is_feeder() {
             first_mate.energy = 0;
@@ -299,7 +299,7 @@ pub fn try_to_mate(
         }
         return None
     }
-    print2!("Attempting to mate");
+    debug!("Attempting to mate");
     fn pay_cost(p: &mut Creature, share: usize) -> bool {
         let mut cost = (settings::MATING_COST as f64 *
                     (share as f64 / 100.0)).round() as isize;
@@ -309,7 +309,7 @@ pub fn try_to_mate(
                     cost -= (item as isize) * 2;
                 },
                 None => {
-                    print1!("{} ran out of items and failed to mate", p);
+                    info!("{} ran out of items and failed to mate", p);
                     return false
                 }
             }
@@ -318,7 +318,7 @@ pub fn try_to_mate(
     }
     if pay_cost(first_mate, first_share) &&
         pay_cost(second_mate, second_share) {
-            print2!("Both paid their debts, so they get to mate");
+            debug!("Both paid their debts, so they get to mate");
             Some(mate(first_mate, second_mate, app))
     } else {
         None

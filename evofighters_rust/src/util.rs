@@ -5,27 +5,27 @@ use rand::distributions::range::SampleRange;
 
 // TODO: add the stars to different debug statements
 #[macro_export]
-macro_rules! print1 {
+macro_rules! trace {
     ($($arg:tt)*) => (
-        if cfg!(feature = "print3") ||
-            cfg!(feature = "print2") ||
-            cfg!(feature = "print1") {
+        if cfg!(feature = "log_trace") ||
+            cfg!(feature = "log_debug") ||
+            cfg!(feature = "log_info") {
             println!($($arg)*);
         })
 }
 
 #[macro_export]
-macro_rules! print2 {
+macro_rules! debug {
     ($($arg:tt)*) => (
-        if cfg!(feature = "print2") || cfg!(feature = "print1") {
+        if cfg!(feature = "log_info") || cfg!(feature = "log_debug") {
             println!($($arg)*);
         })
 }
 
 #[macro_export]
-macro_rules! print3 {
+macro_rules! info {
     ($($arg:tt)*) => (
-        if cfg!(feature = "print3") {
+        if cfg!(feature = "log_info") {
             println!($($arg)*);
         })
 }

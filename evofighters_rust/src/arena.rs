@@ -25,36 +25,36 @@ fn encounter(p1: &mut Creature,
     use creatures::Liveness::{Alive,Dead};
     let max_rounds = app.normal_sample(200.0, 30.0) as usize;
     let mut maybe_children: Option<Vec<Creature>> = None;
-    print1!("Max rounds: {}", max_rounds);
+    info!("Max rounds: {}", max_rounds);
     // combine thought tree iterators, limit rounds
     let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
     let mut fight_timed_out = true;
     let mut p1_action = eval::PerformableAction::NoAction;
     let mut p2_action = eval::PerformableAction::NoAction;
     for (thoughts, round) in iterator {
-        print2!("Round {}", round);
+        debug!("Round {}", round);
         app.rounds += 1;
         let (fight_status, maybe_child) = match thoughts {
             (Ok(Decision{tree: box tree1, icount:i1, skipped:s1, ..}),
              Ok(Decision{tree: box tree2, icount:i2, skipped:s2, ..})) => {
-                print2!("{} thinks {:?}", p1, tree1);
-                print2!("{} thinks {:?}", p2, tree2);
+                debug!("{} thinks {:?}", p1, tree1);
+                debug!("{} thinks {:?}", p2, tree2);
                 p1_action = eval::evaluate(p1, p2, &tree1, app);
                 p2_action = eval::evaluate(p2, p1, &tree2, app);
                 let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
                 if p1_cost < p2_cost {
-                    print3!("{} is going first", p1);
-                    print3!("{} intends to {}", p1, p1_action);
+                    trace!("{} is going first", p1);
+                    trace!("{} intends to {}", p1, p1_action);
                     do_round(p1, p1_action, p2, p2_action, app)
                 } else if p2_cost > p1_cost {
-                    print3!("{} is going first", p2);
-                    print3!("{} intends to {}", p2, p2_action);
+                    trace!("{} is going first", p2);
+                    trace!("{} intends to {}", p2, p2_action);
                     do_round(p2, p2_action, p1, p1_action, app)
                 } else if app.rand() {
-                    print3!("{} is going first", p1);
+                    trace!("{} is going first", p1);
                     do_round(p1, p1_action, p2, p2_action, app)
                 } else {
-                    print3!("{} is going first", p2);
+                    trace!("{} is going first", p2);
                     do_round(p2, p2_action, p1, p1_action, app)
                 }
             },
@@ -63,14 +63,14 @@ fn encounter(p1: &mut Creature,
                 p1.update_from_thought(&p1_thought);
                 p2.update_from_thought(&p2_thought);
                 if let Err(Indecision{reason, icount, skipped, ..}) = p1_thought {
-                    print1!("{} died because {:?}. using {} instructions,\
+                    info!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
                 };
                 if let Err(Indecision{reason, icount, skipped, ..}) = p2_thought {
-                    print1!("{} died because {:?}. using {} instructions,\
+                    info!("{} died because {:?}. using {} instructions,\
                         with {} skipped", p1, reason, icount, skipped);
                 }
-                print3!("The fight ended before it timed out");
+                trace!("The fight ended before it timed out");
                 fight_timed_out = false;
                 (FightStatus::End, None)
             }
@@ -95,14 +95,14 @@ fn encounter(p1: &mut Creature,
     }
     if fight_timed_out {
         let penalty = app.rand_range(1, 7);
-        print1!("Time is up! both combatants take {} damage", penalty);
+        info!("Time is up! both combatants take {} damage", penalty);
         p1.lose_energy(penalty);
         p2.lose_energy(penalty);
     }
     match (p1.liveness(), p2.liveness()) {
         (Alive, Dead)  => victory(p1, p2, app),
         (Dead, Alive)  => victory(p2, p1, app),
-        (Dead, Dead)   => print1!("Both {} and {} have died.", p1, p2),
+        (Dead, Dead)   => info!("Both {} and {} have died.", p1, p2),
         (Alive, Alive) => {
             p1.survived_encounter();
             p2.survived_encounter();
@@ -112,7 +112,7 @@ fn encounter(p1: &mut Creature,
 }
 
 fn victory(winner: &mut Creature, loser: &mut Creature, app: &mut AppState) {
-    print1!("{} has killed {}", winner, loser);
+    info!("{} has killed {}", winner, loser);
     winner.steal_from(loser);
     if loser.is_feeder() {
         app.feeders_eaten += 1;
@@ -399,11 +399,11 @@ fn do_round(p1: &mut Creature,
     let p1_dmg = chances.p1.damage(app);
     let p2_dmg = chances.p2.damage(app);
     if p1_dmg > 0 {
-        print1!("{} takes {} damage", p2, p1_dmg);
+        info!("{} takes {} damage", p2, p1_dmg);
         p2.lose_energy(p1_dmg)
     }
     if p2_dmg > 0 {
-        print1!("{} takes {} damage", p1, p2_dmg);
+        info!("{} takes {} damage", p1, p2_dmg);
         p2.lose_energy(p2_dmg)
     }
 
@@ -421,9 +421,9 @@ fn do_round(p1: &mut Creature,
         app);
     maybe_child = maybe_child.and_then(
         |child| {
-            print1!("{} and {} have a child named {}", p1, p2, child);
+            info!("{} and {} have a child named {}", p1, p2, child);
             if child.dead() {
-                print1!("But it was stillborn since it has no dna");
+                info!("But it was stillborn since it has no dna");
                 None
             } else {
                 Some(child)
@@ -439,8 +439,8 @@ fn do_round(p1: &mut Creature,
             return (FightStatus::End, maybe_child)
         }
     }
-    print3!("{} has {} life left", p1, p1.energy());
-    print3!("{} has {} life left", p2, p2.energy());
+    trace!("{} has {} life left", p1, p1.energy());
+    trace!("{} has {} life left", p2, p2.energy());
     (FightStatus::Continue, maybe_child)
 }
 
@@ -573,7 +573,7 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             feeders += 1;
         }
         let (mut p1, mut p2) = random_encounter(creatures, feeders, false, app);
-        print1!("{} encounters {} in the wild", p1, p2);
+        info!("{} encounters {} in the wild", p1, p2);
         if let Some(ref mut new_children) = encounter(&mut p1, &mut p2, app) {
             creatures.append(new_children);
         }
