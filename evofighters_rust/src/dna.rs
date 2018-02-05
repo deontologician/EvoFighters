@@ -44,6 +44,57 @@ impl Gene {
     pub fn invalid(&self) -> bool {
         self.0.iter().all(|&codon| codon == Gene::STOP_CODON)
     }
+
+    /// Sets all bases in the gene to the stop codon (making it
+    /// invalid)
+    fn clear(&mut self) {
+        for elem in self.0.iter_mut() {
+            *elem = Gene::STOP_CODON
+        }
+    }
+
+    pub(super) fn mutate(&mut self, app: &mut util::AppState)
+        -> Option<Gene> {
+        match app.rand_range(1, 6) {
+            1 => { // reverse the order of bases in a gene
+                self.0.reverse();
+                debug!("reversed gene");
+                None
+            },
+            2 => { // deleting a gene
+                self.clear();
+                debug!("deleted gene");
+                None
+            },
+            3 => { // Create a new gene, and set one base in it to a random value
+                let index = app.rand_range(0, Gene::LENGTH);
+                let val = app.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
+                debug!("created a new gene with base {} at index {}", val, index);
+                let mut new_gene = Gene::new();
+                new_gene.0[index] = val;
+                Some(new_gene)
+            },
+            4 => { // increment a base in a gene, modulo the
+                // max gene value
+                let inc = app.rand_range(1, 3);
+                let index = app.rand_range(0, Gene::LENGTH);
+                let new_base = (self.0[index] + 1 + inc) %
+                    (settings::MAX_GENE_VALUE + 2) - 1;
+                debug!("added {} to base at {} with val {} to get {}",
+                        inc, index, self.0[index], new_base);
+                self.0[index] = new_base;
+                None
+            },
+            5 => { // swap two bases in the gene
+                let i1 = app.rand_range(0, Gene::LENGTH);
+                let i2 = app.rand_range(0, Gene::LENGTH);
+                self.0.swap(i1, i2);
+                debug!("swapped bases {} and {}", i1, i2);
+                None
+            },
+            _ => panic!("Impossible. number between 1 and 6 exclusive")
+        }
+    }
 }
 
 /// Core DNA data structure
@@ -77,8 +128,8 @@ impl DNA {
     pub fn combine(mother: &mut DNA,
                    father: &mut DNA,
                    app: &mut util::AppState) -> DNA {
-        let mut m_iter = mother.clone().into_iter();
-        let mut d_iter = father.clone().into_iter();
+        let mut m_iter = mother.0.clone().into_iter();
+        let mut f_iter = father.0.clone().into_iter();
         let mut child_genes = Vec::new();
         // TODO: This code is lousy with unnecessary allocations,
         // clean this up a bit, use more copies / references if possible
@@ -101,7 +152,7 @@ impl DNA {
         DNA(child_genes)
     }
 
-    fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
+    fn mutate(genes: &mut Vec<Gene>, app: &mut util::AppState) {
         if app.rand_weighted_bool(
             (10000.0/settings::MUTATION_RATE) as u32) {
             DNA::genome_level_mutation(genes, app);
@@ -109,13 +160,15 @@ impl DNA {
             let index = app.rand_range(0, genes.len());
             let fixed_gene = &mut genes[index];
             debug!("Mutating gene {}", index);
-            DNA::gene_level_mutation(fixed_gene, app);
+            if let Some(new_gene) = fixed_gene.mutate(app) {
+                // Gene mutation produced a new gene, so push it in
+                // after the current one
+                genes.insert(index, new_gene)
+            }
         }
     }
 
-    fn genome_level_mutation(
-        genome: &mut Vec<Vec<i8>>,
-        app: &mut util::AppState) {
+    fn genome_level_mutation(genome: &mut Vec<Gene>, app: &mut util::AppState) {
         match app.rand_range(1, 4) {
             1 => { // swap two genes
                 let i1 = app.rand_range(0, genome.len());
@@ -132,54 +185,13 @@ impl DNA {
             3 => { // deletes a gene
                 let i = app.rand_range(0, genome.len());
                 debug!("Deleted gene {}", i);
-                // Avoid shifting items if we can, we're going to flatten
-                // this list anyway later
-                genome.push(Vec::new());
-                genome.swap_remove(i);
+                // Avoid shifting items if we can
+                genome.remove(i);
             },
             _ => panic!("Generated in range 1 - 3! Should not reach.")
         }
     }
 
-    fn gene_level_mutation(gene: &mut Vec<i8>, app: &mut util::AppState) {
-        if gene.is_empty() {
-            trace!("Mutated an empty gene!");
-            return
-        }
-        match app.rand_range(1, 6) {
-            1 => { // reverse the order of bases in a gene
-                gene.as_mut_slice().reverse();
-                debug!("reversed gene");
-            },
-            2 => { // deleting a gene
-                gene.clear();
-                debug!("deleted gene");
-            },
-            3 => { // insert an extra base in a gene
-                let val = app.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
-                let index = app.rand_range(0, gene.len());
-                debug!("inserted {} at {}", val, index);
-                gene.insert(index, val);
-            },
-            4 => { // increment a base in a gene, modulo the
-                // max gene value
-                let inc = app.rand_range(1, 3);
-                let index = app.rand_range(0, gene.len());
-                let new_base = (gene[index] + 1 + inc) %
-                    (settings::MAX_GENE_VALUE + 2) - 1;
-                debug!("added {} to base at {} with val {} to get {}",
-                        inc, index, gene[index], new_base);
-                gene[index] = new_base;
-            },
-            5 => { // swap two bases in the gene
-                let i1 = app.rand_range(0, gene.len());
-                let i2 = app.rand_range(0, gene.len());
-                gene.as_mut_slice().swap(i1, i2);
-                debug!("swapped bases {} and {}", i1, i2);
-            },
-            _ => panic!("Impossible. number between 1 and 6 exclusive")
-        }
-    }
 }
 
 impl From<Vec<i8>> for DNA {
