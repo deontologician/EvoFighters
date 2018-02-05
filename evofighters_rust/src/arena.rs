@@ -534,41 +534,95 @@ fn save(creatures: &Vec<Creature>,
     save_file.write_all(encoded.as_ref()).unwrap();
 }
 
+/// Given an instant and how many events the thread slept for, will
+/// return how many events the thread should sleep for next time, and
+/// a percentage error in the last prediction
+struct RateData {
+    pub events_per_second: u64,
+    pub events_to_sleep: u64,
+    pub prediction_error: f64,
+    pub fps: f64,
+}
+
+impl RateData {
+    pub fn new(start_time: Instant, events_slept: u64) -> RateData {
+        let wanted_duration = settings::DISPLAY_FPS.recip();
+        let actual_duration = RateData::duration_to_f64(start_time.elapsed());
+        let events_per_second = (events_slept as f64) / actual_duration;
+        RateData {
+            events_to_sleep: (wanted_duration * events_per_second) as u64,
+            events_per_second: events_per_second as u64,
+            prediction_error: 1.0 - (actual_duration / wanted_duration),
+            fps: actual_duration.recip(),
+        }
+    }
+
+    /// Just some garbage so we have an initial value for these things
+    pub fn initial() -> RateData {
+        RateData {
+            events_to_sleep: settings::INITIAL_EVENTS_PER_SECOND_GUESS,
+            events_per_second: 0,
+            prediction_error: 0.0,
+            fps: 30.0,
+        }
+    }
+
+    /// Takes a standard duration and returns an f64 representing
+    /// seconds
+    fn duration_to_f64(dur: Duration) -> f64 {
+        let seconds = dur.as_secs() as f64;
+        let subseconds = (dur.subsec_nanos() as f64) / 1_000_000_000.0;
+        seconds + subseconds
+    }
+}
+
+
 pub fn simulate(creatures: &mut Vec<Creature>,
             feeder_count: usize,
             num_encounters: usize,
             app: &mut AppState) {
-    let mut update_time = Instant::now();
-    let mut timestamp = update_time;
+    let mut timestamp = Instant::now();
     let mut feeders = feeder_count;
     let mut encounters = num_encounters;
     let mut total_events = 0;
-    let mut events = 0;
+    let mut events_since_last_print = 0;
+    let mut rates = RateData::initial();
     let sim_status;
     loop {
-        if total_events % 1000 == 0 {
-            if events > 1000000 {
-                events -= 1000000;
-                app.rounds = 0;
-            }
-            print!("\rCreatures: {}, Feeders: {}, Mutations: {}, \
-                   events: {}, born: {}, eaten: {}, kills: {}, \
-                   avg rnds: {}   ",
-                   creatures.len(), feeders, app.mutations, total_events,
-                   app.children_born, app.feeders_eaten, app.kills,
-                   if events != 0 {app.rounds / events} else {0});
+        if events_since_last_print == rates.events_to_sleep {
+            rates = RateData::new(timestamp, events_since_last_print);
+            print!("\rCreatures: {creatures}, \
+                    Feeders: {feeders}, \
+                    F/C: {feeder_creature:.3}, \
+                    Mutations: {mutations}, Events: {events}, \
+                    Born: {born}, Eaten: {eaten}, kills: {kills}, \
+                    eps: {eps}, err: {err:.1}%, \
+                    FPS: {fps:.1}       ",
+                   creatures = creatures.len(),
+                   feeders = feeders,
+                   feeder_creature = feeders as f64 / creatures.len() as f64,
+                   mutations = app.mutations,
+                   events = total_events,
+                   born = app.children_born,
+                   eaten = app.feeders_eaten,
+                   kills = app.kills,
+                   eps = rates.events_per_second,
+                   err = rates.prediction_error * 100.0,
+                   fps = rates.fps,
+            );
             timestamp = Instant::now();
+            events_since_last_print = 0;
         }
         if creatures.len() < 2 {
             sim_status = SimStatus::NotEnoughCreatures;
             break;
         }
-        if timestamp - update_time > Duration::from_secs(90) {
-            println!("\nCurrently {} creatures alive\n", creatures.len());
-            save(creatures, feeders, encounters);
-            println!("Saved.");
-            update_time = Instant::now();
-        }
+        // if timestamp - update_time > Duration::from_secs(90) {
+        //     println!("\nCurrently {} creatures alive\n", creatures.len());
+        //     save(creatures, feeders, encounters);
+        //     println!("Saved.");
+        //     update_time = Instant::now();
+        // }
         if (creatures.len() + feeders) < settings::MAX_POPULATION_SIZE {
             feeders += 1;
         }
@@ -581,7 +635,7 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             encounters += 1;
         }
         total_events += 1;
-        events += 1;
+        events_since_last_print += 1;
         post_encounter_cleanup(p1, creatures, &mut feeders);
         post_encounter_cleanup(p2, creatures, &mut feeders);
     }
