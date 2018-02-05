@@ -4,54 +4,88 @@ use std::cmp::max;
 use util;
 use settings;
 
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct Gene([i8;5]);
+
+impl Gene {
+    pub const STOP_CODON: i8 = -1;
+    pub const LENGTH: usize = 5;
+
+    /// Produces a gene full of all stop codons. Useful for allocation
+    /// then overwriting
+    pub fn new() -> Gene {
+        Gene([
+            Gene::STOP_CODON,
+            Gene::STOP_CODON,
+            Gene::STOP_CODON,
+            Gene::STOP_CODON,
+            Gene::STOP_CODON,
+        ])
+    }
+
+    /// Creates a gene for mating then fleeing. This is the initial gene.
+    pub fn mate_then_flee() -> Gene {
+        Gene([
+            lex::Condition::Always as i8,
+            lex::Action::Mate as i8,
+            Gene::STOP_CODON,
+            lex::Condition::Always as i8,
+            lex::Action::Flee as i8,
+        ])
+    }
+
+    /// Whether the current Gene codes anything useful
+    pub fn valid(&self) -> bool {
+        self.0.iter().any(|&codon| codon != Gene::STOP_CODON)
+    }
+
+    /// Inversion of valid, to make code read better
+    pub fn invalid(&self) -> bool {
+        self.0.iter().all(|&codon| codon == Gene::STOP_CODON)
+    }
+}
+
 /// Core DNA data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DNA(Vec<i8>);
+pub struct DNA(Vec<Gene>);
 
 impl DNA {
-    pub const STOP_CODON: i8 = -1;
-
-    /// Produce feeder DNA, which is just a stop codon
+    /// Produce feeder DNA, which is just stop codons
     pub fn feeder() -> DNA {
-        DNA(vec![DNA::STOP_CODON])
+        DNA(vec![Gene::new()])
     }
 
     /// Produce the default seed DNA, which evaluates to "always mate,
     /// always flee"
     pub fn seed() -> DNA {
-        DNA(vec![
-            lex::Condition::Always as i8,
-            lex::Action::Mate as i8,
-            DNA::STOP_CODON,
-            lex::Condition::Always as i8,
-            lex::Action::Flee as i8,
-            DNA::STOP_CODON,
-        ])
+        DNA(vec![Gene::mate_then_flee()])
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.0.len() * Gene::LENGTH
     }
 
     pub fn base_stream(&self, offset: usize) -> DNAIter {
-        DNAIter::new(self.0.clone(), offset)
+        DNAIter::new(self.0, offset)
     }
 
-    pub fn is_valid(&self) -> bool {
-        self.0.len() > 0 && self.0.iter().any(|&v| v >= 0)
+    pub fn valid(&self) -> bool {
+        self.0.len() > 0 && self.0.iter().all(|&gene| gene.valid())
     }
 
-    pub fn combine(m: &mut DNA, f: &mut DNA, app: &mut util::AppState) -> DNA {
-        let dna1_primer = m.gene_primer(app);
-        let dna2_primer = f.gene_primer(app);
-        let mut dna1 = dna1_primer.into_iter();
-        let mut dna2 = dna2_primer.into_iter();
-        let mut child_genes : Vec<Vec<i8>> = Vec::new();
-        let loop_ender = vec![DNA::STOP_CODON];
+    pub fn combine(mother: &mut DNA,
+                   father: &mut DNA,
+                   app: &mut util::AppState) -> DNA {
+        let mut m_iter = mother.clone().into_iter();
+        let mut d_iter = father.clone().into_iter();
+        let mut child_genes = Vec::new();
+        // TODO: This code is lousy with unnecessary allocations,
+        // clean this up a bit, use more copies / references if possible
         loop {
-            let gene1 = dna1.next().unwrap_or(vec![DNA::STOP_CODON]);
-            let gene2 = dna2.next().unwrap_or(vec![DNA::STOP_CODON]);
-            if gene1 == loop_ender && gene2 == loop_ender {
+            let gene1 = m_iter.next().unwrap_or(Gene::new());
+            let gene2 = f_iter.next().unwrap_or(Gene::new());
+            if gene1.invalid() && gene2.invalid() {
                 break;
             }
             child_genes.push(if app.rand() {
@@ -64,42 +98,8 @@ impl DNA {
             app.mutations += 1;
             DNA::mutate(&mut child_genes, app)
         }
-        let mut dna_vec = Vec::with_capacity(max(m.len(), f.len()));
-        //dna_vec.from_iter(child_genes.into_iter().flat_map())
-        for gene in child_genes.into_iter() {
-            dna_vec.extend(gene.into_iter())
-        }
-        dna_vec.shrink_to_fit();
-        DNA(dna_vec)
+        DNA(child_genes)
     }
-
-    /// Breaks dna into chunks based on dna
-    fn gene_primer(&self, app: &mut util::AppState) -> Vec<Vec<i8>> {
-        let mut result = Vec::new();
-        let mut chunk = Vec::new();
-        for &base in self.0.iter() {
-            chunk.push(base);
-            if base < 0 {
-                if chunk.len() > settings::GENE_MIN_SIZE
-                    && app.rand_weighted_bool(10000) {
-                        // nonsense mutation
-                        let split_index = app.rand_range(0, chunk.len());
-                        let chunk2 = chunk.split_off(split_index);
-                        chunk.push(DNA::STOP_CODON);
-                        result.push(chunk);
-                        result.push(chunk2);
-                    } else {
-                        result.push(chunk);
-                    }
-                chunk = Vec::new();
-            }
-        }
-        if !chunk.is_empty() {
-            result.push(chunk);
-        }
-        result
-    }
-
 
     fn mutate(genes: &mut Vec<Vec<i8>>, app: &mut util::AppState) {
         if app.rand_weighted_bool(
@@ -156,7 +156,7 @@ impl DNA {
                 debug!("deleted gene");
             },
             3 => { // insert an extra base in a gene
-                let val = app.rand_range(DNA::STOP_CODON, settings::MAX_GENE_VALUE);
+                let val = app.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
                 let index = app.rand_range(0, gene.len());
                 debug!("inserted {} at {}", val, index);
                 gene.insert(index, val);
@@ -192,14 +192,16 @@ impl From<Vec<i8>> for DNA {
 pub struct DNAIter {
     dna: Vec<i8>,
     offset: usize,
+    dna_len: usize,
 }
 
 impl DNAIter {
-    fn new(dna: Vec<i8>, offset: usize) -> DNAIter {
+    fn new(dna: Vec<Gene>, offset: usize) -> DNAIter {
         let len = dna.len(); // avoid borrow issues
         DNAIter {
             dna: dna,
             offset: offset % len,
+            dna_len: len,
         }
     }
 
@@ -211,13 +213,15 @@ impl DNAIter {
 impl Iterator for DNAIter {
     type Item = i8;
     fn next(&mut self) -> Option<i8> {
-        let ret = Some(self.dna[self.offset]);
-        self.offset = (self.offset + 1) % self.dna.len();
+        let gene_offset = self.offset / 5;
+        let codon_offset = self.offset % 5;
+        let ret = Some(self.dna[gene_offset].0[codon_offset]);
+        self.offset = (self.offset + 1) % self.dna_len;
         ret
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.dna.len(), None)
+        (self.dna_len, None)
     }
 }
 

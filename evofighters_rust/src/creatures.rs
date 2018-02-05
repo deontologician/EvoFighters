@@ -164,7 +164,7 @@ impl Creature {
         use self::Liveness::{Alive, Dead};
         if self.energy > 0 && (self.is_feeder() && self.has_items() ||
             // TODO: move dna validity check to new creature since it's expensive
-                               self.dna.is_valid()) {
+                               self.dna.valid()) {
             Alive
         } else {
             Dead
