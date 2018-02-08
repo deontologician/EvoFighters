@@ -1,5 +1,4 @@
 use std::convert::From;
-use std::cmp::max;
 
 use util;
 use settings;
@@ -48,7 +47,7 @@ impl Gene {
     /// Sets all bases in the gene to the stop codon (making it
     /// invalid)
     fn clear(&mut self) {
-        for elem in self.0.iter_mut() {
+        for elem in &mut self.0 {
             *elem = Gene::STOP_CODON
         }
     }
@@ -97,6 +96,12 @@ impl Gene {
     }
 }
 
+impl Default for Gene {
+    fn default() -> Self {
+        Gene::new()
+    }
+}
+
 /// Core DNA data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DNA(Vec<Gene>);
@@ -117,12 +122,16 @@ impl DNA {
         self.0.len() * Gene::LENGTH
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn base_stream(&self, offset: usize) -> DNAIter {
-        DNAIter::new(self.0, offset)
+        DNAIter::new(self.0.clone(), offset)
     }
 
     pub fn valid(&self) -> bool {
-        self.0.len() > 0 && self.0.iter().all(|&gene| gene.valid())
+        !self.0.is_empty() && self.0.iter().all(|&gene| gene.valid())
     }
 
     pub fn combine(mother: &mut DNA,
@@ -134,8 +143,8 @@ impl DNA {
         // TODO: This code is lousy with unnecessary allocations,
         // clean this up a bit, use more copies / references if possible
         loop {
-            let gene1 = m_iter.next().unwrap_or(Gene::new());
-            let gene2 = f_iter.next().unwrap_or(Gene::new());
+            let gene1 = m_iter.next().unwrap_or_else(Gene::new);
+            let gene2 = f_iter.next().unwrap_or_else(Gene::new);
             if gene1.invalid() && gene2.invalid() {
                 break;
             }
@@ -158,9 +167,9 @@ impl DNA {
             DNA::genome_level_mutation(genes, app);
         } else {
             let index = app.rand_range(0, genes.len());
-            let fixed_gene = &mut genes[index];
+            let gene_to_mutate = &mut genes[index];
             debug!("Mutating gene {}", index);
-            if let Some(new_gene) = fixed_gene.mutate(app) {
+            if let Some(new_gene) = gene_to_mutate.mutate(app) {
                 // Gene mutation produced a new gene, so push it in
                 // after the current one
                 genes.insert(index, new_gene)
@@ -178,7 +187,7 @@ impl DNA {
             },
             2 => { // double a gene
                 let i = app.rand_range(0, genome.len());
-                let gene = genome[i].clone();
+                let gene = genome[i];
                 debug!("doubled gene {}", i);
                 genome.insert(i, gene);
             },
@@ -196,13 +205,14 @@ impl DNA {
 
 impl From<Vec<i8>> for DNA {
     fn from(other: Vec<i8>) -> DNA {
-        DNA(other)
+        let other_slice: Box<[i8]> = other.into_boxed_slice();
+        panic!("hoo")
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct DNAIter {
-    dna: Vec<i8>,
+    dna: Vec<Gene>,
     offset: usize,
     dna_len: usize,
 }

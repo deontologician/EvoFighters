@@ -184,7 +184,7 @@ pub struct ThoughtCycle {
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
 
     let f = |offset: usize| -> usize {
-        let mut parser = parsing::Parser::new(dna.clone(), offset);
+        let mut parser = parsing::Parser::new(dna, offset);
         match parser.next().unwrap() {
             Ok(decision) => decision.offset,
             Err(indecision) => indecision.offset,
@@ -211,7 +211,7 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
         hare = f(hare);
         lam += 1;
     }
-    let mut new_iter = parsing::Parser::new(dna.clone(), 0);
+    let mut new_iter = parsing::Parser::new(dna, 0);
     let mut thought: parsing::Decision;
     let mut thought_tree: ast::Condition;
     let mut thoughts = Vec::new();

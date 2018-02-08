@@ -1,4 +1,5 @@
 #![feature(box_patterns)]
+#![feature(nll)]
 
 extern crate time;
 extern crate rand;
@@ -33,7 +34,7 @@ fn main() {
     let command = args[1].clone();
     match command.as_ref() {
         "simulate" => run_simulation(),
-        "cycle-check" => cycle_check(args.split_off(2)),
+        "cycle-check" => cycle_check(&args.split_off(2)),
         _ => println!("Unrecognized command."),
     }
 }
@@ -49,7 +50,7 @@ fn run_simulation() {
     arena::simulate(&mut population, 0, 0, &mut app);
 }
 
-fn cycle_check(args: Vec<String>) {
+fn cycle_check(args: &[String]) {
 
     let dna_args: dna::DNA = dna::DNA::from(
         args.iter()

@@ -169,7 +169,7 @@ fn damage_matrix(p1_act: eval::PerformableAction,
                     mating_share: 0,
                 }
             },
-        (Attack(..), Defend(..)) =>
+        (Attack(..), Defend(..)) | (Defend(..), Attack(..)) =>
             Chances{
                 chance_to_mate: 0,
                 p1: CreatureChance{
@@ -211,20 +211,6 @@ fn damage_matrix(p1_act: eval::PerformableAction,
                     mating_share: 0,
                 },
             },
-        (Defend(..), Defend(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-            },
         (Defend(..), Mate) =>
             Chances{
                 chance_to_mate: 25,
@@ -237,34 +223,6 @@ fn damage_matrix(p1_act: eval::PerformableAction,
                     chance_to_hit: 0,
                     dmg_multiplier: 0,
                     mating_share: 30,
-                },
-            },
-        (Defend(..), Attack(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 25,
-                    dmg_multiplier: 25,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 25,
-                    dmg_multiplier: 25,
-                    mating_share: 0,
-                },
-            },
-        (Defend(..), _) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
                 },
             },
         (Mate, Mate) =>
@@ -334,20 +292,6 @@ fn damage_matrix(p1_act: eval::PerformableAction,
                 p2: CreatureChance{
                     chance_to_hit: 100,
                     dmg_multiplier: 100,
-                    mating_share: 0,
-                },
-            },
-        (_, Defend(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
                     mating_share: 0,
                 },
             },
@@ -480,15 +424,13 @@ fn post_encounter_cleanup(
     use creatures::Liveness::{Alive,Dead};
     match (p1.is_feeder(), p1.liveness()) {
         (false, Alive) => population.push(p1),
-        (false, Dead) => (),
         (true, Dead) => *feeders = feeders.saturating_sub(1),
-        (true, Alive) => (),
+        (false, Dead) | (true, Alive) => (),
     }
 }
 
 enum SimStatus {
     NotEnoughCreatures,
-    Apocalypse,
 }
 
 #[derive(Debug,Deserialize,Serialize)]
@@ -508,7 +450,7 @@ struct SaveFile {
     creatures: Vec<Creature>,
 }
 
-fn save(creatures: &Vec<Creature>,
+fn save(creatures: &[Creature],
         feeder_count: usize,
         num_encounters: usize) {
     let savefile = SaveFile {
@@ -524,7 +466,7 @@ fn save(creatures: &Vec<Creature>,
         gene_min_size: settings::GENE_MIN_SIZE,
         num_encounters: num_encounters,
         feeder_count: feeder_count,
-        creatures: creatures.clone(),
+        creatures: creatures.to_owned(),
     };
     let encoded = match serialize(&savefile, Infinite) {
         Err(why) => panic!("couldn't encode savefile: {}", why),
@@ -571,7 +513,7 @@ impl RateData {
     /// seconds
     fn duration_to_f64(dur: Duration) -> f64 {
         let seconds = dur.as_secs() as f64;
-        let subseconds = (dur.subsec_nanos() as f64) / 1_000_000_000.0;
+        let subseconds = f64::from(dur.subsec_nanos()) / 1_000_000_000.0;
         seconds + subseconds
     }
 }
@@ -647,9 +589,6 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             if creatures.len() == 1 {
                 println!("Here is the last of its kind:\n{:?}", creatures[0]);
             }
-        },
-        SimStatus::Apocalypse => {
-            println!("Whelp, looks like the world ended!");
         }
     }
 }

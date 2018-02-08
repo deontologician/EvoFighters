@@ -92,8 +92,7 @@ impl Creature {
         if self.is_feeder() {
             parsing::Parser::feeder_new()
         } else {
-            parsing::Parser::new(
-                self.dna.clone(), self.instr_used + self.instr_skipped)
+            parsing::Parser::new(&self.dna, self.instr_used + self.instr_skipped)
         }
     }
 

@@ -47,15 +47,13 @@ fn feeder_decision() -> Thought {
 
 pub fn icount(thought: &Thought) -> usize {
     match *thought {
-        Ok(Decision{icount, ..}) => icount,
-        Err(Indecision{icount, ..}) => icount,
+        Ok(Decision{icount, ..}) | Err(Indecision{icount, ..}) => icount,
     }
 }
 
 pub fn skipped(thought: &Thought) -> usize {
     match *thought {
-        Ok(Decision{skipped, ..}) => skipped,
-        Err(Indecision{skipped, ..}) => skipped,
+        Ok(Decision{skipped, ..}) | Err(Indecision{skipped, ..}) => skipped,
     }
 }
 
@@ -74,7 +72,7 @@ impl Parser {
     /// Handles parsing from dna and returning a parse tree which
     /// represents a creature's thought process in making
     /// encounter decisions
-    pub fn new(dna: DNA, offset: usize) -> Parser {
+    pub fn new(dna: &DNA, offset: usize) -> Parser {
         Parser {
             icount: 0,
             skipped: 0,
