@@ -107,13 +107,13 @@ impl Default for Gene {
 impl Index<usize> for Gene {
     type Output = i8;
 
-    fn index<'a>(&'a self, index: usize) -> &'a i8 {
+    fn index(&self, index: usize) -> &i8 {
         &self.0[index]
     }
 }
 
 impl IndexMut<usize> for Gene {
-    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut i8 {
+    fn index_mut(&mut self, index: usize) -> &mut i8 {
         &mut self.0[index]
     }
 }
@@ -143,7 +143,7 @@ impl DNA {
     }
 
     pub fn base_stream(&self, offset: usize) -> DNAIter {
-        DNAIter::new(self.0.clone(), offset)
+        DNAIter::new(self.clone(), offset)
     }
 
     pub fn valid(&self) -> bool {
@@ -246,10 +246,10 @@ pub struct DNAIter {
 }
 
 impl DNAIter {
-    fn new(dna: Vec<Gene>, offset: usize) -> DNAIter {
-        let len = dna.len() * Gene::LENGTH; // avoid borrow issues
+    fn new(dna: DNA, offset: usize) -> DNAIter {
+        let len = dna.len();
         DNAIter {
-            dna: dna,
+            dna: dna.0,
             offset: offset % len,
             dna_len: len,
         }

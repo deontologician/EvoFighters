@@ -20,9 +20,7 @@ use parsing;
 pub fn simplify(cond: ast::Condition) -> ast::Condition {
     let stage_1_cond = eval_static_conditionals(cond);
     // Next, evaluate redundant Always -> Subcondition branches
-    let stage_2_cond = eval_redundant_conditions(stage_1_cond);
-    // Crazy ideas: check if literal is greater than any possible attribute value
-    stage_2_cond
+    eval_redundant_conditions(stage_1_cond)
 }
 
 
@@ -216,7 +214,6 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     let mut thought_tree: ast::Condition;
     let mut thoughts = Vec::new();
     for i in 0..(mu + lam) {
-        let mut offset = new_iter.current_offset();
         thought = new_iter.next().unwrap()?;
         thought_tree = *thought.tree;
         println!("{}: {:?}", i, &thought_tree);

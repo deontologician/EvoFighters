@@ -6,8 +6,9 @@ extern crate rand;
 #[macro_use] extern crate enum_primitive;
 extern crate num;
 #[macro_use] extern crate serde_derive;
-extern crate bincode;
+extern crate serde_json;
 extern crate serde;
+extern crate xz2;
 
 
 use std::env;
@@ -47,7 +48,7 @@ fn run_simulation() {
             .map(Creature::seed_creature));
     println!("Created {} creatures", settings::MAX_POPULATION_SIZE + 1);
 
-    arena::simulate(&mut population, 0, 0, &mut app);
+    arena::simulate(&mut population, 0, &mut app);
 }
 
 fn cycle_check(args: &[String]) {
