@@ -247,7 +247,7 @@ pub struct DNAIter {
 
 impl DNAIter {
     fn new(dna: Vec<Gene>, offset: usize) -> DNAIter {
-        let len = dna.len(); // avoid borrow issues
+        let len = dna.len() * Gene::LENGTH; // avoid borrow issues
         DNAIter {
             dna: dna,
             offset: offset % len,
@@ -263,8 +263,8 @@ impl DNAIter {
 impl Iterator for DNAIter {
     type Item = i8;
     fn next(&mut self) -> Option<i8> {
-        let gene_offset = self.offset / 5;
-        let codon_offset = self.offset % 5;
+        let gene_offset = self.offset / Gene::LENGTH;
+        let codon_offset = self.offset % Gene::LENGTH;
         let ret = Some(self.dna[gene_offset].0[codon_offset]);
         self.offset = (self.offset + 1) % self.dna_len;
         ret
