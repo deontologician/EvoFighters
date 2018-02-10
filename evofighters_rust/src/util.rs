@@ -7,9 +7,7 @@ use rand::distributions::range::SampleRange;
 #[macro_export]
 macro_rules! trace {
     ($($arg:tt)*) => (
-        if cfg!(feature = "log_trace") ||
-            cfg!(feature = "log_debug") ||
-            cfg!(feature = "log_info") {
+        if cfg!(feature = "log_trace") {
             println!($($arg)*);
         })
 }
@@ -17,7 +15,8 @@ macro_rules! trace {
 #[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => (
-        if cfg!(feature = "log_info") || cfg!(feature = "log_debug") {
+        if cfg!(feature = "log_trace") ||
+            cfg!(feature = "log_debug") {
             println!($($arg)*);
         })
 }
@@ -25,7 +24,9 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => (
-        if cfg!(feature = "log_info") {
+        if cfg!(feature = "log_info") ||
+            cfg!(feature = "log_debug") ||
+            cfg!(feature = "log_trace") {
             println!($($arg)*);
         })
 }

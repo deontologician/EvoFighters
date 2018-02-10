@@ -1,4 +1,6 @@
 use std::convert::From;
+use std::ops::{Index,IndexMut};
+use std::mem;
 
 use util;
 use settings;
@@ -99,6 +101,20 @@ impl Gene {
 impl Default for Gene {
     fn default() -> Self {
         Gene::new()
+    }
+}
+
+impl Index<usize> for Gene {
+    type Output = i8;
+
+    fn index<'a>(&'a self, index: usize) -> &'a i8 {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for Gene {
+    fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut i8 {
+        &mut self.0[index]
     }
 }
 
@@ -205,8 +221,20 @@ impl DNA {
 
 impl From<Vec<i8>> for DNA {
     fn from(other: Vec<i8>) -> DNA {
-        let other_slice: Box<[i8]> = other.into_boxed_slice();
-        panic!("hoo")
+        let capacity_needed = other.len() + if other.len() / Gene::LENGTH == 0 { 0 } else { 1 };
+        let mut newvec: Vec<Gene> = Vec::with_capacity(capacity_needed);
+        let mut current_gene = Gene::new();
+        let mut current_index = 0;
+        for item in other {
+            if current_index >= Gene::LENGTH {
+                newvec.push(mem::replace(&mut current_gene, Gene::new()));
+                current_index = 0;
+            }
+            current_gene[current_index] = item;
+            current_index += 1;
+        }
+        newvec.push(current_gene);
+        DNA(newvec)
     }
 }
 
