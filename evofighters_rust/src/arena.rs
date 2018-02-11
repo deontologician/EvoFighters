@@ -6,6 +6,7 @@ use creatures;
 use creatures::Creature;
 use eval;
 use settings;
+use saver;
 use util::AppState;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -478,7 +479,9 @@ pub fn simulate(creatures: &mut Vec<Creature>,
     let mut timestamp = Instant::now();
     let mut feeders = feeder_count;
     let mut total_events = 0;
+    let mut encounters = 0;
     let mut events_since_last_print = 0;
+    let mut events_since_last_save = 0;
     let mut rates = RateData::initial();
     let sim_status;
     loop {
@@ -510,12 +513,17 @@ pub fn simulate(creatures: &mut Vec<Creature>,
             sim_status = SimStatus::NotEnoughCreatures;
             break;
         }
-        // if timestamp - update_time > Duration::from_secs(90) {
-        //     println!("\nCurrently {} creatures alive\n", creatures.len());
-        //     save(creatures, feeders, encounters);
-        //     println!("Saved.");
-        //     update_time = Instant::now();
-        // }
+        if rates.events_per_second > 0 &&
+            rates.events_per_second  * 30 <= events_since_last_save {
+            println!("\nHit {} out of estimated {} events, one moment...",
+                     (rates.events_per_second + 1) * 30,
+                     events_since_last_save,
+            );
+            saver::SaveFile::new(creatures, feeders, encounters)
+                .save("evofighters.save").unwrap();
+            println!("Saved to file");
+            events_since_last_save = 0;
+        }
         if (creatures.len() + feeders) < settings::MAX_POPULATION_SIZE {
             feeders += 1;
         }
@@ -524,7 +532,11 @@ pub fn simulate(creatures: &mut Vec<Creature>,
         if let Some(ref mut new_children) = encounter(&mut p1, &mut p2, app) {
             creatures.append(new_children);
         }
+        if !p1.is_feeder() && !p2.is_feeder() {
+            encounters += 1;
+        }
         total_events += 1;
+        events_since_last_save += 1;
         events_since_last_print += 1;
         post_encounter_cleanup(p1, creatures, &mut feeders);
         post_encounter_cleanup(p2, creatures, &mut feeders);

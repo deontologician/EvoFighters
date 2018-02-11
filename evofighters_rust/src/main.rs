@@ -4,6 +4,7 @@
 extern crate time;
 extern crate rand;
 #[macro_use] extern crate enum_primitive;
+#[macro_use] extern crate lazy_static;
 extern crate num;
 #[macro_use] extern crate serde_derive;
 extern crate serde_json;
@@ -21,6 +22,7 @@ pub mod settings;
 pub mod creatures;
 pub mod arena;
 pub mod simplify;
+pub mod saver;
 
 use creatures::Creature;
 use std::iter::FromIterator;
@@ -48,7 +50,7 @@ fn run_simulation() {
             .map(Creature::seed_creature));
     println!("Created {} creatures", settings::MAX_POPULATION_SIZE + 1);
 
-    arena::simulate(&mut population, 0, &mut app);
+    arena::simulate(&mut population, 0, &mut app)
 }
 
 fn cycle_check(args: &[String]) {

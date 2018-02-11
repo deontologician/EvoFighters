@@ -2,9 +2,8 @@ use std::convert::From;
 use std::ops::{Index,IndexMut};
 use std::mem;
 
-use util;
 use settings;
-
+use saver::{RngState};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Gene([i8;5]);
@@ -54,9 +53,9 @@ impl Gene {
         }
     }
 
-    pub(super) fn mutate(&mut self, app: &mut util::AppState)
+    pub(super) fn mutate(&mut self, rng: &mut RngState)
         -> Option<Gene> {
-        match app.rand_range(1, 6) {
+        match rng.rand_range(1, 6) {
             1 => { // reverse the order of bases in a gene
                 self.0.reverse();
                 debug!("reversed gene");
@@ -68,8 +67,8 @@ impl Gene {
                 None
             },
             3 => { // Create a new gene, and set one base in it to a random value
-                let index = app.rand_range(0, Gene::LENGTH);
-                let val = app.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
+                let index = rng.rand_range(0, Gene::LENGTH);
+                let val = rng.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
                 debug!("created a new gene with base {} at index {}", val, index);
                 let mut new_gene = Gene::new();
                 new_gene.0[index] = val;
@@ -77,8 +76,8 @@ impl Gene {
             },
             4 => { // increment a base in a gene, modulo the
                 // max gene value
-                let inc = app.rand_range(1, 3);
-                let index = app.rand_range(0, Gene::LENGTH);
+                let inc = rng.rand_range(1, 3);
+                let index = rng.rand_range(0, Gene::LENGTH);
                 let new_base = (self.0[index] + 1 + inc) %
                     (settings::MAX_GENE_VALUE + 2) - 1;
                 debug!("added {} to base at {} with val {} to get {}",
@@ -87,8 +86,8 @@ impl Gene {
                 None
             },
             5 => { // swap two bases in the gene
-                let i1 = app.rand_range(0, Gene::LENGTH);
-                let i2 = app.rand_range(0, Gene::LENGTH);
+                let i1 = rng.rand_range(0, Gene::LENGTH);
+                let i2 = rng.rand_range(0, Gene::LENGTH);
                 self.0.swap(i1, i2);
                 debug!("swapped bases {} and {}", i1, i2);
                 None
@@ -152,7 +151,7 @@ impl DNA {
 
     pub fn combine(mother: &mut DNA,
                    father: &mut DNA,
-                   app: &mut util::AppState) -> DNA {
+                   rng: &mut RngState) -> (DNA, Statistics) {
         let mut m_iter = mother.0.clone().into_iter();
         let mut f_iter = father.0.clone().into_iter();
         let mut child_genes = Vec::new();
@@ -164,28 +163,27 @@ impl DNA {
             if gene1.invalid() && gene2.invalid() {
                 break;
             }
-            child_genes.push(if app.rand() {
+            child_genes.push(if rng.rand() {
                 gene1
             } else {
                 gene2
             });
         }
-        if app.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
-            app.mutations += 1;
+        if rng.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
             DNA::mutate(&mut child_genes, app)
         }
         DNA(child_genes)
     }
 
-    fn mutate(genes: &mut Vec<Gene>, app: &mut util::AppState) {
-        if app.rand_weighted_bool(
+    fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState) -> u32 {
+        if rand_weighted_bool(
             (10000.0/settings::MUTATION_RATE) as u32) {
-            DNA::genome_level_mutation(genes, app);
+            DNA::genome_level_mutation(genes, rng)
         } else {
-            let index = app.rand_range(0, genes.len());
+            let index = rng.rand_range(0, genes.len());
             let gene_to_mutate = &mut genes[index];
             debug!("Mutating gene {}", index);
-            if let Some(new_gene) = gene_to_mutate.mutate(app) {
+            if let Some(new_gene) = gene_to_mutate.mutate(rng) {
                 // Gene mutation produced a new gene, so push it in
                 // after the current one
                 genes.insert(index, new_gene)
