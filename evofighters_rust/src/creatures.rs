@@ -321,6 +321,10 @@ impl Creatures {
         self.creatures.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.creatures.is_empty()
+    }
+
     pub fn spawn_feeders(&mut self) {
         if self.len() + self.feeder_count < self.max_population_size {
             self.feeder_count = self.max_population_size -

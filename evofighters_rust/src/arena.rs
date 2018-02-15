@@ -352,12 +352,10 @@ impl Arena {
             self.population.spawn_feeders();
             let mut p1 = self.population.random_creature();
             let mut p2 = self.population.random_creature_or_feeder();
+
             info!("{} encounters {} in the wild", p1, p2);
-            let mut new_children = self.encounter(&mut p1, &mut p2);
-            self.stats.children_born += new_children.len();
-            for child in new_children.into_iter() {
-                self.population.absorb(child)
-            }
+            self.encounter(&mut p1, &mut p2);
+
             if !p1.is_feeder() && !p2.is_feeder() {
                 self.encounters += 1;
             }
@@ -381,12 +379,10 @@ impl Arena {
         }
     }
 
-    fn encounter(&mut self, p1: &mut Creature, p2: &mut Creature)
-                 -> Vec<Creature> {
+    fn encounter(&mut self, p1: &mut Creature, p2: &mut Creature) {
         use parsing::{Decision, Indecision};
         use creatures::Liveness::{Alive,Dead};
         let max_rounds = self.rng.normal_sample(200.0, 30.0) as usize;
-        let mut children = Vec::new();
         info!("Max rounds: {}", max_rounds);
         // combine thought tree iterators, limit rounds
         let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
@@ -462,7 +458,6 @@ impl Arena {
                 p2.survived_encounter();
             }
         }
-        children
     }
 
     fn do_round(&mut self,

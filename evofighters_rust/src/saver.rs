@@ -28,10 +28,40 @@ pub struct Settings {
     gene_min_size: usize,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            max_thinking_steps: settings::MAX_THINKING_STEPS,
+            max_tree_depth: settings::MAX_TREE_DEPTH,
+            max_inv_size: settings::MAX_INV_SIZE,
+            default_energy: settings::DEFAULT_ENERGY,
+            mating_cost: settings::MATING_COST,
+            mutation_rate: settings::MUTATION_RATE,
+            max_gene_value: settings::MAX_GENE_VALUE,
+            winner_life_bonus: settings::WINNER_LIFE_BONUS,
+            max_population_size: settings::MAX_POPULATION_SIZE,
+            gene_min_size: settings::GENE_MIN_SIZE,
+        }
+    }
+}
+#[derive(Debug)]
 pub struct SaveFile {
     filename: String,
     settings: Settings,
+}
+
+
+#[derive(Debug, Serialize)]
+struct SerializableSaveFile<'a> {
+    creatures: &'a Creatures,
+    stats: GlobalStatistics,
+    settings: Settings,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeserializableSaveFile {
+    pub creatures: Creatures,
+    pub stats: GlobalStatistics,
+    pub settings: Settings,
 }
 
 impl SaveFile {
@@ -40,35 +70,29 @@ impl SaveFile {
     pub fn new(filename: &str) -> SaveFile {
         SaveFile {
             filename: filename.to_owned(),
-            settings: Settings {
-                max_thinking_steps: settings::MAX_THINKING_STEPS,
-                max_tree_depth: settings::MAX_TREE_DEPTH,
-                max_inv_size: settings::MAX_INV_SIZE,
-                default_energy: settings::DEFAULT_ENERGY,
-                mating_cost: settings::MATING_COST,
-                mutation_rate: settings::MUTATION_RATE,
-                max_gene_value: settings::MAX_GENE_VALUE,
-                winner_life_bonus: settings::WINNER_LIFE_BONUS,
-                max_population_size: settings::MAX_POPULATION_SIZE,
-                gene_min_size: settings::GENE_MIN_SIZE,
-            },
+            settings: Settings::default(),
         }
     }
 
     /// Save the current file to disk
     pub fn save(&mut self, creatures: &Creatures, stats: &GlobalStatistics)
                 -> Result<(), Error> {
+        let contents = SerializableSaveFile {
+            creatures,
+            stats: stats.to_owned(),
+            settings: self.settings.to_owned(),
+        };
         // Create a writer
         let compressor = XzEncoder::new(
             File::create(&self.filename)?,
             SaveFile::COMPRESSION_LEVEL,
         );
-        serde_json::to_writer(compressor, self)?;
+        serde_json::to_writer(compressor, &contents)?;
         Ok(())
     }
 
     /// Load a savefile from disk
-    pub fn load(filename: &str) -> Result<SaveFile, Error> {
+    pub fn load(filename: &str) -> Result<DeserializableSaveFile, Error> {
         // Create reader
         let decompressor = XzDecoder::new(File::open(filename)?);
         Ok(serde_json::from_reader(decompressor)?)
@@ -117,7 +141,7 @@ impl RngState {
     }
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, Default)]
 pub struct GlobalStatistics {
     pub mutations: usize,
     pub children_born: usize,
@@ -137,13 +161,7 @@ pub enum Stat {
 
 impl GlobalStatistics {
     pub fn new() -> GlobalStatistics {
-        GlobalStatistics {
-            mutations: 0,
-            children_born: 0,
-            feeders_eaten: 0,
-            kills: 0,
-            rounds: 0,
-        }
+        GlobalStatistics::default()
     }
 
     pub fn absorb(&mut self, other: GlobalStatistics) {
