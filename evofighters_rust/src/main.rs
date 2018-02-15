@@ -4,15 +4,11 @@
 extern crate time;
 extern crate rand;
 #[macro_use] extern crate enum_primitive;
-#[macro_use] extern crate lazy_static;
 extern crate num;
 #[macro_use] extern crate serde_derive;
 extern crate serde_json;
 extern crate serde;
 extern crate xz2;
-
-
-use std::env;
 
 #[macro_use] pub mod util;
 pub mod dna;
@@ -24,8 +20,10 @@ pub mod arena;
 pub mod simplify;
 pub mod saver;
 
-use creatures::Creature;
-use std::iter::FromIterator;
+use std::env;
+
+use creatures::Creatures;
+use arena::Arena;
 
 
 fn main() {
@@ -43,14 +41,12 @@ fn main() {
 }
 
 fn run_simulation() {
-    let mut app = util::AppState::new(settings::MAX_POPULATION_SIZE + 1);
     println!("Creating initial population");
-    let mut population: Vec<Creature> = FromIterator::from_iter(
-        (1..settings::MAX_POPULATION_SIZE + 1)
-            .map(Creature::seed_creature));
-    println!("Created {} creatures", settings::MAX_POPULATION_SIZE + 1);
+    let population: Creatures = Creatures::new(settings::MAX_POPULATION_SIZE);
+    println!("Created {} creatures", settings::MAX_POPULATION_SIZE);
 
-    arena::simulate(&mut population, 0, &mut app)
+    let mut arena = Arena::new(population, "evofighters.save");
+    arena.simulate()
 }
 
 fn cycle_check(args: &[String]) {

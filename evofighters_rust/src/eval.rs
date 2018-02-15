@@ -1,10 +1,10 @@
 use std::fmt;
 use std::cmp::{min, max, PartialOrd, PartialEq};
 
-use util;
 use dna::{lex,ast};
 use creatures::Creature;
 use settings;
+use saver::RngState;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Debug, Copy, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -48,10 +48,10 @@ impl fmt::Display for PerformableAction {
 pub fn evaluate(me: &Creature,
                 other: &Creature,
                 tree: &ast::Condition,
-                app: &mut util::AppState) -> PerformableAction {
+                rng: &mut RngState) -> PerformableAction {
     match *tree {
         ast::Condition::Always(ref action) =>
-            eval_action(me, other, action, app),
+            eval_action(me, other, action, rng),
         ast::Condition::RangeCompare{
             ref value,
             ref bound_a,
@@ -59,15 +59,15 @@ pub fn evaluate(me: &Creature,
             ref affirmed,
             ref denied
         } => {
-            let a = eval_value(me, other, bound_a, app);
-            let b = eval_value(me, other, bound_b, app);
-            let check_val = eval_value(me, other, value, app);
+            let a = eval_value(me, other, bound_a, rng);
+            let b = eval_value(me, other, bound_b, rng);
+            let check_val = eval_value(me, other, value, rng);
             if min(a, b) <= check_val && check_val <= max(a, b) {
                 trace!("{} was between {} and {}", check_val, a, b);
-                eval_action(me, other, affirmed, app)
+                eval_action(me, other, affirmed, rng)
             } else {
                 trace!("{} was not between {} and {}", check_val, a, b);
-                eval_action(me, other, denied, app)
+                eval_action(me, other, denied, rng)
             }
         },
         ast::Condition::BinCompare{
@@ -83,16 +83,16 @@ pub fn evaluate(me: &Creature,
                 ast::BinOp::EQ => PartialEq::eq,
                 ast::BinOp::NE => PartialEq::ne,
             };
-            let evaled_lhs = eval_value(me, other, lhs, app);
-            let evaled_rhs = eval_value(me, other, rhs, app);
+            let evaled_lhs = eval_value(me, other, lhs, rng);
+            let evaled_rhs = eval_value(me, other, rhs, rng);
             if op(&evaled_lhs, &evaled_rhs) {
                 trace!("{:?}({}) was {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, affirmed, app)
+                eval_action(me, other, affirmed, rng)
             } else {
                 trace!("{:?}({}) was not {} {:?}({})",
                         lhs, evaled_lhs, operation, rhs, evaled_rhs);
-                eval_action(me, other, denied, app)
+                eval_action(me, other, denied, rng)
             }
         },
         ast::Condition::ActionCompare{
@@ -105,15 +105,15 @@ pub fn evaluate(me: &Creature,
                 ast::ActorType::Me => (me, "my"),
                 ast::ActorType::Other => (other, "other's"),
             };
-            let my_action = eval_action(me, other, action, app);
+            let my_action = eval_action(me, other, action, rng);
             if my_action == actor.last_action {
                 trace!("{}'s last action was {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, affirmed, app)
+                eval_action(me, other, affirmed, rng)
             } else {
                 trace!("{}'s last action was not {:?}",
                         actor_str, actor.last_action);
-                eval_action(me, other, denied, app)
+                eval_action(me, other, denied, rng)
             }
 
         }
@@ -123,7 +123,7 @@ pub fn evaluate(me: &Creature,
 fn eval_action(me: &Creature,
                other: &Creature,
                action: &ast::Action,
-               app: &mut util::AppState) -> PerformableAction {
+               rng: &mut RngState) -> PerformableAction {
     match *action {
         ast::Action::Attack(dmg) => PerformableAction::Attack(dmg),
         ast::Action::Defend(dmg) => PerformableAction::Defend(dmg),
@@ -134,7 +134,7 @@ fn eval_action(me: &Creature,
         ast::Action::Flee => PerformableAction::Flee,
         ast::Action::Mate => PerformableAction::Mate,
         ast::Action::Subcondition(ref sub) => {
-            evaluate(me, other, sub, app)
+            evaluate(me, other, sub, rng)
         },
     }
 }
@@ -142,11 +142,11 @@ fn eval_action(me: &Creature,
 fn eval_value(me: &Creature,
               other: &Creature,
               val: &ast::Value,
-              app: &mut util::AppState) -> usize {
+              rng: &mut RngState) -> usize {
     match *val {
         ast::Value::Literal(x) => x as usize,
         ast::Value::Random =>
-            app.rand_range(0, settings::MAX_GENE_VALUE as usize),
+            rng.rand_range(0, settings::MAX_GENE_VALUE as usize),
         ast::Value::Me(attr) => get_attr(me, attr),
         ast::Value::Other(attr) => get_attr(other, attr),
     }

@@ -1,6 +1,8 @@
-use serde_json;
 use std::fs::File;
 use std::io::Error;
+
+use serde_json;
+
 use xz2::write::XzEncoder;
 use xz2::read::XzDecoder;
 
@@ -9,11 +11,11 @@ use rand::{Rng,ThreadRng,Rand};
 use rand::distributions;
 use rand::distributions::range::SampleRange;
 
-use creatures::Creature;
+use creatures::Creatures;
 use settings;
 
-#[derive(Debug,Deserialize,Serialize)]
-pub struct SaveFile {
+#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+pub struct Settings {
     max_thinking_steps: usize,
     max_tree_depth: usize,
     max_inv_size: usize,
@@ -24,52 +26,45 @@ pub struct SaveFile {
     winner_life_bonus: usize,
     max_population_size: usize,
     gene_min_size: usize,
-    num_encounters: usize,
-    feeder_count: usize,
-    creatures: Vec<Creature>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SaveFile {
+    filename: String,
+    settings: Settings,
 }
 
 impl SaveFile {
     pub const COMPRESSION_LEVEL: u32 = 9;
 
-    pub fn new(creatures: &[Creature],
-               feeder_count: usize,
-               num_encounters: usize) -> SaveFile {
+    pub fn new(filename: &str) -> SaveFile {
         SaveFile {
-            max_thinking_steps: settings::MAX_THINKING_STEPS,
-            max_tree_depth: settings::MAX_TREE_DEPTH,
-            max_inv_size: settings::MAX_INV_SIZE,
-            default_energy: settings::DEFAULT_ENERGY,
-            mating_cost: settings::MATING_COST,
-            mutation_rate: settings::MUTATION_RATE,
-            max_gene_value: settings::MAX_GENE_VALUE,
-            winner_life_bonus: settings::WINNER_LIFE_BONUS,
-            max_population_size: settings::MAX_POPULATION_SIZE,
-            gene_min_size: settings::GENE_MIN_SIZE,
-            num_encounters: num_encounters,
-            feeder_count: feeder_count,
-            creatures: creatures.to_owned(),
+            filename: filename.to_owned(),
+            settings: Settings {
+                max_thinking_steps: settings::MAX_THINKING_STEPS,
+                max_tree_depth: settings::MAX_TREE_DEPTH,
+                max_inv_size: settings::MAX_INV_SIZE,
+                default_energy: settings::DEFAULT_ENERGY,
+                mating_cost: settings::MATING_COST,
+                mutation_rate: settings::MUTATION_RATE,
+                max_gene_value: settings::MAX_GENE_VALUE,
+                winner_life_bonus: settings::WINNER_LIFE_BONUS,
+                max_population_size: settings::MAX_POPULATION_SIZE,
+                gene_min_size: settings::GENE_MIN_SIZE,
+            },
         }
     }
 
     /// Save the current file to disk
-    pub fn save(&self, filename: &str) -> Result<(), Error> {
+    pub fn save(&mut self, creatures: &Creatures, stats: &GlobalStatistics)
+                -> Result<(), Error> {
         // Create a writer
         let compressor = XzEncoder::new(
-            File::create(filename)?,
+            File::create(&self.filename)?,
             SaveFile::COMPRESSION_LEVEL,
         );
         serde_json::to_writer(compressor, self)?;
         Ok(())
-    }
-
-    pub fn update(&mut self,
-                  creatures: &[Creature],
-                  feeder_count: usize,
-                  num_encounters: usize) {
-        self.creatures = creatures.to_owned();
-        self.feeder_count = feeder_count;
-        self.num_encounters = num_encounters;
     }
 
     /// Load a savefile from disk
@@ -80,31 +75,26 @@ impl SaveFile {
     }
 }
 
-pub struct AppGlobalState {
-    id_box: usize
-}
-
-impl AppGlobalState {
-    pub fn next_creature_id(&mut self) -> usize {
-        self.id_box += 1;
-        self.id_box
-    }
-}
-
+#[derive(Debug)]
 pub struct RngState {
-    rng: Option<ThreadRng>
+    rng: ThreadRng
+}
+
+impl Default for RngState {
+    fn default() -> RngState {
+        RngState::new()
+    }
 }
 
 impl RngState {
-    fn rng(&mut self) -> &mut ThreadRng {
-        if self.rng.is_none() {
-            self.rng = Some(rand::thread_rng())
+    pub fn new() -> RngState {
+        RngState {
+            rng: rand::thread_rng(),
         }
-        &mut self.rng.unwrap()
     }
 
     pub fn rand<T: Rand>(&mut self) -> T {
-        self.rng().gen()
+        self.rng.gen()
     }
 
     pub fn rand_range<T: PartialOrd + SampleRange>(
@@ -112,22 +102,23 @@ impl RngState {
         if low == high {
             low
         } else {
-            self.rng().gen_range(low, high)
+            self.rng.gen_range(low, high)
         }
     }
 
     pub fn normal_sample(&mut self, mean: f64, std_dev: f64) -> f64 {
         use rand::distributions::IndependentSample;
         let normal = distributions::Normal::new(mean, std_dev);
-        normal.ind_sample(self.rng())
+        normal.ind_sample(&mut self.rng)
     }
 
     pub fn rand_weighted_bool(&mut self, n: u32) -> bool {
-        self.rng().gen_weighted_bool(n)
+        self.rng.gen_weighted_bool(n)
     }
 }
 
-pub struct Statistics {
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub struct GlobalStatistics {
     pub mutations: usize,
     pub children_born: usize,
     pub feeders_eaten: usize,
@@ -135,6 +126,7 @@ pub struct Statistics {
     pub rounds: usize,
 }
 
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub enum Stat {
     Mutations(usize),
     ChildrenBorn(usize),
@@ -143,9 +135,9 @@ pub enum Stat {
     Rounds(usize),
 }
 
-impl Statistics {
-    pub fn new() {
-        Statistics {
+impl GlobalStatistics {
+    pub fn new() -> GlobalStatistics {
+        GlobalStatistics {
             mutations: 0,
             children_born: 0,
             feeders_eaten: 0,
@@ -154,13 +146,21 @@ impl Statistics {
         }
     }
 
+    pub fn absorb(&mut self, other: GlobalStatistics) {
+        self.mutations += other.mutations;
+        self.children_born += other.children_born;
+        self.feeders_eaten += other.feeders_eaten;
+        self.kills += other.kills;
+        self.rounds += other.rounds;
+    }
+
     pub fn increment(&mut self, stat: Stat) {
         match stat {
-            Mutations(x) => self.mutations += x,
-            ChildrenBorn(x) => self.children_born += x,
-            FeedersEaten(x) => self.feeders_eaten += x,
-            Kills(x) => self.kills += x,
-            Rounds(x) => self.rounds += x,
+            Stat::Mutations(x) => self.mutations += x,
+            Stat::ChildrenBorn(x) => self.children_born += x,
+            Stat::FeedersEaten(x) => self.feeders_eaten += x,
+            Stat::Kills(x) => self.kills += x,
+            Stat::Rounds(x) => self.rounds += x,
         }
     }
 }

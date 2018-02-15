@@ -3,7 +3,7 @@ use std::ops::{Index,IndexMut};
 use std::mem;
 
 use settings;
-use saver::{RngState};
+use saver::{RngState, GlobalStatistics};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Gene([i8;5]);
@@ -151,10 +151,11 @@ impl DNA {
 
     pub fn combine(mother: &mut DNA,
                    father: &mut DNA,
-                   rng: &mut RngState) -> (DNA, Statistics) {
+                   rng: &mut RngState) -> (DNA, GlobalStatistics) {
         let mut m_iter = mother.0.clone().into_iter();
         let mut f_iter = father.0.clone().into_iter();
         let mut child_genes = Vec::new();
+        let mut stats = GlobalStatistics::new();
         // TODO: This code is lousy with unnecessary allocations,
         // clean this up a bit, use more copies / references if possible
         loop {
@@ -170,13 +171,14 @@ impl DNA {
             });
         }
         if rng.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
-            DNA::mutate(&mut child_genes, app)
+            DNA::mutate(&mut child_genes, rng);
+            stats.mutations += 1;
         }
-        DNA(child_genes)
+        (DNA(child_genes), stats)
     }
 
-    fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState) -> u32 {
-        if rand_weighted_bool(
+    fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState) {
+        if rng.rand_weighted_bool(
             (10000.0/settings::MUTATION_RATE) as u32) {
             DNA::genome_level_mutation(genes, rng)
         } else {
@@ -191,22 +193,22 @@ impl DNA {
         }
     }
 
-    fn genome_level_mutation(genome: &mut Vec<Gene>, app: &mut util::AppState) {
-        match app.rand_range(1, 4) {
+    fn genome_level_mutation(genome: &mut Vec<Gene>, rng: &mut RngState) {
+        match rng.rand_range(1, 4) {
             1 => { // swap two genes
-                let i1 = app.rand_range(0, genome.len());
-                let i2 = app.rand_range(0, genome.len());
+                let i1 = rng.rand_range(0, genome.len());
+                let i2 = rng.rand_range(0, genome.len());
                 debug!("swapped genes {} and {}", i1, i2);
                 genome.as_mut_slice().swap(i1, i2);
             },
             2 => { // double a gene
-                let i = app.rand_range(0, genome.len());
+                let i = rng.rand_range(0, genome.len());
                 let gene = genome[i];
                 debug!("doubled gene {}", i);
                 genome.insert(i, gene);
             },
             3 => { // deletes a gene
-                let i = app.rand_range(0, genome.len());
+                let i = rng.rand_range(0, genome.len());
                 debug!("Deleted gene {}", i);
                 // Avoid shifting items if we can
                 genome.remove(i);
