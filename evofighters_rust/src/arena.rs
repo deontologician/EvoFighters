@@ -5,7 +5,7 @@ use creatures::{Creature, Creatures};
 use eval;
 use settings;
 
-use saver::{GlobalStatistics, RngState, SaveFile};
+use saver::{DeserializableSaveFile, GlobalStatistics, RngState, SaveFile};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum FightStatus {
@@ -284,6 +284,18 @@ impl Arena {
             save_file: SaveFile::new(filename),
             sim_status: SimStatus::NotStarted,
         }
+    }
+
+    pub fn from_file(save_file: DeserializableSaveFile, filename: &str) -> Arena {
+        // TODO: actually use the settings
+        let DeserializableSaveFile {
+            creatures,
+            stats,
+            ..
+        } = save_file;
+        let mut arena = Arena::new(creatures, filename);
+        arena.stats = stats;
+        arena
     }
 
     fn maybe_print_status(&mut self, timestamp: Instant) -> Instant {

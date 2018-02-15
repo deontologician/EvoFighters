@@ -97,7 +97,7 @@ impl Gene {
                 debug!("swapped bases {} and {}", i1, i2);
                 None
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

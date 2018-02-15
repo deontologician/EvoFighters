@@ -27,27 +27,35 @@ use std::env;
 
 use creatures::Creatures;
 use arena::Arena;
+use saver::SaveFile;
 
 fn main() {
     let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        run_simulation();
+        run_simulation("evofighters.save");
         return;
     }
     let command = args[1].clone();
     match command.as_ref() {
-        "simulate" => run_simulation(),
+        "simulate" => run_simulation("evofighters.save"),
         "cycle-check" => cycle_check(&args.split_off(2)),
         _ => println!("Unrecognized command."),
     }
 }
 
-fn run_simulation() {
-    println!("Creating initial population");
-    let population: Creatures = Creatures::new(settings::MAX_POPULATION_SIZE);
-    println!("Created {} creatures", settings::MAX_POPULATION_SIZE);
-
-    let mut arena = Arena::new(population, "evofighters.save");
+fn run_simulation(filename: &str) {
+    let mut arena = match SaveFile::load(filename) {
+        Ok(save_file) => {
+            println!("Loading from file {}", filename);
+            Arena::from_file(save_file, filename)
+        }
+        Err(_) => {
+            println!("Creating initial population");
+            let population: Creatures = Creatures::new(settings::MAX_POPULATION_SIZE);
+            println!("Created {} creatures", settings::MAX_POPULATION_SIZE);
+            Arena::new(population, filename)
+        }
+    };
     arena.simulate()
 }
 
