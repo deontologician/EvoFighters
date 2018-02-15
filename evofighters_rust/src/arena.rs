@@ -1,15 +1,16 @@
-use std::cmp::{max};
-use std::time::{Duration,Instant};
+use std::cmp::max;
+use std::time::{Duration, Instant};
 
 use creatures::{Creature, Creatures};
 use eval;
 use settings;
 
-use saver::{SaveFile, RngState, GlobalStatistics};
+use saver::{GlobalStatistics, RngState, SaveFile};
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum FightStatus {
-    End, Continue,
+    End,
+    Continue,
 }
 
 struct CreatureChance {
@@ -35,187 +36,174 @@ struct Chances {
     p2: CreatureChance,
 }
 
-fn damage_matrix(p1_act: eval::PerformableAction,
-                 p2_act: eval::PerformableAction) -> Chances {
+fn damage_matrix(p1_act: eval::PerformableAction, p2_act: eval::PerformableAction) -> Chances {
     use eval::PerformableAction::{Attack, Defend, Mate};
     // TODO: take into account damage type
     match (p1_act, p2_act) {
-        (Attack(..), Attack(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 75,
-                    dmg_multiplier: 50,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 75,
-                    dmg_multiplier: 50,
-                    mating_share: 0,
-                }
+        (Attack(..), Attack(..)) => Chances {
+            chance_to_mate: 0,
+            p1: CreatureChance {
+                chance_to_hit: 75,
+                dmg_multiplier: 50,
+                mating_share: 0,
             },
-        (Attack(..), Defend(..)) | (Defend(..), Attack(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 25,
-                    dmg_multiplier: 25,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 25,
-                    dmg_multiplier: 25,
-                    mating_share: 0,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 75,
+                dmg_multiplier: 50,
+                mating_share: 0,
             },
-        (Attack(..), Mate) =>
-            Chances{
-                chance_to_mate: 50,
-                p1: CreatureChance{
-                    chance_to_hit: 50,
-                    dmg_multiplier: 75,
-                    mating_share: 70,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 30,
-                },
+        },
+        (Attack(..), Defend(..)) | (Defend(..), Attack(..)) => Chances {
+            chance_to_mate: 0,
+            p1: CreatureChance {
+                chance_to_hit: 25,
+                dmg_multiplier: 25,
+                mating_share: 0,
             },
-        (Attack(..), _) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 100,
-                    dmg_multiplier: 100,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 25,
+                dmg_multiplier: 25,
+                mating_share: 0,
             },
-        (Defend(..), Mate) =>
-            Chances{
-                chance_to_mate: 25,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 70,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 30,
-                },
+        },
+        (Attack(..), Mate) => Chances {
+            chance_to_mate: 50,
+            p1: CreatureChance {
+                chance_to_hit: 50,
+                dmg_multiplier: 75,
+                mating_share: 70,
             },
-        (Mate, Mate) =>
-            Chances{
-                chance_to_mate: 100,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 50,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 50,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 30,
             },
-        (Mate, Attack(..)) =>
-            Chances{
-                chance_to_mate: 50,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 30,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 50,
-                    dmg_multiplier: 75,
-                    mating_share: 70,
-                },
+        },
+        (Attack(..), _) => Chances {
+            chance_to_mate: 0,
+            p1: CreatureChance {
+                chance_to_hit: 100,
+                dmg_multiplier: 100,
+                mating_share: 0,
             },
-        (Mate, Defend(..)) =>
-            Chances{
-                chance_to_mate: 25,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 30,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 70,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
             },
-        (Mate, _) =>
-            Chances{
-                chance_to_mate: 75,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 100,
-                },
+        },
+        (Defend(..), Mate) => Chances {
+            chance_to_mate: 25,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 70,
             },
-        (_, Attack(..)) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 100,
-                    dmg_multiplier: 100,
-                    mating_share: 0,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 30,
             },
-        (_, Mate) =>
-            Chances{
-                chance_to_mate: 75,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 100,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
+        },
+        (Mate, Mate) => Chances {
+            chance_to_mate: 100,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 50,
             },
-        (_, _) =>
-            Chances{
-                chance_to_mate: 0,
-                p1: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
-                p2: CreatureChance{
-                    chance_to_hit: 0,
-                    dmg_multiplier: 0,
-                    mating_share: 0,
-                },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 50,
             },
+        },
+        (Mate, Attack(..)) => Chances {
+            chance_to_mate: 50,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 30,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 50,
+                dmg_multiplier: 75,
+                mating_share: 70,
+            },
+        },
+        (Mate, Defend(..)) => Chances {
+            chance_to_mate: 25,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 30,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 70,
+            },
+        },
+        (Mate, _) => Chances {
+            chance_to_mate: 75,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 100,
+            },
+        },
+        (_, Attack(..)) => Chances {
+            chance_to_mate: 0,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 100,
+                dmg_multiplier: 100,
+                mating_share: 0,
+            },
+        },
+        (_, Mate) => Chances {
+            chance_to_mate: 75,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 100,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
+            },
+        },
+        (_, _) => Chances {
+            chance_to_mate: 0,
+            p1: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
+            },
+            p2: CreatureChance {
+                chance_to_hit: 0,
+                dmg_multiplier: 0,
+                mating_share: 0,
+            },
+        },
     }
 }
 
 fn not_attack_mate_defend(act: eval::PerformableAction) -> bool {
-    use eval::PerformableAction::{Signal,Eat,Take,Wait,Flee};
+    use eval::PerformableAction::{Eat, Flee, Signal, Take, Wait};
     match act {
         Signal(..) | Eat | Take | Wait | Flee => true,
-        _ => false
+        _ => false,
     }
 }
 
@@ -338,12 +326,13 @@ impl Arena {
                 self.sim_status = SimStatus::NotEnoughCreatures;
                 break;
             }
-            if self.rates.events_per_second > 0 &&
-                self.rates.events_per_second * 30 <= self.events_since_last_save
+            if self.rates.events_per_second > 0
+                && self.rates.events_per_second * 30 <= self.events_since_last_save
             {
-                println!("\nHit {} out of estimated {} events, one moment...",
-                         self.rates.events_per_second * 30,
-                         self.events_since_last_save,
+                println!(
+                    "\nHit {} out of estimated {} events, one moment...",
+                    self.rates.events_per_second * 30,
+                    self.events_since_last_save,
                 );
                 self.save_file.save(&self.population, &self.stats).unwrap();
                 println!("Saved to file");
@@ -367,21 +356,25 @@ impl Arena {
         }
         match self.sim_status {
             SimStatus::NotEnoughCreatures => {
-                println!("You need at least two creatures in your population \
-                          to have an encounter. Unfortunately, this means the \
-                          end for your population.");
+                println!(
+                    "You need at least two creatures in your population \
+                     to have an encounter. Unfortunately, this means the \
+                     end for your population."
+                );
                 if self.population.len() == 1 {
-                    println!("Here is the last of its kind:\n{:?}",
-                             self.population.random_creature())
+                    println!(
+                        "Here is the last of its kind:\n{:?}",
+                        self.population.random_creature()
+                    )
                 }
-            },
-            _ => unreachable!()
+            }
+            _ => unreachable!(),
         }
     }
 
     fn encounter(&mut self, p1: &mut Creature, p2: &mut Creature) {
         use parsing::{Decision, Indecision};
-        use creatures::Liveness::{Alive,Dead};
+        use creatures::Liveness::{Alive, Dead};
         let max_rounds = self.rng.normal_sample(200.0, 30.0) as usize;
         info!("Max rounds: {}", max_rounds);
         // combine thought tree iterators, limit rounds
@@ -393,8 +386,20 @@ impl Arena {
             debug!("Round {}", round);
             self.stats.rounds += 1;
             let fight_status = match thoughts {
-                (Ok(Decision{tree: box tree1, icount:i1, skipped:s1, ..}),
-                 Ok(Decision{tree: box tree2, icount:i2, skipped:s2, ..})) => {
+                (
+                    Ok(Decision {
+                        tree: box tree1,
+                        icount: i1,
+                        skipped: s1,
+                        ..
+                    }),
+                    Ok(Decision {
+                        tree: box tree2,
+                        icount: i2,
+                        skipped: s2,
+                        ..
+                    }),
+                ) => {
                     debug!("{} thinks {:?}", p1, tree1);
                     debug!("{} thinks {:?}", p2, tree2);
                     p1_action = eval::evaluate(p1, p2, &tree1, &mut self.rng);
@@ -415,18 +420,36 @@ impl Arena {
                         trace!("{} is going first", p2);
                         self.do_round(p2, p2_action, p1, p1_action)
                     }
-                },
+                }
                 (p1_thought, p2_thought) => {
                     // Somebody was undecided, and the fight is over.
                     p1.update_from_thought(&p1_thought);
                     p2.update_from_thought(&p2_thought);
-                    if let Err(Indecision{reason, icount, skipped, ..}) = p1_thought {
-                        info!("{} died because {:?}. using {} instructions,\
-                               with {} skipped", p1, reason, icount, skipped);
+                    if let Err(Indecision {
+                        reason,
+                        icount,
+                        skipped,
+                        ..
+                    }) = p1_thought
+                    {
+                        info!(
+                            "{} died because {:?}. using {} instructions,\
+                             with {} skipped",
+                            p1, reason, icount, skipped
+                        );
                     };
-                    if let Err(Indecision{reason, icount, skipped, ..}) = p2_thought {
-                        info!("{} died because {:?}. using {} instructions,\
-                               with {} skipped", p1, reason, icount, skipped);
+                    if let Err(Indecision {
+                        reason,
+                        icount,
+                        skipped,
+                        ..
+                    }) = p2_thought
+                    {
+                        info!(
+                            "{} died because {:?}. using {} instructions,\
+                             with {} skipped",
+                            p1, reason, icount, skipped
+                        );
                     }
                     trace!("The fight ended before it timed out");
                     fight_timed_out = false;
@@ -450,9 +473,9 @@ impl Arena {
             p2.lose_energy(penalty);
         }
         match (p1.liveness(), p2.liveness()) {
-            (Alive, Dead)  => self.victory(p1, p2),
-            (Dead, Alive)  => self.victory(p2, p1),
-            (Dead, Dead)   => info!("Both {} and {} have died.", p1, p2),
+            (Alive, Dead) => self.victory(p1, p2),
+            (Dead, Alive) => self.victory(p2, p1),
+            (Dead, Dead) => info!("Both {} and {} have died.", p1, p2),
             (Alive, Alive) => {
                 p1.survived_encounter();
                 p2.survived_encounter();
@@ -460,12 +483,13 @@ impl Arena {
         }
     }
 
-    fn do_round(&mut self,
-                p1: &mut Creature,
-                p1_act: eval::PerformableAction,
-                p2: &mut Creature,
-                p2_act: eval::PerformableAction)
-                -> FightStatus {
+    fn do_round(
+        &mut self,
+        p1: &mut Creature,
+        p1_act: eval::PerformableAction,
+        p2: &mut Creature,
+        p2_act: eval::PerformableAction,
+    ) -> FightStatus {
         let chances = damage_matrix(p1_act, p2_act);
         let p1_dmg = chances.p1.damage(&mut self.rng);
         let p2_dmg = chances.p2.damage(&mut self.rng);
@@ -485,8 +509,10 @@ impl Arena {
         // all, even if p2 initiated mating against p1's will
         let maybe_child = self.try_to_mate(
             chances.chance_to_mate,
-            p2, chances.p2.mating_share,
-            p1, chances.p1.mating_share,
+            p2,
+            chances.p2.mating_share,
+            p1,
+            chances.p1.mating_share,
         );
         if let Some(child) = maybe_child {
             self.population.absorb(child);
@@ -495,12 +521,12 @@ impl Arena {
 
         if not_attack_mate_defend(p1_act) {
             if let FightStatus::End = p1.carryout(p2, p1_act, &mut self.rng) {
-                return FightStatus::End
+                return FightStatus::End;
             }
         }
         if not_attack_mate_defend(p2_act) {
             if let FightStatus::End = p2.carryout(p1, p2_act, &mut self.rng) {
-                return FightStatus::End
+                return FightStatus::End;
             }
         }
         trace!("{} has {} life left", p1, p1.energy());
@@ -514,12 +540,11 @@ impl Arena {
         first_mate: &mut Creature,
         first_share: usize,
         second_mate: &mut Creature,
-        second_share: usize) -> Option<Creature> {
-        if self.rng.rand_range(1, 101) > mating_chance
-            || first_mate.dead()
-            || second_mate.dead() {
-                return None
-            }
+        second_share: usize,
+    ) -> Option<Creature> {
+        if self.rng.rand_range(1, 101) > mating_chance || first_mate.dead() || second_mate.dead() {
+            return None;
+        }
         info!("{} tried to mate with {}!", first_mate, second_mate);
         if first_mate.is_feeder() || second_mate.is_feeder() {
             info!("{} tried to mate with {}", first_mate, second_mate);
@@ -530,11 +555,10 @@ impl Arena {
             if second_mate.is_feeder() {
                 second_mate.kill();
             }
-            return None
+            return None;
         }
         debug!("Attempting to mate");
-        if first_mate.pay_for_mating(first_share) &&
-            second_mate.pay_for_mating(second_share) {
+        if first_mate.pay_for_mating(first_share) && second_mate.pay_for_mating(second_share) {
             debug!("Both paid their debts, so they get to mate");
             let (child, stats) = self.population.mate(first_mate, second_mate);
             self.stats.absorb(stats);
@@ -553,8 +577,7 @@ impl Arena {
             winner.gain_energy(self.rng.rand_range(0, 1));
             winner.last_action = eval::PerformableAction::Wait;
         } else {
-            winner.gain_energy(
-                self.rng.rand_range(0, settings::WINNER_LIFE_BONUS));
+            winner.gain_energy(self.rng.rand_range(0, settings::WINNER_LIFE_BONUS));
             winner.kills += 1;
             self.stats.kills += 1;
             winner.survived_encounter();

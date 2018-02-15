@@ -5,6 +5,7 @@ version = "0.0.1"
 authors = [ "Josh Kuhn <deontologician@gmail.com>" ]
 
 [dependencies]
+clap = "2.30.0"
 enum_primitive = "0.1.1"
 lazy_static = "1.0"
 num = "0.1.41"

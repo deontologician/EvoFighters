@@ -1,7 +1,7 @@
 use std::fmt;
-use std::cmp::{min, max, PartialOrd, PartialEq};
+use std::cmp::{max, min, PartialEq, PartialOrd};
 
-use dna::{lex,ast};
+use dna::{ast, lex};
 use creatures::Creature;
 use settings;
 use saver::RngState;
@@ -23,41 +23,33 @@ pub enum PerformableAction {
 impl fmt::Display for PerformableAction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PerformableAction::Attack(dmg) =>
-                write!(f, "attack with damage type: {:?}", dmg),
-            PerformableAction::Defend(dmg) =>
-                write!(f, "defend against damage type: {:?}", dmg),
-            PerformableAction::Signal(sig) =>
-                write!(f, "signal with the color: {:?}", sig),
-            PerformableAction::Eat =>
-                write!(f, "use an item in his inventory"),
-            PerformableAction::Take =>
-                write!(f, "take something from target"),
-            PerformableAction::Wait =>
-                write!(f, "wait"),
-            PerformableAction::Flee =>
-                write!(f, "flee the encounter"),
-            PerformableAction::Mate =>
-                write!(f, "mate with the target"),
-            PerformableAction::NoAction =>
-                write!(f, "(no action)"),
+            PerformableAction::Attack(dmg) => write!(f, "attack with damage type: {:?}", dmg),
+            PerformableAction::Defend(dmg) => write!(f, "defend against damage type: {:?}", dmg),
+            PerformableAction::Signal(sig) => write!(f, "signal with the color: {:?}", sig),
+            PerformableAction::Eat => write!(f, "use an item in his inventory"),
+            PerformableAction::Take => write!(f, "take something from target"),
+            PerformableAction::Wait => write!(f, "wait"),
+            PerformableAction::Flee => write!(f, "flee the encounter"),
+            PerformableAction::Mate => write!(f, "mate with the target"),
+            PerformableAction::NoAction => write!(f, "(no action)"),
         }
     }
 }
 
-pub fn evaluate(me: &Creature,
-                other: &Creature,
-                tree: &ast::Condition,
-                rng: &mut RngState) -> PerformableAction {
+pub fn evaluate(
+    me: &Creature,
+    other: &Creature,
+    tree: &ast::Condition,
+    rng: &mut RngState,
+) -> PerformableAction {
     match *tree {
-        ast::Condition::Always(ref action) =>
-            eval_action(me, other, action, rng),
-        ast::Condition::RangeCompare{
+        ast::Condition::Always(ref action) => eval_action(me, other, action, rng),
+        ast::Condition::RangeCompare {
             ref value,
             ref bound_a,
             ref bound_b,
             ref affirmed,
-            ref denied
+            ref denied,
         } => {
             let a = eval_value(me, other, bound_a, rng);
             let b = eval_value(me, other, bound_b, rng);
@@ -69,8 +61,8 @@ pub fn evaluate(me: &Creature,
                 trace!("{} was not between {} and {}", check_val, a, b);
                 eval_action(me, other, denied, rng)
             }
-        },
-        ast::Condition::BinCompare{
+        }
+        ast::Condition::BinCompare {
             ref operation,
             ref lhs,
             ref rhs,
@@ -86,16 +78,28 @@ pub fn evaluate(me: &Creature,
             let evaled_lhs = eval_value(me, other, lhs, rng);
             let evaled_rhs = eval_value(me, other, rhs, rng);
             if op(&evaled_lhs, &evaled_rhs) {
-                trace!("{:?}({}) was {} {:?}({})",
-                        lhs, evaled_lhs, operation, rhs, evaled_rhs);
+                trace!(
+                    "{:?}({}) was {} {:?}({})",
+                    lhs,
+                    evaled_lhs,
+                    operation,
+                    rhs,
+                    evaled_rhs
+                );
                 eval_action(me, other, affirmed, rng)
             } else {
-                trace!("{:?}({}) was not {} {:?}({})",
-                        lhs, evaled_lhs, operation, rhs, evaled_rhs);
+                trace!(
+                    "{:?}({}) was not {} {:?}({})",
+                    lhs,
+                    evaled_lhs,
+                    operation,
+                    rhs,
+                    evaled_rhs
+                );
                 eval_action(me, other, denied, rng)
             }
-        },
-        ast::Condition::ActionCompare{
+        }
+        ast::Condition::ActionCompare {
             ref actor_type,
             ref action,
             ref affirmed,
@@ -107,23 +111,26 @@ pub fn evaluate(me: &Creature,
             };
             let my_action = eval_action(me, other, action, rng);
             if my_action == actor.last_action {
-                trace!("{}'s last action was {:?}",
-                        actor_str, actor.last_action);
+                trace!("{}'s last action was {:?}", actor_str, actor.last_action);
                 eval_action(me, other, affirmed, rng)
             } else {
-                trace!("{}'s last action was not {:?}",
-                        actor_str, actor.last_action);
+                trace!(
+                    "{}'s last action was not {:?}",
+                    actor_str,
+                    actor.last_action
+                );
                 eval_action(me, other, denied, rng)
             }
-
         }
     }
 }
 
-fn eval_action(me: &Creature,
-               other: &Creature,
-               action: &ast::Action,
-               rng: &mut RngState) -> PerformableAction {
+fn eval_action(
+    me: &Creature,
+    other: &Creature,
+    action: &ast::Action,
+    rng: &mut RngState,
+) -> PerformableAction {
     match *action {
         ast::Action::Attack(dmg) => PerformableAction::Attack(dmg),
         ast::Action::Defend(dmg) => PerformableAction::Defend(dmg),
@@ -133,20 +140,14 @@ fn eval_action(me: &Creature,
         ast::Action::Wait => PerformableAction::Wait,
         ast::Action::Flee => PerformableAction::Flee,
         ast::Action::Mate => PerformableAction::Mate,
-        ast::Action::Subcondition(ref sub) => {
-            evaluate(me, other, sub, rng)
-        },
+        ast::Action::Subcondition(ref sub) => evaluate(me, other, sub, rng),
     }
 }
 
-fn eval_value(me: &Creature,
-              other: &Creature,
-              val: &ast::Value,
-              rng: &mut RngState) -> usize {
+fn eval_value(me: &Creature, other: &Creature, val: &ast::Value, rng: &mut RngState) -> usize {
     match *val {
         ast::Value::Literal(x) => x as usize,
-        ast::Value::Random =>
-            rng.rand_range(0, settings::MAX_GENE_VALUE as usize),
+        ast::Value::Random => rng.rand_range(0, settings::MAX_GENE_VALUE as usize),
         ast::Value::Me(attr) => get_attr(me, attr),
         ast::Value::Other(attr) => get_attr(other, attr),
     }

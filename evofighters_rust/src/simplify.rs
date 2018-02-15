@@ -1,6 +1,6 @@
 // For simplifying thought trees
 
-use std::cmp::{min, max, PartialEq, PartialOrd};
+use std::cmp::{max, min, PartialEq, PartialOrd};
 
 use dna::{ast, DNA};
 use parsing;
@@ -23,7 +23,6 @@ pub fn simplify(cond: ast::Condition) -> ast::Condition {
     eval_redundant_conditions(stage_1_cond)
 }
 
-
 /// Evaluates static conditionals at compile time.
 ///
 /// Static conditionals always evaluate to the same thing, so they can
@@ -31,43 +30,49 @@ pub fn simplify(cond: ast::Condition) -> ast::Condition {
 /// anything, saving a check at runtime.
 fn eval_static_conditionals(cond: ast::Condition) -> ast::Condition {
     // Evaluate in line anywhere in the tree that contains only literals.
-    use dna::ast::Condition::{Always, RangeCompare, BinCompare, ActionCompare};
+    use dna::ast::Condition::{ActionCompare, Always, BinCompare, RangeCompare};
     use dna::ast::Value::Literal;
-    use dna::ast::BinOp::{LT,GT,EQ,NE};
+    use dna::ast::BinOp::{EQ, GT, LT, NE};
     match cond {
         Always(act) => Always(esc_action(act)),
-        RangeCompare{
+        RangeCompare {
             value: Literal(check_val),
             bound_a: Literal(a),
             bound_b: Literal(b),
             affirmed,
-            denied} => {
+            denied,
+        } => {
             if min(a, b) <= check_val && check_val <= max(a, b) {
                 Always(esc_action(affirmed))
             } else {
                 Always(esc_action(denied))
             }
+        }
+        RangeCompare {
+            value,
+            bound_a,
+            bound_b,
+            affirmed,
+            denied,
+        } => RangeCompare {
+            value: value,
+            bound_a: bound_a,
+            bound_b: bound_b,
+            affirmed: esc_action(affirmed),
+            denied: esc_action(denied),
         },
-        RangeCompare{value, bound_a, bound_b, affirmed, denied} => {
-            RangeCompare{
-                value:value,
-                bound_a: bound_a,
-                bound_b: bound_b,
-                affirmed: esc_action(affirmed),
-                denied: esc_action(denied),
-            }
-        },
-        BinCompare{
+        BinCompare {
             operation,
             lhs: Literal(lhs),
             rhs: Literal(rhs),
             affirmed,
-            denied} => {
+            denied,
+        } => {
             let esc_affirmed = esc_action(affirmed);
             let esc_denied = esc_action(denied);
             if esc_affirmed == esc_denied {
                 Always(esc_affirmed)
-            }else{
+            } else {
                 let op: fn(&usize, &usize) -> bool = match operation {
                     LT => PartialOrd::lt,
                     GT => PartialOrd::gt,
@@ -80,14 +85,20 @@ fn eval_static_conditionals(cond: ast::Condition) -> ast::Condition {
                     Always(esc_denied)
                 }
             }
-        },
-        BinCompare{operation,lhs,rhs,affirmed,denied} => {
+        }
+        BinCompare {
+            operation,
+            lhs,
+            rhs,
+            affirmed,
+            denied,
+        } => {
             let esc_affirmed = esc_action(affirmed);
             let esc_denied = esc_action(denied);
             if esc_affirmed == esc_denied {
                 Always(esc_affirmed)
-            }else {
-                BinCompare{
+            } else {
+                BinCompare {
                     operation: operation,
                     lhs: lhs,
                     rhs: rhs,
@@ -95,14 +106,19 @@ fn eval_static_conditionals(cond: ast::Condition) -> ast::Condition {
                     denied: esc_denied,
                 }
             }
-        },
-        ActionCompare{actor_type, action, affirmed, denied} => {
+        }
+        ActionCompare {
+            actor_type,
+            action,
+            affirmed,
+            denied,
+        } => {
             let esc_affirmed = esc_action(affirmed);
             let esc_denied = esc_action(denied);
             if esc_affirmed == esc_denied {
                 Always(esc_affirmed)
-            }else {
-                ActionCompare{
+            } else {
+                ActionCompare {
                     actor_type: actor_type,
                     action: esc_action(action),
                     affirmed: esc_affirmed,
@@ -117,59 +133,67 @@ fn esc_action(act: ast::Action) -> ast::Action {
     use dna::ast::Action::Subcondition;
     use dna::ast::Condition::Always;
     match act {
-        Subcondition(box Always(act)) =>
-            esc_action(act),
-        Subcondition(box cond) =>
-            Subcondition(Box::new(eval_static_conditionals(cond))),
-        otherwise => otherwise
+        Subcondition(box Always(act)) => esc_action(act),
+        Subcondition(box cond) => Subcondition(Box::new(eval_static_conditionals(cond))),
+        otherwise => otherwise,
     }
 }
-
 
 /// Simplifies redundant conditionals.
 ///
 /// For example, "Always(Always(action))" is equivalent to
 /// "Always(action)".
 fn eval_redundant_conditions(cond: ast::Condition) -> ast::Condition {
-    use dna::ast::Condition::{Always, RangeCompare, BinCompare, ActionCompare};
+    use dna::ast::Condition::{ActionCompare, Always, BinCompare, RangeCompare};
     use dna::ast::Action::Subcondition;
     match cond {
-        Always(Subcondition(box cond)) =>
-            eval_redundant_conditions(cond),
-        Always(act) =>
-            Always(erc_action(act)),
-        RangeCompare{value, bound_a, bound_b, affirmed, denied} =>
-            RangeCompare{
-                value: value,
-                bound_a: bound_a,
-                bound_b: bound_b,
-                affirmed: erc_action(affirmed),
-                denied: erc_action(denied),
-            },
-        BinCompare{operation, lhs, rhs, affirmed, denied} =>
-            BinCompare{
-                operation: operation,
-                lhs: lhs,
-                rhs: rhs,
-                affirmed: erc_action(affirmed),
-                denied: erc_action(denied),
-            },
-        ActionCompare{actor_type, action, affirmed, denied} =>
-            ActionCompare{
-                actor_type: actor_type,
-                action: erc_action(action),
-                affirmed: erc_action(affirmed),
-                denied: erc_action(denied),
-            },
+        Always(Subcondition(box cond)) => eval_redundant_conditions(cond),
+        Always(act) => Always(erc_action(act)),
+        RangeCompare {
+            value,
+            bound_a,
+            bound_b,
+            affirmed,
+            denied,
+        } => RangeCompare {
+            value: value,
+            bound_a: bound_a,
+            bound_b: bound_b,
+            affirmed: erc_action(affirmed),
+            denied: erc_action(denied),
+        },
+        BinCompare {
+            operation,
+            lhs,
+            rhs,
+            affirmed,
+            denied,
+        } => BinCompare {
+            operation: operation,
+            lhs: lhs,
+            rhs: rhs,
+            affirmed: erc_action(affirmed),
+            denied: erc_action(denied),
+        },
+        ActionCompare {
+            actor_type,
+            action,
+            affirmed,
+            denied,
+        } => ActionCompare {
+            actor_type: actor_type,
+            action: erc_action(action),
+            affirmed: erc_action(affirmed),
+            denied: erc_action(denied),
+        },
     }
 }
 
 fn erc_action(act: ast::Action) -> ast::Action {
     use dna::ast::Action::Subcondition;
     match act {
-        Subcondition(box cond) =>
-            Subcondition(Box::new(eval_redundant_conditions(cond))),
-        otherwise => otherwise
+        Subcondition(box cond) => Subcondition(Box::new(eval_redundant_conditions(cond))),
+        otherwise => otherwise,
     }
 }
 
@@ -178,9 +202,7 @@ pub struct ThoughtCycle {
     pub cycle_offset: usize,
 }
 
-
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
-
     let f = |offset: usize| -> usize {
         let mut parser = parsing::Parser::new(dna, offset);
         match parser.next().unwrap() {

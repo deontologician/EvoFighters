@@ -1,12 +1,12 @@
 use std::convert::From;
-use std::ops::{Index,IndexMut};
+use std::ops::{Index, IndexMut};
 use std::mem;
 
 use settings;
-use saver::{RngState, GlobalStatistics};
+use saver::{GlobalStatistics, RngState};
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct Gene([i8;5]);
+pub struct Gene([i8; 5]);
 
 impl Gene {
     pub const STOP_CODON: i8 = -1;
@@ -53,46 +53,51 @@ impl Gene {
         }
     }
 
-    pub(super) fn mutate(&mut self, rng: &mut RngState)
-        -> Option<Gene> {
+    pub(super) fn mutate(&mut self, rng: &mut RngState) -> Option<Gene> {
         match rng.rand_range(1, 6) {
-            1 => { // reverse the order of bases in a gene
+            1 => {
+                // reverse the order of bases in a gene
                 self.0.reverse();
                 debug!("reversed gene");
                 None
-            },
-            2 => { // deleting a gene
+            }
+            2 => {
+                // deleting a gene
                 self.clear();
                 debug!("deleted gene");
                 None
-            },
-            3 => { // Create a new gene, and set one base in it to a random value
+            }
+            3 => {
+                // Create a new gene, and set one base in it to a random value
                 let index = rng.rand_range(0, Gene::LENGTH);
                 let val = rng.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
                 debug!("created a new gene with base {} at index {}", val, index);
                 let mut new_gene = Gene::new();
                 new_gene.0[index] = val;
                 Some(new_gene)
-            },
-            4 => { // increment a base in a gene, modulo the
+            }
+            4 => {
+                // increment a base in a gene, modulo the
                 // max gene value
                 let inc = rng.rand_range(1, 3);
                 let index = rng.rand_range(0, Gene::LENGTH);
-                let new_base = (self.0[index] + 1 + inc) %
-                    (settings::MAX_GENE_VALUE + 2) - 1;
-                debug!("added {} to base at {} with val {} to get {}",
-                        inc, index, self.0[index], new_base);
+                let new_base = (self.0[index] + 1 + inc) % (settings::MAX_GENE_VALUE + 2) - 1;
+                debug!(
+                    "added {} to base at {} with val {} to get {}",
+                    inc, index, self.0[index], new_base
+                );
                 self.0[index] = new_base;
                 None
-            },
-            5 => { // swap two bases in the gene
+            }
+            5 => {
+                // swap two bases in the gene
                 let i1 = rng.rand_range(0, Gene::LENGTH);
                 let i2 = rng.rand_range(0, Gene::LENGTH);
                 self.0.swap(i1, i2);
                 debug!("swapped bases {} and {}", i1, i2);
                 None
-            },
-            _ => panic!("Impossible. number between 1 and 6 exclusive")
+            }
+            _ => unreachable!()
         }
     }
 }
@@ -149,9 +154,11 @@ impl DNA {
         !self.0.is_empty() && self.0.iter().all(|&gene| gene.valid())
     }
 
-    pub fn combine(mother: &mut DNA,
-                   father: &mut DNA,
-                   rng: &mut RngState) -> (DNA, GlobalStatistics) {
+    pub fn combine(
+        mother: &mut DNA,
+        father: &mut DNA,
+        rng: &mut RngState,
+    ) -> (DNA, GlobalStatistics) {
         let mut m_iter = mother.0.clone().into_iter();
         let mut f_iter = father.0.clone().into_iter();
         let mut child_genes = Vec::new();
@@ -164,11 +171,7 @@ impl DNA {
             if gene1.invalid() && gene2.invalid() {
                 break;
             }
-            child_genes.push(if rng.rand() {
-                gene1
-            } else {
-                gene2
-            });
+            child_genes.push(if rng.rand() { gene1 } else { gene2 });
         }
         if rng.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
             DNA::mutate(&mut child_genes, rng);
@@ -178,8 +181,7 @@ impl DNA {
     }
 
     fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState) {
-        if rng.rand_weighted_bool(
-            (10000.0/settings::MUTATION_RATE) as u32) {
+        if rng.rand_weighted_bool((10000.0 / settings::MUTATION_RATE) as u32) {
             DNA::genome_level_mutation(genes, rng)
         } else {
             let index = rng.rand_range(0, genes.len());
@@ -195,33 +197,39 @@ impl DNA {
 
     fn genome_level_mutation(genome: &mut Vec<Gene>, rng: &mut RngState) {
         match rng.rand_range(1, 4) {
-            1 => { // swap two genes
+            1 => {
+                // swap two genes
                 let i1 = rng.rand_range(0, genome.len());
                 let i2 = rng.rand_range(0, genome.len());
                 debug!("swapped genes {} and {}", i1, i2);
                 genome.as_mut_slice().swap(i1, i2);
-            },
-            2 => { // double a gene
+            }
+            2 => {
+                // double a gene
                 let i = rng.rand_range(0, genome.len());
                 let gene = genome[i];
                 debug!("doubled gene {}", i);
                 genome.insert(i, gene);
-            },
-            3 => { // deletes a gene
+            }
+            3 => {
+                // deletes a gene
                 let i = rng.rand_range(0, genome.len());
                 debug!("Deleted gene {}", i);
                 // Avoid shifting items if we can
                 genome.remove(i);
-            },
-            _ => panic!("Generated in range 1 - 3! Should not reach.")
+            }
+            _ => panic!("Generated in range 1 - 3! Should not reach."),
         }
     }
-
 }
 
 impl From<Vec<i8>> for DNA {
     fn from(other: Vec<i8>) -> DNA {
-        let capacity_needed = other.len() + if other.len() / Gene::LENGTH == 0 { 0 } else { 1 };
+        let capacity_needed = other.len() + if other.len() / Gene::LENGTH == 0 {
+            0
+        } else {
+            1
+        };
         let mut newvec: Vec<Gene> = Vec::with_capacity(capacity_needed);
         let mut current_gene = Gene::new();
         let mut current_index = 0;
@@ -275,7 +283,6 @@ impl Iterator for DNAIter {
     }
 }
 
-
 /// The lexical module is for raw enums that are used as tokens from
 /// the `DNA`, and are fed to the parser.
 pub mod lex {
@@ -327,7 +334,6 @@ pub mod lex {
             // pay attention to settings::MAX_GENE_VALUE if adding items
         }
     }
-
 
     enum_from_primitive! {
         #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
@@ -443,7 +449,10 @@ pub mod ast {
 
     #[derive(PartialEq, Eq, Debug, Copy, Clone, Serialize, Deserialize)]
     pub enum BinOp {
-        LT, GT, EQ, NE
+        LT,
+        GT,
+        EQ,
+        NE,
     }
 
     impl fmt::Display for BinOp {
@@ -459,7 +468,8 @@ pub mod ast {
 
     #[derive(PartialEq, Eq, Debug, Copy, Clone, Serialize, Deserialize)]
     pub enum ActorType {
-        Me, Other
+        Me,
+        Other,
     }
 
     #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -484,7 +494,7 @@ pub mod ast {
             action: Action,
             affirmed: Action,
             denied: Action,
-        }
+        },
     }
 
     #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -498,8 +508,7 @@ pub mod ast {
     impl fmt::Display for Value {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match *self {
-                Value::Literal(lit) =>
-                    write!(f, "{}", lit),
+                Value::Literal(lit) => write!(f, "{}", lit),
                 Value::Random => write!(f, "a random number"),
                 Value::Me(ref attr) => write!(f, "my {}", attr),
                 Value::Other(ref attr) => write!(f, "my target's {}", attr),
@@ -517,6 +526,6 @@ pub mod ast {
         Take,
         Mate,
         Wait,
-        Flee
+        Flee,
     }
 }

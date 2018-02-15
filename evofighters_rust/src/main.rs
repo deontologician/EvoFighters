@@ -1,16 +1,19 @@
 #![feature(box_patterns)]
 #![feature(nll)]
 
-extern crate time;
-extern crate rand;
-#[macro_use] extern crate enum_primitive;
+#[macro_use]
+extern crate enum_primitive;
 extern crate num;
-#[macro_use] extern crate serde_derive;
-extern crate serde_json;
+extern crate rand;
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+extern crate time;
 extern crate xz2;
 
-#[macro_use] pub mod util;
+#[macro_use]
+pub mod util;
 pub mod dna;
 pub mod parsing;
 pub mod eval;
@@ -25,12 +28,11 @@ use std::env;
 use creatures::Creatures;
 use arena::Arena;
 
-
 fn main() {
     let mut args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         run_simulation();
-        return
+        return;
     }
     let command = args[1].clone();
     match command.as_ref() {
@@ -50,11 +52,10 @@ fn run_simulation() {
 }
 
 fn cycle_check(args: &[String]) {
-
     let dna_args: dna::DNA = dna::DNA::from(
         args.iter()
             .map(|x| x.parse().expect("Well that wasn't an integer"))
-            .collect::<Vec<i8>>()
+            .collect::<Vec<i8>>(),
     );
     match simplify::cycle_detect(&dna_args) {
         Ok(_thought_cycle) => println!("Got a cycle!"),

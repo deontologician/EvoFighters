@@ -3,7 +3,7 @@ use std::option::Option::*;
 use std::convert::From;
 use num::FromPrimitive;
 
-use dna::{lex,ast,DNA,DNAIter};
+use dna::{ast, lex, DNAIter, DNA};
 use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -47,13 +47,13 @@ fn feeder_decision() -> Thought {
 
 pub fn icount(thought: &Thought) -> usize {
     match *thought {
-        Ok(Decision{icount, ..}) | Err(Indecision{icount, ..}) => icount,
+        Ok(Decision { icount, .. }) | Err(Indecision { icount, .. }) => icount,
     }
 }
 
 pub fn skipped(thought: &Thought) -> usize {
     match *thought {
-        Ok(Decision{skipped, ..}) | Err(Indecision{skipped, ..}) => skipped,
+        Ok(Decision { skipped, .. }) | Err(Indecision { skipped, .. }) => skipped,
     }
 }
 
@@ -86,7 +86,7 @@ impl Parser {
         Parser {
             icount: 0,
             skipped: 0,
-            dna_stream : DNA::feeder().base_stream(0),
+            dna_stream: DNA::feeder().base_stream(0),
             depth: 0,
             for_feeder: true,
         }
@@ -98,15 +98,14 @@ impl Parser {
 
     fn next_valid<T: FromPrimitive>(&mut self, minimum: i8) -> ParseResult<T> {
         let mut next_i8 = self.dna_stream.next();
-        let mut next_val : Option<T> =
-            next_i8.and_then(FromPrimitive::from_i8);
+        let mut next_val: Option<T> = next_i8.and_then(FromPrimitive::from_i8);
         self.icount += 1;
         while next_val.is_none() || next_i8.unwrap() < minimum {
             next_i8 = self.dna_stream.next();
             next_val = next_i8.and_then(FromPrimitive::from_i8);
             self.skipped += 1;
             if self.icount + self.skipped > settings::MAX_THINKING_STEPS {
-                return Err(Failure::TookTooLong)
+                return Err(Failure::TookTooLong);
             }
         }
         Ok(next_val.unwrap())
@@ -114,48 +113,45 @@ impl Parser {
 
     fn parse_condition(&mut self) -> ParseResult<Box<ast::Condition>> {
         if self.depth > settings::MAX_TREE_DEPTH {
-            return Err(Failure::ParseTreeTooDeep)
+            return Err(Failure::ParseTreeTooDeep);
         }
         Ok(Box::new(match self.next_valid(0)? {
-            lex::Condition::Always =>
-                ast::Condition::Always(self.parse_action()?),
-            lex::Condition::InRange =>
-                ast::Condition::RangeCompare {
-                    value: self.parse_value()?,
-                    bound_a: self.parse_value()?,
-                    bound_b: self.parse_value()?,
-                    affirmed: self.parse_action()?,
-                    denied: self.parse_action()?,
+            lex::Condition::Always => ast::Condition::Always(self.parse_action()?),
+            lex::Condition::InRange => ast::Condition::RangeCompare {
+                value: self.parse_value()?,
+                bound_a: self.parse_value()?,
+                bound_b: self.parse_value()?,
+                affirmed: self.parse_action()?,
+                denied: self.parse_action()?,
+            },
+            cnd @ lex::Condition::LessThan
+            | cnd @ lex::Condition::GreaterThan
+            | cnd @ lex::Condition::EqualTo
+            | cnd @ lex::Condition::NotEqualTo => ast::Condition::BinCompare {
+                operation: match cnd {
+                    lex::Condition::LessThan => ast::BinOp::LT,
+                    lex::Condition::GreaterThan => ast::BinOp::GT,
+                    lex::Condition::EqualTo => ast::BinOp::EQ,
+                    lex::Condition::NotEqualTo => ast::BinOp::NE,
+                    _ => panic!("Not possible"),
                 },
-            cnd @ lex::Condition::LessThan |
-            cnd @ lex::Condition::GreaterThan |
-            cnd @ lex::Condition::EqualTo |
-            cnd @ lex::Condition::NotEqualTo =>
-                ast::Condition::BinCompare {
-                    operation: match cnd {
-                        lex::Condition::LessThan => ast::BinOp::LT,
-                        lex::Condition::GreaterThan => ast::BinOp::GT,
-                        lex::Condition::EqualTo => ast::BinOp::EQ,
-                        lex::Condition::NotEqualTo => ast::BinOp::NE,
-                        _ => panic!("Not possible")
-                    },
-                    lhs: self.parse_value()?,
-                    rhs: self.parse_value()?,
-                    affirmed: self.parse_action()?,
-                    denied: self.parse_action()?,
-                },
-            actor @ lex::Condition::MyLastAction |
-            actor @ lex::Condition::OtherLastAction =>
+                lhs: self.parse_value()?,
+                rhs: self.parse_value()?,
+                affirmed: self.parse_action()?,
+                denied: self.parse_action()?,
+            },
+            actor @ lex::Condition::MyLastAction | actor @ lex::Condition::OtherLastAction => {
                 ast::Condition::ActionCompare {
                     actor_type: match actor {
                         lex::Condition::MyLastAction => ast::ActorType::Me,
                         lex::Condition::OtherLastAction => ast::ActorType::Other,
-                        _ => panic!("Not possible")
+                        _ => panic!("Not possible"),
                     },
                     action: self.parse_action()?,
                     affirmed: self.parse_action()?,
                     denied: self.parse_action()?,
                 }
+            }
         }))
     }
 
@@ -163,28 +159,27 @@ impl Parser {
         Ok(match self.next_valid(0)? {
             lex::Action::Subcondition => {
                 self.depth += 1;
-                let subcond = ast::Action::Subcondition(
-                    self.parse_condition()?);
+                let subcond = ast::Action::Subcondition(self.parse_condition()?);
                 self.depth -= 1;
                 subcond
-            },
+            }
             lex::Action::Attack => ast::Action::Attack(self.next_valid(0)?),
             lex::Action::Defend => ast::Action::Defend(self.next_valid(0)?),
             lex::Action::Signal => ast::Action::Signal(self.next_valid(0)?),
-            lex::Action::Eat    => ast::Action::Eat,
-            lex::Action::Take   => ast::Action::Take,
-            lex::Action::Mate   => ast::Action::Mate,
-            lex::Action::Wait   => ast::Action::Wait,
-            lex::Action::Flee   => ast::Action::Flee,
+            lex::Action::Eat => ast::Action::Eat,
+            lex::Action::Take => ast::Action::Take,
+            lex::Action::Mate => ast::Action::Mate,
+            lex::Action::Wait => ast::Action::Wait,
+            lex::Action::Flee => ast::Action::Flee,
         })
     }
 
     fn parse_value(&mut self) -> ParseResult<ast::Value> {
         Ok(match self.next_valid(0)? {
             lex::Value::Literal => ast::Value::Literal(self.next_valid(0)?),
-            lex::Value::Random  => ast::Value::Random,
-            lex::Value::Me      => ast::Value::Me(self.next_valid(0)?),
-            lex::Value::Other   => ast::Value::Other(self.next_valid(0)?),
+            lex::Value::Random => ast::Value::Random,
+            lex::Value::Me => ast::Value::Me(self.next_valid(0)?),
+            lex::Value::Other => ast::Value::Other(self.next_valid(0)?),
         })
     }
 }
@@ -207,7 +202,7 @@ impl Iterator for Parser {
                 skipped: self.skipped,
                 tree: tree,
                 offset: self.current_offset(),
-            })
+            }),
         });
         // Reset counts so the creatures get a new budget next time!
         self.icount = 0;

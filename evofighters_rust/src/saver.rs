@@ -7,7 +7,7 @@ use xz2::write::XzEncoder;
 use xz2::read::XzDecoder;
 
 use rand;
-use rand::{Rng,ThreadRng,Rand};
+use rand::{Rand, Rng, ThreadRng};
 use rand::distributions;
 use rand::distributions::range::SampleRange;
 
@@ -50,7 +50,6 @@ pub struct SaveFile {
     settings: Settings,
 }
 
-
 #[derive(Debug, Serialize)]
 struct SerializableSaveFile<'a> {
     creatures: &'a Creatures,
@@ -75,18 +74,14 @@ impl SaveFile {
     }
 
     /// Save the current file to disk
-    pub fn save(&mut self, creatures: &Creatures, stats: &GlobalStatistics)
-                -> Result<(), Error> {
+    pub fn save(&mut self, creatures: &Creatures, stats: &GlobalStatistics) -> Result<(), Error> {
         let contents = SerializableSaveFile {
             creatures,
             stats: stats.to_owned(),
             settings: self.settings.to_owned(),
         };
         // Create a writer
-        let compressor = XzEncoder::new(
-            File::create(&self.filename)?,
-            SaveFile::COMPRESSION_LEVEL,
-        );
+        let compressor = XzEncoder::new(File::create(&self.filename)?, SaveFile::COMPRESSION_LEVEL);
         serde_json::to_writer(compressor, &contents)?;
         Ok(())
     }
@@ -101,7 +96,7 @@ impl SaveFile {
 
 #[derive(Debug)]
 pub struct RngState {
-    rng: ThreadRng
+    rng: ThreadRng,
 }
 
 impl Default for RngState {
@@ -121,8 +116,7 @@ impl RngState {
         self.rng.gen()
     }
 
-    pub fn rand_range<T: PartialOrd + SampleRange>(
-        &mut self, low: T, high: T) -> T {
+    pub fn rand_range<T: PartialOrd + SampleRange>(&mut self, low: T, high: T) -> T {
         if low == high {
             low
         } else {
