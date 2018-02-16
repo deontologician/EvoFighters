@@ -1,6 +1,7 @@
 #![feature(box_patterns)]
 #![feature(nll)]
 
+extern crate clap;
 #[macro_use]
 extern crate enum_primitive;
 extern crate num;
@@ -23,24 +24,48 @@ pub mod arena;
 pub mod simplify;
 pub mod saver;
 
-use std::env;
-
 use creatures::Creatures;
 use arena::Arena;
 use saver::SaveFile;
 
 fn main() {
-    let mut args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        run_simulation("evofighters.save");
-        return;
+    let app = parse_args();
+
+    match app.subcommand() {
+        ("cycle-check", Some(check)) => cycle_check(check.values_of("bases").unwrap()),
+        _ => run_simulation(app.value_of("savefile").unwrap()),
     }
-    let command = args[1].clone();
-    match command.as_ref() {
-        "simulate" => run_simulation("evofighters.save"),
-        "cycle-check" => cycle_check(&args.split_off(2)),
-        _ => println!("Unrecognized command."),
-    }
+}
+
+fn parse_args() -> clap::ArgMatches<'static> {
+    clap::App::new("evofighters")
+        .version("1.0")
+        .author("Josh Kuhn <deontologician@gmail.com>")
+        .about("Evolving fighting bots")
+        .arg(
+            clap::Arg::with_name("savefile")
+                .short("f")
+                .long("file")
+                .default_value("evofighters.evo")
+                .value_name("SAVEFILE")
+                .help("Name of save file")
+                .takes_value(true),
+        )
+        .subcommand(
+            clap::SubCommand::with_name("simulate")
+                .about("Main command. Runs an evofighters simulation"),
+        )
+        .subcommand(
+            clap::SubCommand::with_name("cycle-check")
+                .about("Does a cycle detection on the given bases")
+                .arg(
+                    clap::Arg::with_name("bases")
+                        .required(true)
+                        .multiple(true)
+                        .value_name("BASE"),
+                ),
+        )
+        .get_matches()
 }
 
 fn run_simulation(filename: &str) {
@@ -59,9 +84,9 @@ fn run_simulation(filename: &str) {
     arena.simulate()
 }
 
-fn cycle_check(args: &[String]) {
+fn cycle_check(bases: clap::Values) {
     let dna_args: dna::DNA = dna::DNA::from(
-        args.iter()
+        bases
             .map(|x| x.parse().expect("Well that wasn't an integer"))
             .collect::<Vec<i8>>(),
     );

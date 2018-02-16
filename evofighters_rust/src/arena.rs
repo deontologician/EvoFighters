@@ -289,9 +289,7 @@ impl Arena {
     pub fn from_file(save_file: DeserializableSaveFile, filename: &str) -> Arena {
         // TODO: actually use the settings
         let DeserializableSaveFile {
-            creatures,
-            stats,
-            ..
+            creatures, stats, ..
         } = save_file;
         let mut arena = Arena::new(creatures, filename);
         arena.stats = stats;
