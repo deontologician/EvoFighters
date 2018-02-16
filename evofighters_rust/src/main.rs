@@ -38,7 +38,13 @@ fn main() {
 }
 
 fn parse_args() -> clap::ArgMatches<'static> {
-    clap::App::new("evofighters")
+    clap::App::new(
+r"   __             ___
+  /              /    /      /    /
+ (___       ___ (___    ___ (___ (___  ___  ___  ___
+ |     \  )|   )|    | |   )|   )|    |___)|   )|___
+ |__    \/ |__/ |    | |__/ |  / |__  |__  |     __/
+                       __/ ")
         .version("1.0")
         .author("Josh Kuhn <deontologician@gmail.com>")
         .about("Evolving fighting bots")
