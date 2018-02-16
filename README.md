@@ -31,7 +31,7 @@ fundamentally about little bots with a very simple fighting
 system. They attack, defend, pick up items, and occasionally try to
 mate with each other.
 
-When they mate, they combine their dna similar to how sexually
+When they mate, they combine their dna similar to how sexually reproducing
 organisms in real life do, randomly selecting genes from each of the
 two parents. There's a chance of different kinds of mutations like
 gene swaps, transcription errors and the like.
