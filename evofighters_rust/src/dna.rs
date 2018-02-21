@@ -2,6 +2,7 @@ use std::convert::From;
 use std::ops::{Index, IndexMut};
 use std::mem;
 use std::hash::Hasher;
+use std::slice::Iter;
 
 use twox_hash::XxHash32;
 
@@ -54,6 +55,10 @@ impl Gene {
         for elem in &mut self.0 {
             *elem = Gene::STOP_CODON
         }
+    }
+
+    pub fn iter(&self) -> Iter<i8> {
+        self.0.iter()
     }
 
     pub(super) fn mutate(&mut self, rng: &mut RngState) -> Option<Gene> {
@@ -238,8 +243,8 @@ impl DNA {
     pub fn seeded_hash(&self, seed: u32) -> u32 {
         let mut hasher = XxHash32::with_seed(seed);
         for gene in &self.0 {
-            for i in 0..Gene::LENGTH {
-                hasher.write_i8(gene[i])
+            for base in gene.iter() {
+                hasher.write_i8(*base)
             }
         }
         hasher.finish() as u32

@@ -465,7 +465,7 @@ impl Creatures {
         self.creatures.is_empty()
     }
 
-    pub fn spawn_feeders(&mut self) {
+    pub fn refill_feeders(&mut self) {
         if self.len() + self.feeder_count < self.max_pop_size {
             self.feeder_count =
                 self.max_pop_size - (self.feeder_count + self.len());
@@ -506,5 +506,9 @@ impl Creatures {
         for creature in creats {
             self.absorb(creature)
         }
+    }
+
+    pub fn shuffle(&mut self) {
+        self.rng.shuffle(self.creatures.as_mut_slice())
     }
 }

@@ -156,6 +156,10 @@ impl RngState {
     pub fn rand_weighted_bool(&mut self, n: u32) -> bool {
         self.rng.gen_weighted_bool(n)
     }
+
+    pub fn shuffle<T>(&mut self, values: &mut [T]) {
+        self.rng.shuffle(values)
+    }
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug, Default)]

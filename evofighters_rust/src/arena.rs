@@ -334,29 +334,30 @@ impl Arena {
         }
     }
 
+    fn maybe_save(&mut self) {
+        if self.rates.events_per_second > 0
+            && self.rates.events_per_second * 30
+            <= self.events_since_last_save
+        {
+            println!(
+                "\nHit {} out of estimated {} events, one moment...",
+                self.rates.events_per_second * 30,
+                self.events_since_last_save,
+            );
+            // TODO: handle failed saves gracefully?
+            self.save_file.save(&self.population, &self.stats).unwrap();
+            println!("Saved to file");
+            self.events_since_last_save = 0;
+        }
+    }
+
     pub fn simulate(&mut self) {
         let mut timestamp = Instant::now();
         self.sim_status = SimStatus::EverythingRunningFine;
-        loop {
+        while self.population.len() >= 2 {
             timestamp = self.maybe_print_status(timestamp);
-            if self.population.len() < 2 {
-                self.sim_status = SimStatus::NotEnoughCreatures;
-                break;
-            }
-            if self.rates.events_per_second > 0
-                && self.rates.events_per_second * 30
-                    <= self.events_since_last_save
-            {
-                println!(
-                    "\nHit {} out of estimated {} events, one moment...",
-                    self.rates.events_per_second * 30,
-                    self.events_since_last_save,
-                );
-                self.save_file.save(&self.population, &self.stats).unwrap();
-                println!("Saved to file");
-                self.events_since_last_save = 0;
-            }
-            self.population.spawn_feeders();
+            self.maybe_save();
+            self.population.refill_feeders();
             let p1 = self.population.random_creature();
             let p2 = self.population.random_creature_or_feeder();
 
@@ -382,6 +383,7 @@ impl Arena {
             self.events_since_last_save += 1;
             self.events_since_last_print += 1;
         }
+        self.sim_status = SimStatus::NotEnoughCreatures;
         match self.sim_status {
             SimStatus::NotEnoughCreatures => {
                 println!(
