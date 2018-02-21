@@ -6,12 +6,11 @@ use serde_json;
 use xz2::write::XzEncoder;
 use xz2::read::XzDecoder;
 
-use rand;
-use rand::{Rand, Rng, ThreadRng};
+use rand::{Rand, Rng, SeedableRng, XorShiftRng};
 use rand::distributions;
 use rand::distributions::range::SampleRange;
 
-use creatures::Creatures;
+use creatures::{Creature, CreatureID, Creatures};
 use settings;
 
 #[derive(Debug, Deserialize, Serialize, Copy, Clone)]
@@ -25,7 +24,6 @@ pub struct Settings {
     max_gene_value: i8,
     winner_life_bonus: usize,
     max_population_size: usize,
-    gene_min_size: usize,
 }
 
 impl Default for Settings {
@@ -40,7 +38,6 @@ impl Default for Settings {
             max_gene_value: settings::MAX_GENE_VALUE,
             winner_life_bonus: settings::WINNER_LIFE_BONUS,
             max_population_size: settings::MAX_POPULATION_SIZE,
-            gene_min_size: settings::GENE_MIN_SIZE,
         }
     }
 }
@@ -74,14 +71,21 @@ impl SaveFile {
     }
 
     /// Save the current file to disk
-    pub fn save(&mut self, creatures: &Creatures, stats: &GlobalStatistics) -> Result<(), Error> {
+    pub fn save(
+        &mut self,
+        creatures: &Creatures,
+        stats: &GlobalStatistics,
+    ) -> Result<(), Error> {
         let contents = SerializableSaveFile {
             creatures,
             stats: stats.to_owned(),
             settings: self.settings.to_owned(),
         };
         // Create a writer
-        let compressor = XzEncoder::new(File::create(&self.filename)?, SaveFile::COMPRESSION_LEVEL);
+        let compressor = XzEncoder::new(
+            File::create(&self.filename)?,
+            SaveFile::COMPRESSION_LEVEL,
+        );
         serde_json::to_writer(compressor, &contents)?;
         Ok(())
     }
@@ -94,29 +98,48 @@ impl SaveFile {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RngState {
-    rng: ThreadRng,
+    rng: XorShiftRng,
 }
 
 impl Default for RngState {
     fn default() -> RngState {
-        RngState::new()
+        RngState::new(11, 17, 23, 51)
     }
 }
 
 impl RngState {
-    pub fn new() -> RngState {
+    pub fn new(a: u32, b: u32, c: u32, d: u32) -> RngState {
         RngState {
-            rng: rand::thread_rng(),
+            rng: SeedableRng::from_seed([a, b, c, d]),
         }
+    }
+
+    pub fn from_creatures(a: &Creature, b: &Creature) -> RngState {
+        let a_p = CreatureID::parents_to_u32(a.parents);
+        let b_p = CreatureID::parents_to_u32(b.parents);
+        RngState::new(
+            a_p,
+            b_p,
+            a.hash(),
+            b.hash(),
+        )
+    }
+
+    pub fn spawn(&mut self) -> RngState {
+        RngState::new(self.rand(), self.rand(), self.rand(), self.rand())
     }
 
     pub fn rand<T: Rand>(&mut self) -> T {
         self.rng.gen()
     }
 
-    pub fn rand_range<T: PartialOrd + SampleRange>(&mut self, low: T, high: T) -> T {
+    pub fn rand_range<T: PartialOrd + SampleRange>(
+        &mut self,
+        low: T,
+        high: T,
+    ) -> T {
         if low == high {
             low
         } else {

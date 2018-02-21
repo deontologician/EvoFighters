@@ -8,7 +8,6 @@ pub static MAX_GENE_VALUE: i8 = 8;
 pub static WINNER_LIFE_BONUS: usize = 5;
 pub static MAX_POPULATION_SIZE: usize = 120_000;
 pub static VERBOSITY: usize = 3;
-pub static GENE_MIN_SIZE: usize = 7;
 pub static DISPLAY_FPS: f64 = 30.0;
 pub static INITIAL_EVENTS_PER_SECOND_GUESS: u64 = 10_000;
 pub static MOVING_AVERAGE_DECAY: f64 = 0.001;

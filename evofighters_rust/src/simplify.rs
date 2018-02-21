@@ -134,7 +134,9 @@ fn esc_action(act: ast::Action) -> ast::Action {
     use dna::ast::Condition::Always;
     match act {
         Subcondition(box Always(act)) => esc_action(act),
-        Subcondition(box cond) => Subcondition(Box::new(eval_static_conditionals(cond))),
+        Subcondition(box cond) => {
+            Subcondition(Box::new(eval_static_conditionals(cond)))
+        }
         otherwise => otherwise,
     }
 }
@@ -192,7 +194,9 @@ fn eval_redundant_conditions(cond: ast::Condition) -> ast::Condition {
 fn erc_action(act: ast::Action) -> ast::Action {
     use dna::ast::Action::Subcondition;
     match act {
-        Subcondition(box cond) => Subcondition(Box::new(eval_redundant_conditions(cond))),
+        Subcondition(box cond) => {
+            Subcondition(Box::new(eval_redundant_conditions(cond)))
+        }
         otherwise => otherwise,
     }
 }

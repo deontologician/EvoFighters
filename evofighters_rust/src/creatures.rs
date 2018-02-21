@@ -2,18 +2,80 @@ use std::fmt;
 use std::cmp::{max, min};
 
 use dna;
+use dna::lex;
 use eval;
 use parsing;
 use settings;
 use arena;
 use saver::{GlobalStatistics, RngState};
 
-static FEEDER_ID: usize = 0;
-
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Liveness {
     Alive,
     Dead,
+}
+
+#[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct CreatureID(u64);
+
+impl CreatureID {
+
+    pub fn feeder() -> CreatureID {
+        CreatureID(0)
+    }
+
+    pub fn is_feeder(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub(crate) fn parents_to_u32(
+        (CreatureID(p1), CreatureID(p2)): (CreatureID, CreatureID),
+    ) -> u32 {
+        let p1_prime: u32 = (p1 ^ (p1 >> 16)) as u32;
+        let p2_prime: u32 = (p2 ^ (p2 << 16)) as u32;
+        p1_prime ^ p2_prime
+    }
+}
+
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
+pub struct IDGiver {
+    next_id_to_give_out: u64,
+    modulus: u64,
+}
+
+impl IDGiver {
+    fn new(start: u64, modulus: u64) -> IDGiver {
+        IDGiver {
+            next_id_to_give_out: start,
+            modulus,
+        }
+    }
+
+    pub fn unthreaded() -> IDGiver {
+        IDGiver::new(1, 1)
+    }
+
+    pub fn per_thread(num_threads: usize) -> Vec<IDGiver> {
+        assert!(
+            num_threads > 0,
+            "IDGiver::create must be called with size > 0"
+        );
+        let mut vec = Vec::with_capacity(num_threads);
+        let nt = num_threads as u64; // avoid a ton of casts
+                                     // next_id_to_give_out can never be zero, since that's the
+                                     // feeder id.
+        vec.push(IDGiver::new(nt, nt));
+        for i in 1..(nt) {
+            vec.push(IDGiver::new(i, nt))
+        }
+        vec
+    }
+
+    pub fn next_creature_id(&mut self) -> CreatureID {
+        let id = self.next_id_to_give_out;
+        self.next_id_to_give_out += self.modulus;
+        CreatureID(id)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -29,9 +91,9 @@ pub struct Creature {
     pub instr_used: usize,
     pub instr_skipped: usize,
     pub last_action: eval::PerformableAction,
-    pub id: usize,
+    pub id: CreatureID,
     pub eaten: usize,
-    pub parents: (usize, usize),
+    pub parents: (CreatureID, CreatureID),
 }
 
 impl fmt::Display for Creature {
@@ -39,17 +101,17 @@ impl fmt::Display for Creature {
         if self.is_feeder() {
             write!(f, "[Feeder]")
         } else {
-            write!(f, "[Creature {}]", self.id)
+            write!(f, "[Creature {}]", self.id.0)
         }
     }
 }
 
 impl Creature {
-    pub(in creatures) fn new(
-        id: usize,
+    fn new(
+        id: CreatureID,
         dna: dna::DNA,
         generation: usize,
-        parents: (usize, usize),
+        parents: (CreatureID, CreatureID),
     ) -> Creature {
         Creature {
             dna: dna,
@@ -69,7 +131,7 @@ impl Creature {
         }
     }
 
-    pub fn seed_creature(id: usize) -> Creature {
+    pub fn seed_creature(id: CreatureID) -> Creature {
         Creature {
             dna: dna::DNA::seed(),
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
@@ -82,23 +144,30 @@ impl Creature {
             instr_used: 0,
             instr_skipped: 0,
             last_action: eval::PerformableAction::NoAction,
-            id: id,
+            id,
             eaten: 0,
-            parents: (0, 0),
+            parents: (CreatureID(0), CreatureID(0)),
         }
+    }
+
+    pub fn hash(&self) -> u32 {
+        self.dna.seeded_hash(CreatureID::parents_to_u32(self.parents))
     }
 
     pub fn iter(&self) -> parsing::Parser {
         if self.is_feeder() {
             parsing::Parser::feeder_new()
         } else {
-            parsing::Parser::new(&self.dna, self.instr_used + self.instr_skipped)
+            parsing::Parser::new(
+                &self.dna,
+                self.instr_used + self.instr_skipped,
+            )
         }
     }
 
     pub fn feeder() -> Creature {
         Creature {
-            id: FEEDER_ID,
+            id: CreatureID::feeder(),
             dna: dna::DNA::feeder(),
             inv: vec![dna::lex::Item::Food],
             energy: 1,
@@ -111,12 +180,30 @@ impl Creature {
             instr_skipped: 0,
             last_action: eval::PerformableAction::NoAction,
             eaten: 0,
-            parents: (0, 0),
+            parents: (CreatureID(0), CreatureID(0)),
         }
     }
 
     pub fn is_feeder(&self) -> bool {
-        self.id == FEEDER_ID
+        self.id.is_feeder()
+    }
+
+    pub fn attr(&self, attr: lex::Attribute) -> usize {
+        match attr {
+            lex::Attribute::Energy => self.energy(),
+            lex::Attribute::Signal => match self.signal {
+                Some(sig) => sig as usize,
+                None => 0,
+            },
+            lex::Attribute::Generation => self.generation,
+            lex::Attribute::Kills => self.kills,
+            lex::Attribute::Survived => self.survived,
+            lex::Attribute::NumChildren => self.num_children,
+            lex::Attribute::TopItem => match self.top_item() {
+                Some(item) => item as usize,
+                None => 0,
+            },
+        }
     }
 
     fn has_items(&self) -> bool {
@@ -158,7 +245,7 @@ impl Creature {
         self.gain_energy(energy_gain)
     }
 
-    pub(in creatures) fn valid(&self) -> bool {
+    pub fn valid(&self) -> bool {
         // TODO: do compilation here, check if the creature has an
         // infinite cycle or parse stack too deep up front instead of
         // letting it live.
@@ -208,8 +295,27 @@ impl Creature {
         }
     }
 
+    pub fn mate_with(
+        &mut self,
+        other: &mut Creature,
+        id_giver: &mut IDGiver,
+        rng: &mut RngState,
+    ) -> (Creature, GlobalStatistics) {
+        let (child_dna, stats) = dna::DNA::combine(&self.dna, &other.dna, rng);
+        let child = Creature::new(
+            id_giver.next_creature_id(),                // id
+            child_dna,                                  // dna
+            max(self.generation, other.generation) + 1, // generation
+            (self.id, other.id),                        // parents
+        );
+        self.num_children += 1;
+        other.num_children += 1;
+        (child, stats)
+    }
+
     pub fn pay_for_mating(&mut self, share: usize) -> bool {
-        let mut cost = (settings::MATING_COST as f64 * (share as f64 / 100.0)).round() as isize;
+        let mut cost = (settings::MATING_COST as f64 * (share as f64 / 100.0))
+            .round() as isize;
         while cost > 0 {
             match self.pop_item() {
                 Some(item) => {
@@ -228,7 +334,6 @@ impl Creature {
         &mut self,
         other: &mut Creature,
         action: eval::PerformableAction,
-        rng: &mut RngState,
     ) -> arena::FightStatus {
         if self.is_feeder() {
             debug!("Feeder does nothing");
@@ -252,14 +357,14 @@ impl Creature {
             },
             eval::PerformableAction::Take => match other.pop_item() {
                 Some(item) => {
-                    info!("{} takes {:?} from {}", self, item, other.id);
+                    info!("{} takes {:?} from {}", self, item, other);
                     self.add_item(item);
                 }
                 None => {
                     debug!(
                         "{} tries to take an item from {}, \
                          but there's nothing to take.",
-                        self, other.id
+                        self, other
                     );
                 }
             },
@@ -269,9 +374,10 @@ impl Creature {
                 debug!("{} defends with {:?} fruitlessly", self, dmg)
             }
             eval::PerformableAction::Flee => {
-                let my_roll: f64 = rng.rand_range(0.0, self.energy as f64);
-                let other_roll: f64 = rng.rand_range(0.0, other.energy as f64);
-                let dmg: usize = rng.rand_range(0, 4);
+                let mut rng = RngState::from_creatures(self, other);
+                let my_roll = rng.rand_range(0, self.energy);
+                let other_roll = rng.rand_range(0, other.energy);
+                let dmg = rng.rand_range(0, 4);
                 if other_roll < my_roll {
                     info!(
                         "{} flees the encounter and takes \
@@ -284,7 +390,9 @@ impl Creature {
                     debug!("{} tries to flee, but {} prevents it", self, other);
                 }
             }
-            invalid_action => panic!("Shouldn't have gotten {:?} here", invalid_action),
+            invalid_action => {
+                panic!("Shouldn't have gotten {:?} here", invalid_action)
+            }
         }
         arena::FightStatus::Continue
     }
@@ -293,24 +401,60 @@ impl Creature {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Creatures {
     creatures: Vec<Creature>,
-    last_creature_id: usize,
-    max_population_size: usize,
+    max_pop_size: usize,
     feeder_count: usize,
     #[serde(skip)]
     rng: RngState,
+    id_giver: IDGiver,
 }
 
 impl Creatures {
-    pub fn new(max_population_size: usize) -> Creatures {
+    fn from_pieces(
+        id_giver: IDGiver,
+        max_pop_size: usize,
+        rng: RngState,
+    ) -> Creatures {
+        let mut idgv = id_giver;
+        let creatures = (0..max_pop_size)
+            .map(|_idx| Creature::seed_creature(idgv.next_creature_id()))
+            .collect();
         Creatures {
-            creatures: ((FEEDER_ID + 1)..max_population_size + 1)
-                .map(Creature::seed_creature)
-                .collect(),
-            last_creature_id: FEEDER_ID,
-            max_population_size,
+            creatures,
+            max_pop_size,
             feeder_count: 0,
-            rng: RngState::new(),
+            rng,
+            id_giver,
         }
+    }
+    pub fn new(max_pop_size: usize) -> Creatures {
+        Creatures::from_pieces(
+            IDGiver::unthreaded(),
+            max_pop_size,
+            RngState::default(),
+        )
+    }
+
+    pub fn per_thread(
+        num_threads: usize,
+        max_pop_size: usize,
+    ) -> Vec<Creatures> {
+        assert!(
+            max_pop_size % num_threads == 0,
+            "Max population size must be a multiple of the number of threads"
+        );
+        let pop_per_thread = max_pop_size / num_threads;
+        let mut rng = RngState::default();
+
+        IDGiver::per_thread(num_threads)
+            .into_iter()
+            .map(|id_giver| {
+                Creatures::from_pieces(id_giver, pop_per_thread, rng.spawn())
+            })
+            .collect()
+    }
+
+    pub fn id_giver(&mut self) -> &mut IDGiver {
+        &mut self.id_giver
     }
 
     pub fn len(&self) -> usize {
@@ -322,8 +466,9 @@ impl Creatures {
     }
 
     pub fn spawn_feeders(&mut self) {
-        if self.len() + self.feeder_count < self.max_population_size {
-            self.feeder_count = self.max_population_size - (self.feeder_count + self.len());
+        if self.len() + self.feeder_count < self.max_pop_size {
+            self.feeder_count =
+                self.max_pop_size - (self.feeder_count + self.len());
         }
     }
 
@@ -357,31 +502,9 @@ impl Creatures {
         }
     }
 
-    pub fn mate(
-        &mut self,
-        p1: &mut Creature,
-        p2: &mut Creature,
-    ) -> (Option<Creature>, GlobalStatistics) {
-        let (child_dna, stats) = dna::DNA::combine(&mut p1.dna, &mut p2.dna, &mut self.rng);
-        let child = Creature::new(
-            self.next_creature_id(),               // id
-            child_dna,                             // dna
-            max(p1.generation, p2.generation) + 1, // generation
-            (p1.id, p2.id),                        // parents
-        );
-        p1.num_children += 1;
-        p2.num_children += 1;
-        info!("{} and {} have a child named {}", p1, p2, child);
-        if !child.valid() {
-            info!("But it didn't live since its dna was messed up.");
-            (None, stats)
-        } else {
-            (Some(child), stats)
+    pub fn absorb_all(&mut self, creats: Vec<Creature>) {
+        for creature in creats {
+            self.absorb(creature)
         }
-    }
-
-    fn next_creature_id(&mut self) -> usize {
-        self.last_creature_id += 1;
-        self.last_creature_id
     }
 }

@@ -53,7 +53,9 @@ pub fn icount(thought: &Thought) -> usize {
 
 pub fn skipped(thought: &Thought) -> usize {
     match *thought {
-        Ok(Decision { skipped, .. }) | Err(Indecision { skipped, .. }) => skipped,
+        Ok(Decision { skipped, .. }) | Err(Indecision { skipped, .. }) => {
+            skipped
+        }
     }
 }
 
@@ -116,7 +118,9 @@ impl Parser {
             return Err(Failure::ParseTreeTooDeep);
         }
         Ok(Box::new(match self.next_valid(0)? {
-            lex::Condition::Always => ast::Condition::Always(self.parse_action()?),
+            lex::Condition::Always => {
+                ast::Condition::Always(self.parse_action()?)
+            }
             lex::Condition::InRange => ast::Condition::RangeCompare {
                 value: self.parse_value()?,
                 bound_a: self.parse_value()?,
@@ -140,11 +144,14 @@ impl Parser {
                 affirmed: self.parse_action()?,
                 denied: self.parse_action()?,
             },
-            actor @ lex::Condition::MyLastAction | actor @ lex::Condition::OtherLastAction => {
+            actor @ lex::Condition::MyLastAction
+            | actor @ lex::Condition::OtherLastAction => {
                 ast::Condition::ActionCompare {
                     actor_type: match actor {
                         lex::Condition::MyLastAction => ast::ActorType::Me,
-                        lex::Condition::OtherLastAction => ast::ActorType::Other,
+                        lex::Condition::OtherLastAction => {
+                            ast::ActorType::Other
+                        }
                         _ => panic!("Not possible"),
                     },
                     action: self.parse_action()?,
@@ -159,7 +166,8 @@ impl Parser {
         Ok(match self.next_valid(0)? {
             lex::Action::Subcondition => {
                 self.depth += 1;
-                let subcond = ast::Action::Subcondition(self.parse_condition()?);
+                let subcond =
+                    ast::Action::Subcondition(self.parse_condition()?);
                 self.depth -= 1;
                 subcond
             }

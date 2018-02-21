@@ -6,11 +6,13 @@ extern crate clap;
 extern crate enum_primitive;
 extern crate num;
 extern crate rand;
+extern crate rayon;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate time;
+extern crate twox_hash;
 extern crate xz2;
 
 #[macro_use]
@@ -32,20 +34,22 @@ fn main() {
     let app = parse_args();
 
     match app.subcommand() {
-        ("cycle-check", Some(check)) => cycle_check(check.values_of("bases").unwrap()),
+        ("cycle-check", Some(check)) => {
+            cycle_check(check.values_of("bases").unwrap())
+        }
         _ => run_simulation(app.value_of("savefile").unwrap()),
     }
 }
 
 fn parse_args() -> clap::ArgMatches<'static> {
     clap::App::new(
-r"   __             ___
+        r"   __             ___
   /              /    /      /    /
  (___       ___ (___    ___ (___ (___  ___  ___  ___
  |     \  )|   )|    | |   )|   )|    |___)|   )|___
  |__    \/ |__/ |    | |__/ |  / |__  |__  |     __/
-                       __/ ")
-        .version("1.0")
+                       __/ ",
+    ).version("1.0")
         .author("Josh Kuhn <deontologician@gmail.com>")
         .about("Evolving fighting bots")
         .arg(
@@ -82,7 +86,8 @@ fn run_simulation(filename: &str) {
         }
         Err(_) => {
             println!("Creating initial population");
-            let population: Creatures = Creatures::new(settings::MAX_POPULATION_SIZE);
+            let population: Creatures =
+                Creatures::new(settings::MAX_POPULATION_SIZE);
             println!("Created {} creatures", settings::MAX_POPULATION_SIZE);
             Arena::new(population, filename)
         }

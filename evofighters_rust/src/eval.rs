@@ -3,8 +3,8 @@ use std::cmp::{max, min, PartialEq, PartialOrd};
 
 use dna::{ast, lex};
 use creatures::Creature;
-use settings;
 use saver::RngState;
+use settings;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Debug, Copy, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -23,9 +23,15 @@ pub enum PerformableAction {
 impl fmt::Display for PerformableAction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            PerformableAction::Attack(dmg) => write!(f, "attack with damage type: {:?}", dmg),
-            PerformableAction::Defend(dmg) => write!(f, "defend against damage type: {:?}", dmg),
-            PerformableAction::Signal(sig) => write!(f, "signal with the color: {:?}", sig),
+            PerformableAction::Attack(dmg) => {
+                write!(f, "attack with damage type: {:?}", dmg)
+            }
+            PerformableAction::Defend(dmg) => {
+                write!(f, "defend against damage type: {:?}", dmg)
+            }
+            PerformableAction::Signal(sig) => {
+                write!(f, "signal with the color: {:?}", sig)
+            }
             PerformableAction::Eat => write!(f, "use an item in his inventory"),
             PerformableAction::Take => write!(f, "take something from target"),
             PerformableAction::Wait => write!(f, "wait"),
@@ -40,10 +46,9 @@ pub fn evaluate(
     me: &Creature,
     other: &Creature,
     tree: &ast::Condition,
-    rng: &mut RngState,
 ) -> PerformableAction {
     match *tree {
-        ast::Condition::Always(ref action) => eval_action(me, other, action, rng),
+        ast::Condition::Always(ref action) => eval_action(me, other, action),
         ast::Condition::RangeCompare {
             ref value,
             ref bound_a,
@@ -51,15 +56,15 @@ pub fn evaluate(
             ref affirmed,
             ref denied,
         } => {
-            let a = eval_value(me, other, bound_a, rng);
-            let b = eval_value(me, other, bound_b, rng);
-            let check_val = eval_value(me, other, value, rng);
+            let a = eval_value(me, other, bound_a);
+            let b = eval_value(me, other, bound_b);
+            let check_val = eval_value(me, other, value);
             if min(a, b) <= check_val && check_val <= max(a, b) {
                 trace!("{} was between {} and {}", check_val, a, b);
-                eval_action(me, other, affirmed, rng)
+                eval_action(me, other, affirmed)
             } else {
                 trace!("{} was not between {} and {}", check_val, a, b);
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied)
             }
         }
         ast::Condition::BinCompare {
@@ -75,8 +80,8 @@ pub fn evaluate(
                 ast::BinOp::EQ => PartialEq::eq,
                 ast::BinOp::NE => PartialEq::ne,
             };
-            let evaled_lhs = eval_value(me, other, lhs, rng);
-            let evaled_rhs = eval_value(me, other, rhs, rng);
+            let evaled_lhs = eval_value(me, other, lhs);
+            let evaled_rhs = eval_value(me, other, rhs);
             if op(&evaled_lhs, &evaled_rhs) {
                 trace!(
                     "{:?}({}) was {} {:?}({})",
@@ -86,7 +91,7 @@ pub fn evaluate(
                     rhs,
                     evaled_rhs
                 );
-                eval_action(me, other, affirmed, rng)
+                eval_action(me, other, affirmed)
             } else {
                 trace!(
                     "{:?}({}) was not {} {:?}({})",
@@ -96,7 +101,7 @@ pub fn evaluate(
                     rhs,
                     evaled_rhs
                 );
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied)
             }
         }
         ast::Condition::ActionCompare {
@@ -109,17 +114,21 @@ pub fn evaluate(
                 ast::ActorType::Me => (me, "my"),
                 ast::ActorType::Other => (other, "other's"),
             };
-            let my_action = eval_action(me, other, action, rng);
+            let my_action = eval_action(me, other, action);
             if my_action == actor.last_action {
-                trace!("{}'s last action was {:?}", actor_str, actor.last_action);
-                eval_action(me, other, affirmed, rng)
+                trace!(
+                    "{}'s last action was {:?}",
+                    actor_str,
+                    actor.last_action
+                );
+                eval_action(me, other, affirmed)
             } else {
                 trace!(
                     "{}'s last action was not {:?}",
                     actor_str,
                     actor.last_action
                 );
-                eval_action(me, other, denied, rng)
+                eval_action(me, other, denied)
             }
         }
     }
@@ -129,7 +138,6 @@ fn eval_action(
     me: &Creature,
     other: &Creature,
     action: &ast::Action,
-    rng: &mut RngState,
 ) -> PerformableAction {
     match *action {
         ast::Action::Attack(dmg) => PerformableAction::Attack(dmg),
@@ -140,33 +148,16 @@ fn eval_action(
         ast::Action::Wait => PerformableAction::Wait,
         ast::Action::Flee => PerformableAction::Flee,
         ast::Action::Mate => PerformableAction::Mate,
-        ast::Action::Subcondition(ref sub) => evaluate(me, other, sub, rng),
+        ast::Action::Subcondition(ref sub) => evaluate(me, other, sub),
     }
 }
 
-fn eval_value(me: &Creature, other: &Creature, val: &ast::Value, rng: &mut RngState) -> usize {
+fn eval_value(me: &Creature, other: &Creature, val: &ast::Value) -> usize {
     match *val {
         ast::Value::Literal(x) => x as usize,
-        ast::Value::Random => rng.rand_range(0, settings::MAX_GENE_VALUE as usize),
-        ast::Value::Me(attr) => get_attr(me, attr),
-        ast::Value::Other(attr) => get_attr(other, attr),
-    }
-}
-
-fn get_attr(actor: &Creature, attr: lex::Attribute) -> usize {
-    match attr {
-        lex::Attribute::Energy => actor.energy(),
-        lex::Attribute::Signal => match actor.signal {
-            Some(sig) => sig as usize,
-            None => 0,
-        },
-        lex::Attribute::Generation => actor.generation,
-        lex::Attribute::Kills => actor.kills,
-        lex::Attribute::Survived => actor.survived,
-        lex::Attribute::NumChildren => actor.num_children,
-        lex::Attribute::TopItem => match actor.top_item() {
-            Some(item) => item as usize,
-            None => 0,
-        },
+        ast::Value::Random => RngState::from_creatures(me, other)
+            .rand_range(0, settings::MAX_GENE_VALUE as usize),
+        ast::Value::Me(attr) => me.attr(attr),
+        ast::Value::Other(attr) => other.attr(attr),
     }
 }

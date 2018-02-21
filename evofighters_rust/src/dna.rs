@@ -1,6 +1,9 @@
 use std::convert::From;
 use std::ops::{Index, IndexMut};
 use std::mem;
+use std::hash::Hasher;
+
+use twox_hash::XxHash32;
 
 use settings;
 use saver::{GlobalStatistics, RngState};
@@ -70,8 +73,12 @@ impl Gene {
             3 => {
                 // Create a new gene, and set one base in it to a random value
                 let index = rng.rand_range(0, Gene::LENGTH);
-                let val = rng.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
-                debug!("created a new gene with base {} at index {}", val, index);
+                let val =
+                    rng.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
+                debug!(
+                    "created a new gene with base {} at index {}",
+                    val, index
+                );
                 let mut new_gene = Gene::new();
                 new_gene.0[index] = val;
                 Some(new_gene)
@@ -81,7 +88,9 @@ impl Gene {
                 // max gene value
                 let inc = rng.rand_range(1, 3);
                 let index = rng.rand_range(0, Gene::LENGTH);
-                let new_base = (self.0[index] + 1 + inc) % (settings::MAX_GENE_VALUE + 2) - 1;
+                let new_base = (self.0[index] + 1 + inc)
+                    % (settings::MAX_GENE_VALUE + 2)
+                    - 1;
                 debug!(
                     "added {} to base at {} with val {} to get {}",
                     inc, index, self.0[index], new_base
@@ -155,8 +164,8 @@ impl DNA {
     }
 
     pub fn combine(
-        mother: &mut DNA,
-        father: &mut DNA,
+        mother: &DNA,
+        father: &DNA,
         rng: &mut RngState,
     ) -> (DNA, GlobalStatistics) {
         let mut m_iter = mother.0.clone().into_iter();
@@ -221,15 +230,30 @@ impl DNA {
             _ => panic!("Generated in range 1 - 3! Should not reach."),
         }
     }
+
+    pub fn hash(&self) -> u32 {
+        self.seeded_hash(17)
+    }
+
+    pub fn seeded_hash(&self, seed: u32) -> u32 {
+        let mut hasher = XxHash32::with_seed(seed);
+        for gene in &self.0 {
+            for i in 0..Gene::LENGTH {
+                hasher.write_i8(gene[i])
+            }
+        }
+        hasher.finish() as u32
+    }
 }
 
 impl From<Vec<i8>> for DNA {
     fn from(other: Vec<i8>) -> DNA {
-        let capacity_needed = other.len() + if other.len() / Gene::LENGTH == 0 {
-            0
-        } else {
-            1
-        };
+        let capacity_needed = other.len()
+            + if other.len() / Gene::LENGTH == 0 {
+                0
+            } else {
+                1
+            };
         let mut newvec: Vec<Gene> = Vec::with_capacity(capacity_needed);
         let mut current_gene = Gene::new();
         let mut current_index = 0;
@@ -362,7 +386,8 @@ pub mod lex {
     }
 
     enum_from_primitive! {
-        #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+        #[derive(Ord, PartialOrd, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
         /// Attributes are parsed from `DNA`. When a `Value` requires looking
         /// at a fighter's attributes, this decides which one is selected
         pub enum Attribute {
@@ -399,7 +424,8 @@ pub mod lex {
     }
 
     enum_from_primitive! {
-        #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+        #[derive(Ord, PartialOrd, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
         /// Parsed from `DNA`, this represents the value of an item in the inventory
         pub enum Item {
             Food = 1,
@@ -411,7 +437,8 @@ pub mod lex {
     }
 
     enum_from_primitive! {
-        #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+        #[derive(Ord, PartialOrd, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
         /// Parsed from `DNA`, this represents the color of a signal
         pub enum Signal {
             Red = 1,
@@ -425,7 +452,8 @@ pub mod lex {
     }
 
     enum_from_primitive! {
-        #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+        #[derive(Ord, PartialOrd, Eq, PartialEq)]
+        #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
         /// Parsed from `DNA`, this represents a damage type
         pub enum DamageType {
             /// Fire damage

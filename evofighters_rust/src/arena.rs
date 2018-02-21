@@ -1,7 +1,8 @@
 use std::cmp::max;
+use std::mem;
 use std::time::{Duration, Instant};
 
-use creatures::{Creature, Creatures};
+use creatures::{Creature, Creatures, IDGiver};
 use eval;
 use settings;
 
@@ -36,7 +37,10 @@ struct Chances {
     p2: CreatureChance,
 }
 
-fn damage_matrix(p1_act: eval::PerformableAction, p2_act: eval::PerformableAction) -> Chances {
+fn damage_matrix(
+    p1_act: eval::PerformableAction,
+    p2_act: eval::PerformableAction,
+) -> Chances {
     use eval::PerformableAction::{Attack, Defend, Mate};
     // TODO: take into account damage type
     match (p1_act, p2_act) {
@@ -273,7 +277,7 @@ impl Arena {
     // creature array (make the Arena build that based on settings)
     pub fn new(population: Creatures, filename: &str) -> Arena {
         Arena {
-            rng: RngState::new(),
+            rng: RngState::default(),
             population,
             stats: GlobalStatistics::new(),
             total_events: 0,
@@ -286,7 +290,10 @@ impl Arena {
         }
     }
 
-    pub fn from_file(save_file: DeserializableSaveFile, filename: &str) -> Arena {
+    pub fn from_file(
+        save_file: DeserializableSaveFile,
+        filename: &str,
+    ) -> Arena {
         // TODO: actually use the settings
         let DeserializableSaveFile {
             creatures, stats, ..
@@ -309,8 +316,8 @@ impl Arena {
                  FPS: {fps:.1}       ",
                 creatures = self.population.len(),
                 feeders = self.population.feeder_count(),
-                feeder_creature =
-                    self.population.feeder_count() as f64 / self.population.len() as f64,
+                feeder_creature = self.population.feeder_count() as f64
+                    / self.population.len() as f64,
                 mutations = self.stats.mutations,
                 events = self.total_events,
                 born = self.stats.children_born,
@@ -337,7 +344,8 @@ impl Arena {
                 break;
             }
             if self.rates.events_per_second > 0
-                && self.rates.events_per_second * 30 <= self.events_since_last_save
+                && self.rates.events_per_second * 30
+                    <= self.events_since_last_save
             {
                 println!(
                     "\nHit {} out of estimated {} events, one moment...",
@@ -349,20 +357,30 @@ impl Arena {
                 self.events_since_last_save = 0;
             }
             self.population.spawn_feeders();
-            let mut p1 = self.population.random_creature();
-            let mut p2 = self.population.random_creature_or_feeder();
+            let p1 = self.population.random_creature();
+            let p2 = self.population.random_creature_or_feeder();
 
             info!("{} encounters {} in the wild", p1, p2);
-            self.encounter(&mut p1, &mut p2);
-
             if !p1.is_feeder() && !p2.is_feeder() {
                 self.encounters += 1;
             }
+            let mut enc = Encounter::new(p1, p2, &self.rng, self.population.id_giver());
+            enc.encounter();
+            let Encounter {
+                children,
+                p1,
+                p2,
+                stats: enc_stats,
+                ..
+            } = enc;
+            self.stats.absorb(enc_stats);
+            self.population.absorb_all(children);
+            self.population.absorb(p1);
+            self.population.absorb(p2);
+
             self.total_events += 1;
             self.events_since_last_save += 1;
             self.events_since_last_print += 1;
-            self.population.absorb(p1);
-            self.population.absorb(p2);
         }
         match self.sim_status {
             SimStatus::NotEnoughCreatures => {
@@ -381,14 +399,36 @@ impl Arena {
             _ => unreachable!(),
         }
     }
+}
 
-    fn encounter(&mut self, p1: &mut Creature, p2: &mut Creature) {
+pub struct Encounter<'a> {
+    pub p1: Creature,
+    pub p2: Creature,
+    pub stats: GlobalStatistics,
+    pub children: Vec<Creature>,
+    rng: RngState,
+    id_giver: &'a mut IDGiver,
+}
+
+impl <'a>Encounter<'a> {
+    pub fn new(p1: Creature, p2: Creature, rng: &RngState, id_giver: &'a mut IDGiver) -> Encounter<'a> {
+        Encounter {
+            p1,
+            p2,
+            stats: GlobalStatistics::new(),
+            children: Vec::new(),
+            rng: rng.clone(),
+            id_giver,
+        }
+    }
+
+    pub fn encounter(&mut self) {
         use parsing::{Decision, Indecision};
         use creatures::Liveness::{Alive, Dead};
         let max_rounds = self.rng.normal_sample(200.0, 30.0) as usize;
         info!("Max rounds: {}", max_rounds);
         // combine thought tree iterators, limit rounds
-        let iterator = p1.iter().zip(p2.iter()).zip(0..max_rounds);
+        let iterator = self.p1.iter().zip(self.p2.iter()).zip(0..max_rounds);
         let mut fight_timed_out = true;
         let mut p1_action = eval::PerformableAction::NoAction;
         let mut p2_action = eval::PerformableAction::NoAction;
@@ -410,31 +450,31 @@ impl Arena {
                         ..
                     }),
                 ) => {
-                    debug!("{} thinks {:?}", p1, tree1);
-                    debug!("{} thinks {:?}", p2, tree2);
-                    p1_action = eval::evaluate(p1, p2, &tree1, &mut self.rng);
-                    p2_action = eval::evaluate(p2, p1, &tree2, &mut self.rng);
+                    debug!("{} thinks {:?}", self.p1, tree1);
+                    debug!("{} thinks {:?}", self.p2, tree2);
+                    p1_action = eval::evaluate(&self.p1, &self.p2, &tree1);
+                    p2_action = eval::evaluate(&self.p2, &self.p1, &tree2);
                     let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
                     if p1_cost < p2_cost {
-                        trace!("{} is going first", p1);
-                        trace!("{} intends to {}", p1, p1_action);
-                        self.do_round(p1, p1_action, p2, p2_action)
+                        trace!("{} is going first", self.p1);
+                        trace!("{} intends to {}", self.p1, p1_action);
+                        self.do_round(p1_action, p2_action)
                     } else if p2_cost > p1_cost {
-                        trace!("{} is going first", p2);
-                        trace!("{} intends to {}", p2, p2_action);
-                        self.do_round(p2, p2_action, p1, p1_action)
+                        trace!("{} is going first", self.p2);
+                        trace!("{} intends to {}", self.p2, p2_action);
+                        self.do_round(p2_action, p1_action)
                     } else if self.rng.rand() {
-                        trace!("{} is going first", p1);
-                        self.do_round(p1, p1_action, p2, p2_action)
+                        trace!("{} is going first", self.p1);
+                        self.do_round(p1_action, p2_action)
                     } else {
-                        trace!("{} is going first", p2);
-                        self.do_round(p2, p2_action, p1, p1_action)
+                        trace!("{} is going first", self.p2);
+                        self.do_round(p2_action, p1_action)
                     }
                 }
                 (p1_thought, p2_thought) => {
                     // Somebody was undecided, and the fight is over.
-                    p1.update_from_thought(&p1_thought);
-                    p2.update_from_thought(&p2_thought);
+                    self.p1.update_from_thought(&p1_thought);
+                    self.p2.update_from_thought(&p2_thought);
                     if let Err(Indecision {
                         reason,
                         icount,
@@ -445,7 +485,7 @@ impl Arena {
                         info!(
                             "{} died because {:?}. using {} instructions,\
                              with {} skipped",
-                            p1, reason, icount, skipped
+                            self.p1, reason, icount, skipped
                         );
                     };
                     if let Err(Indecision {
@@ -458,7 +498,7 @@ impl Arena {
                         info!(
                             "{} died because {:?}. using {} instructions,\
                              with {} skipped",
-                            p1, reason, icount, skipped
+                            self.p1, reason, icount, skipped
                         );
                     }
                     trace!("The fight ended before it timed out");
@@ -466,50 +506,51 @@ impl Arena {
                     FightStatus::End
                 }
             };
-            // if let Some(child) = maybe_child {
-            //     self.population.absorb(child);
-            // }
             if let FightStatus::End = fight_status {
                 fight_timed_out = false;
                 break;
             }
-            p1.last_action = p1_action;
-            p2.last_action = p2_action;
+            self.p1.last_action = p1_action;
+            self.p2.last_action = p2_action;
         }
         if fight_timed_out {
             let penalty = self.rng.rand_range(1, 7);
             info!("Time is up! both combatants take {} damage", penalty);
-            p1.lose_energy(penalty);
-            p2.lose_energy(penalty);
+            self.p1.lose_energy(penalty);
+            self.p2.lose_energy(penalty);
         }
-        match (p1.liveness(), p2.liveness()) {
-            (Alive, Dead) => self.victory(p1, p2),
-            (Dead, Alive) => self.victory(p2, p1),
-            (Dead, Dead) => info!("Both {} and {} have died.", p1, p2),
+        match (self.p1.liveness(), self.p2.liveness()) {
+            (Alive, Dead) => {
+                self.victory(true);
+            }
+            (Dead, Alive) => {
+                self.victory(false);
+            }
+            (Dead, Dead) => {
+                info!("Both {} and {} have died.", self.p1, self.p2)
+            }
             (Alive, Alive) => {
-                p1.survived_encounter();
-                p2.survived_encounter();
+                self.p1.survived_encounter();
+                self.p2.survived_encounter();
             }
         }
     }
 
     fn do_round(
         &mut self,
-        p1: &mut Creature,
         p1_act: eval::PerformableAction,
-        p2: &mut Creature,
         p2_act: eval::PerformableAction,
     ) -> FightStatus {
         let chances = damage_matrix(p1_act, p2_act);
         let p1_dmg = chances.p1.damage(&mut self.rng);
         let p2_dmg = chances.p2.damage(&mut self.rng);
         if p1_dmg > 0 {
-            info!("{} takes {} damage", p2, p1_dmg);
-            p2.lose_energy(p1_dmg)
+            info!("{} takes {} damage", self.p2, p1_dmg);
+            self.p2.lose_energy(p1_dmg)
         }
         if p2_dmg > 0 {
-            info!("{} takes {} damage", p1, p2_dmg);
-            p2.lose_energy(p2_dmg)
+            info!("{} takes {} damage", self.p1, p2_dmg);
+            self.p2.lose_energy(p2_dmg)
         }
 
         // we reverse the order of p1, p2 when calling try_to_mate because
@@ -517,80 +558,100 @@ impl Arena {
         // is preferred in actions that happen to both creatures in
         // order. Conceivably, p2 could die without p1 paying any cost at
         // all, even if p2 initiated mating against p1's will
-        let maybe_child = self.try_to_mate(
+        let maybe_child = self.try_mating(
             chances.chance_to_mate,
-            p2,
             chances.p2.mating_share,
-            p1,
             chances.p1.mating_share,
         );
         if let Some(child) = maybe_child {
-            self.population.absorb(child);
+            self.children.push(child);
             self.stats.children_born += 1;
         };
 
         if not_attack_mate_defend(p1_act) {
-            if let FightStatus::End = p1.carryout(p2, p1_act, &mut self.rng) {
+            if let FightStatus::End = self.p1.carryout(&mut self.p2, p1_act) {
                 return FightStatus::End;
             }
         }
         if not_attack_mate_defend(p2_act) {
-            if let FightStatus::End = p2.carryout(p1, p2_act, &mut self.rng) {
+            if let FightStatus::End = self.p2.carryout(&mut self.p1, p2_act) {
                 return FightStatus::End;
             }
         }
-        trace!("{} has {} life left", p1, p1.energy());
-        trace!("{} has {} life left", p2, p2.energy());
+        trace!("{} has {} life left", self.p1, self.p1.energy());
+        trace!("{} has {} life left", self.p2, self.p2.energy());
         FightStatus::Continue
     }
 
-    fn try_to_mate(
+    fn try_mating(
         &mut self,
         mating_chance: usize,
-        first_mate: &mut Creature,
         first_share: usize,
-        second_mate: &mut Creature,
         second_share: usize,
     ) -> Option<Creature> {
-        if self.rng.rand_range(1, 101) > mating_chance || first_mate.dead() || second_mate.dead() {
+        if self.rng.rand_range(1, 101) > mating_chance || self.p2.dead()
+            || self.p1.dead()
+        {
             return None;
         }
-        info!("{} tried to mate with {}!", first_mate, second_mate);
-        if first_mate.is_feeder() || second_mate.is_feeder() {
-            info!("{} tried to mate with {}", first_mate, second_mate);
+        info!("{} tried to mate with {}!", self.p2, self.p1);
+        if self.p2.is_feeder() || self.p1.is_feeder() {
+            info!("{} tried to mate with {}", self.p2, self.p1);
             // Mating kills the feeder
-            if first_mate.is_feeder() {
-                first_mate.kill();
+            if self.p2.is_feeder() {
+                self.p2.kill();
             }
-            if second_mate.is_feeder() {
-                second_mate.kill();
+            if self.p1.is_feeder() {
+                self.p1.kill();
             }
             return None;
         }
         debug!("Attempting to mate");
-        if first_mate.pay_for_mating(first_share) && second_mate.pay_for_mating(second_share) {
+        if self.p2.pay_for_mating(first_share)
+            && self.p1.pay_for_mating(second_share)
+        {
             debug!("Both paid their debts, so they get to mate");
-            let (child, stats) = self.population.mate(first_mate, second_mate);
-            self.stats.absorb(stats);
-            child
+            self.mate()
         } else {
             None
         }
     }
 
-    fn victory(&mut self, winner: &mut Creature, loser: &mut Creature) {
-        info!("{} has killed {}", winner, loser);
-        winner.steal_from(loser);
-        if loser.is_feeder() {
-            self.stats.feeders_eaten += 1;
-            winner.eaten += 1;
-            winner.gain_energy(self.rng.rand_range(0, 1));
-            winner.last_action = eval::PerformableAction::Wait;
+    fn mate(&mut self) -> Option<Creature> {
+        let (child, stats) =
+            self.p1
+                .mate_with(&mut self.p2, &mut self.id_giver, &mut self.rng);
+        self.stats.absorb(stats);
+        info!("{} and {} have a child named {}", self.p1, self.p2, child);
+        if !child.valid() {
+            info!("But it didn't live since it had invalid dna.");
+            None
         } else {
-            winner.gain_energy(self.rng.rand_range(0, settings::WINNER_LIFE_BONUS));
-            winner.kills += 1;
+            Some(child)
+        }
+    }
+
+    fn victory(&mut self, p1_is_winner: bool) {
+        if !p1_is_winner {
+            mem::swap(&mut self.p1, &mut self.p2);
+        }
+        //info!("{} has killed {}", winner, loser);
+        self.p1.steal_from(&mut self.p2);
+        if self.p2.is_feeder() {
+            self.stats.feeders_eaten += 1;
+            self.p1.eaten += 1;
+            self.p1.gain_energy(self.rng.rand_range(0, 1));
+            self.p1.last_action = eval::PerformableAction::Wait;
+        } else {
+            self.p1.gain_energy(
+                self.rng.rand_range(0, settings::WINNER_LIFE_BONUS),
+            );
+            self.p1.kills += 1;
             self.stats.kills += 1;
-            winner.survived_encounter();
+            self.p1.survived_encounter();
+        }
+        if !p1_is_winner {
+            mem::swap(&mut self.p1, &mut self.p2)
         }
     }
 }
