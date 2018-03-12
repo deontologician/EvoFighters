@@ -20,3 +20,12 @@ impl GlobalStatistics {
         self.rounds += other.rounds;
     }
 }
+
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Default)]
+pub struct CreatureStats {
+    pub kills: usize,
+    pub num_children: usize,
+    pub survived: usize,
+    pub eaten: usize,
+}

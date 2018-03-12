@@ -9,7 +9,7 @@ use parsing;
 use parsing::Decision;
 use settings;
 use arena;
-use stats::GlobalStatistics;
+use stats::{GlobalStatistics, CreatureStats};
 use rng::RngState;
 use simplify::{cycle_detect, ThoughtCycle};
 
@@ -77,20 +77,17 @@ impl IDGiver {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Creature {
+    pub id: CreatureID,
+    pub generation: usize,
+    pub signal: Option<dna::lex::Signal>,
+    pub last_action: eval::PerformableAction,
+    pub parents: (CreatureID, CreatureID),
+    pub stats: CreatureStats,
     dna: dna::DNA,
     inv: Vec<dna::lex::Item>,
     energy: usize,
     #[serde(skip)]
     thought_cycle: ThoughtCycle,
-    pub generation: usize,
-    pub num_children: usize,
-    pub signal: Option<dna::lex::Signal>,
-    pub survived: usize,
-    pub kills: usize,
-    pub last_action: eval::PerformableAction,
-    pub id: CreatureID,
-    pub eaten: usize,
-    pub parents: (CreatureID, CreatureID),
 }
 
 impl fmt::Display for Creature {
@@ -117,14 +114,11 @@ impl Creature {
             energy: settings::DEFAULT_ENERGY,
             thought_cycle,
             generation: generation,
-            num_children: 0,
             signal: None,
-            survived: 0,
-            kills: 0,
             last_action: eval::PerformableAction::NoAction,
             id: id,
-            eaten: 0,
             parents: parents,
+            stats: CreatureStats::default(),
         })
     }
 
@@ -138,14 +132,11 @@ impl Creature {
             thought_cycle,
             dna: dna,
             generation: 0,
-            num_children: 0,
             signal: None,
-            survived: 0,
-            kills: 0,
             last_action: eval::PerformableAction::NoAction,
             id,
-            eaten: 0,
             parents: (CreatureID(0), CreatureID(0)),
+            stats: CreatureStats::default(),
         }
     }
 
@@ -169,13 +160,10 @@ impl Creature {
             energy: 1,
             thought_cycle,
             generation: 0,
-            num_children: 0,
             signal: Some(dna::lex::Signal::Green),
-            kills: 0,
-            survived: 0,
             last_action: eval::PerformableAction::NoAction,
-            eaten: 0,
             parents: (CreatureID(0), CreatureID(0)),
+            stats: CreatureStats::default(),
         }
     }
 
@@ -191,9 +179,9 @@ impl Creature {
                 None => 0,
             },
             lex::Attribute::Generation => self.generation,
-            lex::Attribute::Kills => self.kills,
-            lex::Attribute::Survived => self.survived,
-            lex::Attribute::NumChildren => self.num_children,
+            lex::Attribute::Kills => self.stats.kills,
+            lex::Attribute::Survived => self.stats.survived,
+            lex::Attribute::NumChildren => self.stats.num_children,
             lex::Attribute::TopItem => match self.top_item() {
                 Some(item) => item as usize,
                 None => 0,
@@ -214,7 +202,7 @@ impl Creature {
     }
 
     pub fn survived_encounter(&mut self) {
-        self.survived += 1;
+        self.stats.survived += 1;
         self.last_action = eval::PerformableAction::NoAction;
     }
 
@@ -380,14 +368,11 @@ pub struct DeserializableCreature {
     inv: Vec<dna::lex::Item>,
     energy: usize,
     generation: usize,
-    num_children: usize,
     signal: Option<dna::lex::Signal>,
-    survived: usize,
-    kills: usize,
     last_action: eval::PerformableAction,
     id: CreatureID,
-    eaten: usize,
     parents: (CreatureID, CreatureID),
+    stats: CreatureStats,
 }
 
 impl DeserializableCreature {
@@ -397,14 +382,11 @@ impl DeserializableCreature {
             inv,
             energy,
             generation,
-            num_children,
             signal,
-            survived,
-            kills,
             last_action,
             id,
-            eaten,
             parents,
+            stats,
         } = self;
         // Invalid creatures are never serialized, so unwrapping
         let thought_cycle = cycle_detect(&dna).unwrap();
@@ -414,14 +396,11 @@ impl DeserializableCreature {
             thought_cycle,
             energy,
             generation,
-            num_children,
             signal,
-            survived,
-            kills,
             last_action,
             id,
-            eaten,
             parents,
+            stats,
         }
     }
 }
