@@ -1,0 +1,22 @@
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, Default)]
+pub struct GlobalStatistics {
+    pub mutations: usize,
+    pub children_born: usize,
+    pub feeders_eaten: usize,
+    pub kills: usize,
+    pub rounds: usize,
+}
+
+impl GlobalStatistics {
+    pub fn new() -> GlobalStatistics {
+        GlobalStatistics::default()
+    }
+
+    pub fn absorb(&mut self, other: GlobalStatistics) {
+        self.mutations += other.mutations;
+        self.children_born += other.children_born;
+        self.feeders_eaten += other.feeders_eaten;
+        self.kills += other.kills;
+        self.rounds += other.rounds;
+    }
+}

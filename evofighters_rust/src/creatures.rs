@@ -5,21 +5,17 @@ use dna;
 use dna::lex;
 use eval;
 use parsing;
+use parsing::{Thought, Parser};
 use settings;
 use arena;
-use saver::{GlobalStatistics, RngState};
-
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
-pub enum Liveness {
-    Alive,
-    Dead,
-}
+use stats::GlobalStatistics;
+use rng::RngState;
+use simplify::{ThoughtCycle, cycle_detect};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct CreatureID(u64);
 
 impl CreatureID {
-
     pub fn feeder() -> CreatureID {
         CreatureID(0)
     }
@@ -78,11 +74,13 @@ impl IDGiver {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Creature {
     dna: dna::DNA,
     inv: Vec<dna::lex::Item>,
     energy: usize,
+    #[serde(skip)]
+    thought_cycle: Result<ThoughtCycle, parsing::Failure>,
     pub generation: usize,
     pub num_children: usize,
     pub signal: Option<dna::lex::Signal>,
@@ -113,10 +111,12 @@ impl Creature {
         generation: usize,
         parents: (CreatureID, CreatureID),
     ) -> Creature {
+        let thought_cycle = cycle_detect(&dna);
         Creature {
             dna: dna,
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
+            thought_cycle,
             generation: generation,
             num_children: 0,
             signal: None,
@@ -132,10 +132,13 @@ impl Creature {
     }
 
     pub fn seed_creature(id: CreatureID) -> Creature {
+        let dna = dna::DNA::seed();
+        let thought_cycle = cycle_detect(&dna);
         Creature {
-            dna: dna::DNA::seed(),
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
+            thought_cycle,
+            dna: dna,
             generation: 0,
             num_children: 0,
             signal: None,
@@ -151,18 +154,21 @@ impl Creature {
     }
 
     pub fn hash(&self) -> u32 {
-        self.dna.seeded_hash(CreatureID::parents_to_u32(self.parents))
+        self.dna
+            .seeded_hash(CreatureID::parents_to_u32(self.parents))
     }
 
-    pub fn iter(&self) -> parsing::Parser {
-        if self.is_feeder() {
-            parsing::Parser::feeder_new()
-        } else {
-            parsing::Parser::new(
-                &self.dna,
-                self.instr_used + self.instr_skipped,
-            )
-        }
+    pub fn iter(&self) -> Box<Iterator<Item=Thought>> {
+        Box::new(
+            if self.is_feeder() {
+                Parser::feeder_new()
+            } else {
+                Parser::new(
+                    &self.dna,
+                    self.instr_used + self.instr_skipped,
+                )
+            }
+        )
     }
 
     pub fn feeder() -> Creature {
@@ -171,6 +177,7 @@ impl Creature {
             dna: dna::DNA::feeder(),
             inv: vec![dna::lex::Item::Food],
             energy: 1,
+            thought_cycle: Err(parsing::Failure::IsFeeder),
             generation: 0,
             num_children: 0,
             signal: Some(dna::lex::Signal::Green),
@@ -246,22 +253,15 @@ impl Creature {
     }
 
     pub fn valid(&self) -> bool {
-        // TODO: do compilation here, check if the creature has an
-        // infinite cycle or parse stack too deep up front instead of
-        // letting it live.
-        self.dna.valid()
-    }
-
-    pub fn liveness(&self) -> Liveness {
-        if self.energy > 0 && (!self.is_feeder() || self.has_items()) {
-            Liveness::Alive
-        } else {
-            Liveness::Dead
-        }
+        self.thought_cycle.is_ok()
     }
 
     pub fn dead(&self) -> bool {
-        self.liveness() == Liveness::Dead
+        !self.alive()
+    }
+
+    pub fn alive(&self) -> bool {
+        self.energy > 0 && (!self.is_feeder() || self.has_items())
     }
 
     pub fn steal_from(&mut self, other: &mut Creature) {
@@ -287,10 +287,10 @@ impl Creature {
         self.energy = 0;
     }
 
-    pub fn update_from_thought(&mut self, thought: &parsing::Thought) {
-        self.instr_used += parsing::skipped(thought);
-        self.instr_skipped += parsing::skipped(thought);
-        if thought.is_err() {
+    pub fn update_from_thought(&mut self, thought: &Thought) {
+        self.instr_used += thought.skipped();
+        self.instr_skipped += thought.skipped();
+        if thought.is_indecision() {
             self.kill()
         }
     }
@@ -398,13 +398,75 @@ impl Creature {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+
+/// Needed because some parts aren't serialized because they can be
+/// inferred from other fields
+#[derive(Deserialize)]
+pub struct DeserializableCreature {
+    dna: dna::DNA,
+    inv: Vec<dna::lex::Item>,
+    energy: usize,
+    generation: usize,
+    num_children: usize,
+    signal: Option<dna::lex::Signal>,
+    survived: usize,
+    kills: usize,
+    instr_used: usize,
+    instr_skipped: usize,
+    last_action: eval::PerformableAction,
+    id: CreatureID,
+    eaten: usize,
+    parents: (CreatureID, CreatureID),
+}
+
+impl DeserializableCreature {
+    pub fn into_creature(self) -> Creature {
+        let DeserializableCreature {
+            dna,
+            inv,
+            energy,
+            generation,
+            num_children,
+            signal,
+            survived,
+            kills,
+            instr_used,
+            instr_skipped,
+            last_action,
+            id,
+            eaten,
+            parents,
+        } = self;
+        let thought_cycle = cycle_detect(&dna);
+        Creature {
+            dna,
+            inv,
+            thought_cycle,
+            energy,
+            generation,
+            num_children,
+            signal,
+            survived,
+            kills,
+            instr_used,
+            instr_skipped,
+            last_action,
+            id,
+            eaten,
+            parents,
+        }
+    }
+}
+
+
+#[derive(Serialize, Debug)]
 pub struct Creatures {
     creatures: Vec<Creature>,
     max_pop_size: usize,
     feeder_count: usize,
     #[serde(skip)]
     rng: RngState,
+    #[serde(skip)]
     id_giver: IDGiver,
 }
 
@@ -426,6 +488,7 @@ impl Creatures {
             id_giver,
         }
     }
+
     pub fn new(max_pop_size: usize) -> Creatures {
         Creatures::from_pieces(
             IDGiver::unthreaded(),
@@ -459,10 +522,6 @@ impl Creatures {
 
     pub fn len(&self) -> usize {
         self.creatures.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.creatures.is_empty()
     }
 
     pub fn refill_feeders(&mut self) {
@@ -510,5 +569,36 @@ impl Creatures {
 
     pub fn shuffle(&mut self) {
         self.rng.shuffle(self.creatures.as_mut_slice())
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DeserializableCreatures {
+    creatures: Vec<DeserializableCreature>,
+    max_pop_size: usize,
+    feeder_count: usize,
+}
+
+impl DeserializableCreatures {
+    pub fn into_creatures(self) -> Creatures {
+        let DeserializableCreatures {
+            creatures: deserialized_creatures,
+            max_pop_size,
+            feeder_count,
+        } = self;
+        let max_id = deserialized_creatures
+            .iter()
+            .fold(0, |max_id, creature| max(max_id, creature.id.0));
+        let creatures = deserialized_creatures
+            .into_iter()
+            .map(|x| x.into_creature())
+            .collect();
+        Creatures {
+            creatures,
+            max_pop_size,
+            feeder_count,
+            rng: RngState::default(),
+            id_giver: IDGiver::new(max_id + 1, 1),
+        }
     }
 }

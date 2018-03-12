@@ -3,7 +3,7 @@ use std::cmp::{max, min, PartialEq, PartialOrd};
 
 use dna::{ast, lex};
 use creatures::Creature;
-use saver::RngState;
+use rng::RngState;
 use settings;
 
 // PerformableAction is the result of evaluating a thought tree

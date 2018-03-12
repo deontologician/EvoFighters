@@ -7,7 +7,8 @@ use std::slice::Iter;
 use twox_hash::XxHash32;
 
 use settings;
-use saver::{GlobalStatistics, RngState};
+use stats::GlobalStatistics;
+use rng::RngState;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Gene([i8; 5]);
@@ -37,6 +38,13 @@ impl Gene {
             lex::Condition::Always as i8,
             lex::Action::Flee as i8,
         ])
+    }
+
+    pub fn always_wait() -> Gene {
+        let mut gene = Gene::new();
+        gene.0[0] = lex::Condition::Always as i8;
+        gene.0[1] = lex::Action::Wait as i8;
+        gene
     }
 
     /// Whether the current Gene codes anything useful
@@ -143,7 +151,7 @@ pub struct DNA(Vec<Gene>);
 impl DNA {
     /// Produce feeder DNA, which is just stop codons
     pub fn feeder() -> DNA {
-        DNA(vec![Gene::new()])
+        DNA(vec![Gene::always_wait()])
     }
 
     /// Produce the default seed DNA, which evaluates to "always mate,
@@ -154,10 +162,6 @@ impl DNA {
 
     pub fn len(&self) -> usize {
         self.0.len() * Gene::LENGTH
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 
     pub fn base_stream(&self, offset: usize) -> DNAIter {

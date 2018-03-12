@@ -8,7 +8,8 @@ use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Failure {
-    NoThoughtsYet,
+    IsFeeder,
+    DNAEmpty,
     TookTooLong,
     ParseTreeTooDeep,
 }
@@ -34,27 +35,53 @@ impl From<Indecision> for Failure {
     }
 }
 
-pub type Thought = Result<Decision, Indecision>;
-
-fn feeder_decision() -> Thought {
-    Ok(Decision {
-        tree: Box::new(ast::Condition::Always(ast::Action::Wait)),
-        icount: 0,
-        skipped: settings::MAX_THINKING_STEPS + 1,
-        offset: 0,
-    })
+pub enum Thought {
+    Dec(Decision),
+    Ind(Indecision),
 }
 
-pub fn icount(thought: &Thought) -> usize {
-    match *thought {
-        Ok(Decision { icount, .. }) | Err(Indecision { icount, .. }) => icount,
+impl Thought {
+    fn feeder_decision() -> Thought {
+        Thought::Dec(Decision {
+            tree: Box::new(ast::Condition::Always(ast::Action::Wait)),
+            icount: 0,
+            skipped: settings::MAX_THINKING_STEPS + 1,
+            offset: 0,
+        })
     }
-}
 
-pub fn skipped(thought: &Thought) -> usize {
-    match *thought {
-        Ok(Decision { skipped, .. }) | Err(Indecision { skipped, .. }) => {
-            skipped
+    pub fn icount(&self) -> usize {
+        match *self {
+            Thought::Dec(Decision { icount, .. })
+            | Thought::Ind(Indecision { icount, .. }) => icount,
+        }
+    }
+
+    pub fn skipped(&self) -> usize {
+        match *self {
+            Thought::Dec(Decision { skipped, .. })
+            | Thought::Ind(Indecision { skipped, .. }) => skipped,
+        }
+    }
+
+    pub fn offset(&self) -> usize {
+        match *self {
+            Thought::Dec(Decision { offset, .. })
+            | Thought::Ind(Indecision { offset, .. }) => offset,
+        }
+    }
+
+    pub fn is_indecision(&self) -> bool {
+        match *self {
+            Thought::Dec(_) => false,
+            Thought::Ind(_) => true,
+        }
+    }
+
+    pub fn into_result(self) -> Result<Decision, Indecision> {
+        match self {
+            Thought::Dec(a) => Ok(a),
+            Thought::Ind(b) => Err(b),
         }
     }
 }
@@ -113,11 +140,11 @@ impl Parser {
         Ok(next_val.unwrap())
     }
 
-    fn parse_condition(&mut self) -> ParseResult<Box<ast::Condition>> {
+    fn parse_condition(&mut self) -> ParseResult<ast::Condition> {
         if self.depth > settings::MAX_TREE_DEPTH {
             return Err(Failure::ParseTreeTooDeep);
         }
-        Ok(Box::new(match self.next_valid(0)? {
+        Ok(match self.next_valid(0)? {
             lex::Condition::Always => {
                 ast::Condition::Always(self.parse_action()?)
             }
@@ -159,15 +186,16 @@ impl Parser {
                     denied: self.parse_action()?,
                 }
             }
-        }))
+        })
     }
 
     fn parse_action(&mut self) -> ParseResult<ast::Action> {
         Ok(match self.next_valid(0)? {
             lex::Action::Subcondition => {
                 self.depth += 1;
-                let subcond =
-                    ast::Action::Subcondition(self.parse_condition()?);
+                let subcond = ast::Action::Subcondition(Box::new(
+                    self.parse_condition()?,
+                ));
                 self.depth -= 1;
                 subcond
             }
@@ -196,19 +224,19 @@ impl Iterator for Parser {
     type Item = Thought;
     fn next(&mut self) -> Option<Thought> {
         if self.for_feeder {
-            return Some(feeder_decision());
+            return Some(Thought::feeder_decision());
         }
         let value = Some(match self.parse_condition() {
-            Err(msg) => Err(Indecision {
+            Err(msg) => Thought::Ind(Indecision {
                 icount: self.icount,
                 skipped: self.skipped,
                 reason: msg,
                 offset: self.current_offset(),
             }),
-            Ok(tree) => Ok(Decision {
+            Ok(tree) => Thought::Dec(Decision {
                 icount: self.icount,
                 skipped: self.skipped,
-                tree: tree,
+                tree: Box::new(tree),
                 offset: self.current_offset(),
             }),
         });

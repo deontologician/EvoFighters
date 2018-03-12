@@ -201,18 +201,18 @@ fn erc_action(act: ast::Action) -> ast::Action {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ThoughtCycle {
-    pub thoughts: Vec<ast::Condition>,
-    pub cycle_offset: usize,
+    thoughts: Vec<ast::Condition>,
+    cycle_offset: usize,
 }
 
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
+    if !dna.valid() {
+        return Err(parsing::Failure::DNAEmpty)
+    }
     let f = |offset: usize| -> usize {
-        let mut parser = parsing::Parser::new(dna, offset);
-        match parser.next().unwrap() {
-            Ok(decision) => decision.offset,
-            Err(indecision) => indecision.offset,
-        }
+        parsing::Parser::new(dna, offset).next().unwrap().offset()
     };
 
     let mut tortoise = f(0);
@@ -240,13 +240,9 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     let mut thought_tree: ast::Condition;
     let mut thoughts = Vec::new();
     for i in 0..(mu + lam) {
-        thought = new_iter.next().unwrap()?;
+        thought = new_iter.next().unwrap().into_result()?;
         thought_tree = *thought.tree;
-        println!("{}: {:?}", i, &thought_tree);
         let simplified = simplify(thought_tree.clone());
-        if thought_tree != simplified {
-            println!("  -> {:?}", simplified);
-        }
         thoughts.push(simplified);
     }
     Ok(ThoughtCycle {

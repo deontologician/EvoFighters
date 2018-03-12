@@ -6,7 +6,6 @@ extern crate clap;
 extern crate enum_primitive;
 extern crate num;
 extern crate rand;
-extern crate rayon;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -15,20 +14,24 @@ extern crate time;
 extern crate twox_hash;
 extern crate xz2;
 
-#[macro_use]
-pub mod util;
-pub mod dna;
-pub mod parsing;
-pub mod eval;
-pub mod settings;
-pub mod creatures;
-pub mod arena;
-pub mod simplify;
-pub mod saver;
 
-use creatures::Creatures;
+#[macro_use]
+mod util;
+
+mod arena;
+mod creatures;
+mod dna;
+mod eval;
+mod parsing;
+mod rng;
+mod saver;
+mod stats;
+mod settings;
+mod simplify;
+
 use arena::Arena;
-use saver::SaveFile;
+use creatures::Creatures;
+use saver::Saver;
 
 fn main() {
     let app = parse_args();
@@ -79,10 +82,10 @@ fn parse_args() -> clap::ArgMatches<'static> {
 }
 
 fn run_simulation(filename: &str) {
-    let mut arena = match SaveFile::load(filename) {
-        Ok(save_file) => {
+    let mut arena = match Saver::load(filename) {
+        Ok(checkpoint) => {
             println!("Loading from file {}", filename);
-            Arena::from_file(save_file, filename)
+            Arena::from_checkpoint(checkpoint, filename)
         }
         Err(_) => {
             println!("Creating initial population");
