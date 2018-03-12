@@ -1,9 +1,11 @@
 // For simplifying thought trees
 
 use std::cmp::{max, min, PartialEq, PartialOrd};
+use std::rc::Rc;
 
 use dna::{ast, DNA};
 use parsing;
+use parsing::Decision;
 
 /// Simplifies a condition tree by replacing it with another condition
 /// tree that takes less (or at least not more) time to execute at
@@ -17,10 +19,16 @@ use parsing;
 ///
 /// As a bonus, the behavior of the simplified trees is often easier
 /// to interpret by a human.
-pub fn simplify(cond: ast::Condition) -> ast::Condition {
-    let stage_1_cond = eval_static_conditionals(cond);
+pub fn simplify(Decision {tree, offset, icount, skipped}: Decision) -> Decision {
+    let stage_1_cond = eval_static_conditionals(tree);
     // Next, evaluate redundant Always -> Subcondition branches
-    eval_redundant_conditions(stage_1_cond)
+    let stage_2_cond = eval_redundant_conditions(stage_1_cond);
+    Decision {
+        tree: stage_2_cond,
+        offset,
+        icount,
+        skipped,
+    }
 }
 
 /// Evaluates static conditionals at compile time.
@@ -203,8 +211,16 @@ fn erc_action(act: ast::Action) -> ast::Action {
 
 #[derive(Debug, Clone)]
 pub struct ThoughtCycle {
-    thoughts: Vec<ast::Condition>,
+    thoughts: Vec<Rc<parsing::Decision>>,
     cycle_offset: usize,
+}
+
+impl ThoughtCycle {
+    pub fn next(&mut self) -> Rc<Decision> {
+        let t = self.thoughts[self.cycle_offset].clone();
+        self.cycle_offset = (self.cycle_offset + 1) % self.thoughts.len();
+        t
+    }
 }
 
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
@@ -240,8 +256,7 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     let mut thoughts = Vec::new();
     for _ in 0..(mu + lam) {
         thought = new_iter.next().unwrap().into_result()?;
-        let simplified = simplify(thought.tree);
-        thoughts.push(simplified);
+        thoughts.push(Rc::new(simplify(thought)));
     }
     Ok(ThoughtCycle {
         thoughts: thoughts,

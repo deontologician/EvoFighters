@@ -1,11 +1,12 @@
 use std::fmt;
 use std::cmp::{max, min};
+use std::rc::Rc;
 
 use dna;
 use dna::lex;
 use eval;
 use parsing;
-use parsing::{Thought, Parser};
+use parsing::{Thought, Decision};
 use settings;
 use arena;
 use stats::GlobalStatistics;
@@ -80,7 +81,7 @@ pub struct Creature {
     inv: Vec<dna::lex::Item>,
     energy: usize,
     #[serde(skip)]
-    thought_cycle: Result<ThoughtCycle, parsing::Failure>,
+    thought_cycle: ThoughtCycle,
     pub generation: usize,
     pub num_children: usize,
     pub signal: Option<dna::lex::Signal>,
@@ -110,9 +111,9 @@ impl Creature {
         dna: dna::DNA,
         generation: usize,
         parents: (CreatureID, CreatureID),
-    ) -> Creature {
-        let thought_cycle = cycle_detect(&dna);
-        Creature {
+    ) -> Result<Creature, parsing::Failure> {
+        let thought_cycle = cycle_detect(&dna)?;
+        Ok(Creature {
             dna: dna,
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
@@ -128,12 +129,13 @@ impl Creature {
             id: id,
             eaten: 0,
             parents: parents,
-        }
+        })
     }
 
     pub fn seed_creature(id: CreatureID) -> Creature {
         let dna = dna::DNA::seed();
-        let thought_cycle = cycle_detect(&dna);
+        // We know the seed dna is valid, so unwrapping
+        let thought_cycle = cycle_detect(&dna).unwrap();
         Creature {
             inv: Vec::with_capacity(settings::MAX_INV_SIZE),
             energy: settings::DEFAULT_ENERGY,
@@ -158,26 +160,20 @@ impl Creature {
             .seeded_hash(CreatureID::parents_to_u32(self.parents))
     }
 
-    pub fn iter(&self) -> Box<Iterator<Item=Thought>> {
-        Box::new(
-            if self.is_feeder() {
-                Parser::feeder_new()
-            } else {
-                Parser::new(
-                    &self.dna,
-                    self.instr_used + self.instr_skipped,
-                )
-            }
-        )
+    pub fn next_decision(&mut self) -> Rc<Decision> {
+        self.thought_cycle.next()
     }
 
     pub fn feeder() -> Creature {
+        let dna = dna::DNA::feeder();
+        // We know the feeder dna is fine, so unwrapping
+        let thought_cycle = cycle_detect(&dna).unwrap();
         Creature {
             id: CreatureID::feeder(),
-            dna: dna::DNA::feeder(),
+            dna,
             inv: vec![dna::lex::Item::Food],
             energy: 1,
-            thought_cycle: Err(parsing::Failure::IsFeeder),
+            thought_cycle,
             generation: 0,
             num_children: 0,
             signal: Some(dna::lex::Signal::Green),
@@ -252,10 +248,6 @@ impl Creature {
         self.gain_energy(energy_gain)
     }
 
-    pub fn valid(&self) -> bool {
-        self.thought_cycle.is_ok()
-    }
-
     pub fn dead(&self) -> bool {
         !self.alive()
     }
@@ -300,17 +292,15 @@ impl Creature {
         other: &mut Creature,
         id_giver: &mut IDGiver,
         rng: &mut RngState,
-    ) -> (Creature, GlobalStatistics) {
+    ) -> (Result<Creature, parsing::Failure>, GlobalStatistics) {
         let (child_dna, stats) = dna::DNA::combine(&self.dna, &other.dna, rng);
-        let child = Creature::new(
+        let maybe_child = Creature::new(
             id_giver.next_creature_id(),                // id
             child_dna,                                  // dna
             max(self.generation, other.generation) + 1, // generation
             (self.id, other.id),                        // parents
         );
-        self.num_children += 1;
-        other.num_children += 1;
-        (child, stats)
+        (maybe_child, stats)
     }
 
     pub fn pay_for_mating(&mut self, share: usize) -> bool {
@@ -437,7 +427,8 @@ impl DeserializableCreature {
             eaten,
             parents,
         } = self;
-        let thought_cycle = cycle_detect(&dna);
+        // Invalid creatures are never serialized, so unwrapping
+        let thought_cycle = cycle_detect(&dna).unwrap();
         Creature {
             dna,
             inv,

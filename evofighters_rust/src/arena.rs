@@ -462,18 +462,18 @@ impl<'a> Encounter<'a> {
 
     fn both_decided(
         &mut self,
-        Decision {
-            tree: tree1,
+        &Decision {
+            tree: ref tree1,
             icount: i1,
             skipped: s1,
             ..
-        }: Decision,
-        Decision {
-            tree: tree2,
+        }: &Decision,
+        &Decision {
+            tree: ref tree2,
             icount: i2,
             skipped: s2,
             ..
-        }: Decision,
+        }: &Decision,
     ) -> FightStatus {
         debug!("{} thinks {:?}", self.p1, tree1);
         debug!("{} thinks {:?}", self.p2, tree2);
@@ -514,20 +514,13 @@ impl<'a> Encounter<'a> {
     pub fn encounter(&mut self) {
         info!("Max rounds: {}", self.max_rounds);
         // combine thought tree iterators, limit rounds
-        let iterator =
-            self.p1.iter().zip(self.p2.iter()).zip(0..self.max_rounds);
         let mut fight_timed_out = true;
-        for (thoughts, round) in iterator {
+        for round in 0..self.max_rounds {
             debug!("Round {}", round);
+            let p1_decision = self.p1.next_decision();
+            let p2_decision = self.p2.next_decision();
             self.stats.rounds += 1;
-            let fight_status = match thoughts {
-                (Thought::Dec(dec1), Thought::Dec(dec2)) => {
-                    self.both_decided(dec1, dec2)
-                }
-                (p1_thought, p2_thought) => {
-                    self.someone_undecided(&p1_thought, &p2_thought)
-                }
-            };
+            let fight_status = self.both_decided(&p1_decision, &p2_decision);
             if let FightStatus::End = fight_status {
                 fight_timed_out = false;
                 break;
@@ -589,16 +582,21 @@ impl<'a> Encounter<'a> {
     }
 
     fn mate(&mut self) -> Option<Creature> {
-        let (child, stats) =
+        let (maybe_child, stats) =
             self.p1
                 .mate_with(&mut self.p2, &mut self.id_giver, &mut self.rng);
         self.stats.absorb(stats);
-        info!("{} and {} have a child named {}", self.p1, self.p2, child);
-        if !child.valid() {
-            info!("But it didn't live since it had invalid dna.");
-            None
-        } else {
-            Some(child)
+        match maybe_child {
+            Err(_) => {
+                info!("Child didn't live since it had invalid dna.");
+                None
+            },
+            Ok(child) => {
+                info!("{} and {} have a child named {}", self.p1, self.p2, child);
+                self.p1.num_children += 1;
+                self.p2.num_children += 1;
+                Some(child)
+            }
         }
     }
 
