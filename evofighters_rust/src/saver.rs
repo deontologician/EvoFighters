@@ -84,7 +84,6 @@ impl Saver {
     }
 }
 
-
 /// This checkpoint can be written to disk without needing to take
 /// ownership or clone the entire creatures array. It's private
 /// because nobody but the Saver should create one of these

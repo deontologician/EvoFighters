@@ -6,12 +6,12 @@ use dna;
 use dna::lex;
 use eval;
 use parsing;
-use parsing::{Thought, Decision};
+use parsing::Decision;
 use settings;
 use arena;
 use stats::GlobalStatistics;
 use rng::RngState;
-use simplify::{ThoughtCycle, cycle_detect};
+use simplify::{cycle_detect, ThoughtCycle};
 
 #[derive(Eq, PartialEq, Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct CreatureID(u64);
@@ -87,8 +87,6 @@ pub struct Creature {
     pub signal: Option<dna::lex::Signal>,
     pub survived: usize,
     pub kills: usize,
-    pub instr_used: usize,
-    pub instr_skipped: usize,
     pub last_action: eval::PerformableAction,
     pub id: CreatureID,
     pub eaten: usize,
@@ -123,8 +121,6 @@ impl Creature {
             signal: None,
             survived: 0,
             kills: 0,
-            instr_used: 0,
-            instr_skipped: 0,
             last_action: eval::PerformableAction::NoAction,
             id: id,
             eaten: 0,
@@ -146,8 +142,6 @@ impl Creature {
             signal: None,
             survived: 0,
             kills: 0,
-            instr_used: 0,
-            instr_skipped: 0,
             last_action: eval::PerformableAction::NoAction,
             id,
             eaten: 0,
@@ -179,8 +173,6 @@ impl Creature {
             signal: Some(dna::lex::Signal::Green),
             kills: 0,
             survived: 0,
-            instr_used: 0,
-            instr_skipped: 0,
             last_action: eval::PerformableAction::NoAction,
             eaten: 0,
             parents: (CreatureID(0), CreatureID(0)),
@@ -277,14 +269,6 @@ impl Creature {
 
     pub fn kill(&mut self) {
         self.energy = 0;
-    }
-
-    pub fn update_from_thought(&mut self, thought: &Thought) {
-        self.instr_used += thought.skipped();
-        self.instr_skipped += thought.skipped();
-        if thought.is_indecision() {
-            self.kill()
-        }
     }
 
     pub fn mate_with(
@@ -388,7 +372,6 @@ impl Creature {
     }
 }
 
-
 /// Needed because some parts aren't serialized because they can be
 /// inferred from other fields
 #[derive(Deserialize)]
@@ -401,8 +384,6 @@ pub struct DeserializableCreature {
     signal: Option<dna::lex::Signal>,
     survived: usize,
     kills: usize,
-    instr_used: usize,
-    instr_skipped: usize,
     last_action: eval::PerformableAction,
     id: CreatureID,
     eaten: usize,
@@ -420,8 +401,6 @@ impl DeserializableCreature {
             signal,
             survived,
             kills,
-            instr_used,
-            instr_skipped,
             last_action,
             id,
             eaten,
@@ -439,8 +418,6 @@ impl DeserializableCreature {
             signal,
             survived,
             kills,
-            instr_used,
-            instr_skipped,
             last_action,
             id,
             eaten,
@@ -448,7 +425,6 @@ impl DeserializableCreature {
         }
     }
 }
-
 
 #[derive(Serialize, Debug)]
 pub struct Creatures {

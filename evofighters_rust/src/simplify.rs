@@ -19,7 +19,14 @@ use parsing::Decision;
 ///
 /// As a bonus, the behavior of the simplified trees is often easier
 /// to interpret by a human.
-pub fn simplify(Decision {tree, offset, icount, skipped}: Decision) -> Decision {
+pub fn simplify(
+    Decision {
+        tree,
+        offset,
+        icount,
+        skipped,
+    }: Decision,
+) -> Decision {
     let stage_1_cond = eval_static_conditionals(tree);
     // Next, evaluate redundant Always -> Subcondition branches
     let stage_2_cond = eval_redundant_conditions(stage_1_cond);
@@ -225,7 +232,7 @@ impl ThoughtCycle {
 
 pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     if !dna.valid() {
-        return Err(parsing::Failure::DNAEmpty)
+        return Err(parsing::Failure::DNAEmpty);
     }
     let f = |offset: usize| -> usize {
         parsing::Parser::new(dna, offset).next().unwrap().offset()

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use creatures::{Creature, Creatures, IDGiver};
 use eval;
 use settings;
-use parsing::{Decision, Indecision, Thought};
+use parsing::Decision;
 
 use saver::{OwnedCheckpoint, Saver};
 use stats::GlobalStatistics;
@@ -410,22 +410,6 @@ impl Arena {
     }
 }
 
-fn maybe_log_undecided(creature: &Creature, thought: &Thought) {
-    if let Thought::Ind(Indecision {
-        reason,
-        icount,
-        skipped,
-        ..
-    }) = *thought
-    {
-        info!(
-            "{} died because {:?}. using {} instructions,\
-             with {} skipped",
-            creature, reason, icount, skipped
-        );
-    };
-}
-
 pub struct Encounter<'a> {
     pub p1: Creature,
     pub p2: Creature,
@@ -477,8 +461,8 @@ impl<'a> Encounter<'a> {
     ) -> FightStatus {
         debug!("{} thinks {:?}", self.p1, tree1);
         debug!("{} thinks {:?}", self.p2, tree2);
-        self.p1_action = eval::evaluate(&self.p1, &self.p2, &tree1);
-        self.p2_action = eval::evaluate(&self.p2, &self.p1, &tree2);
+        self.p1_action = eval::evaluate(&self.p1, &self.p2, tree1);
+        self.p2_action = eval::evaluate(&self.p2, &self.p1, tree2);
         let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
         if p1_cost < p2_cost {
             trace!("{} is going first", self.p1);
@@ -495,20 +479,6 @@ impl<'a> Encounter<'a> {
             trace!("{} is going first", self.p2);
             self.do_swapped_round()
         }
-    }
-
-    fn someone_undecided(
-        &mut self,
-        p1_thought: &Thought,
-        p2_thought: &Thought,
-    ) -> FightStatus {
-        // Somebody was undecided, and the fight is over.
-        self.p1.update_from_thought(p1_thought);
-        self.p2.update_from_thought(p2_thought);
-        maybe_log_undecided(&self.p1, p1_thought);
-        maybe_log_undecided(&self.p2, p2_thought);
-        trace!("The fight ended before it timed out");
-        FightStatus::End
     }
 
     pub fn encounter(&mut self) {
@@ -590,9 +560,12 @@ impl<'a> Encounter<'a> {
             Err(_) => {
                 info!("Child didn't live since it had invalid dna.");
                 None
-            },
+            }
             Ok(child) => {
-                info!("{} and {} have a child named {}", self.p1, self.p2, child);
+                info!(
+                    "{} and {} have a child named {}",
+                    self.p1, self.p2, child
+                );
                 self.p1.num_children += 1;
                 self.p2.num_children += 1;
                 Some(child)

@@ -8,7 +8,6 @@ use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Failure {
-    IsFeeder,
     DNAEmpty,
     TookTooLong,
     ParseTreeTooDeep,
@@ -50,31 +49,10 @@ impl Thought {
         })
     }
 
-    pub fn icount(&self) -> usize {
-        match *self {
-            Thought::Dec(Decision { icount, .. })
-            | Thought::Ind(Indecision { icount, .. }) => icount,
-        }
-    }
-
-    pub fn skipped(&self) -> usize {
-        match *self {
-            Thought::Dec(Decision { skipped, .. })
-            | Thought::Ind(Indecision { skipped, .. }) => skipped,
-        }
-    }
-
     pub fn offset(&self) -> usize {
         match *self {
             Thought::Dec(Decision { offset, .. })
             | Thought::Ind(Indecision { offset, .. }) => offset,
-        }
-    }
-
-    pub fn is_indecision(&self) -> bool {
-        match *self {
-            Thought::Dec(_) => false,
-            Thought::Ind(_) => true,
         }
     }
 
@@ -108,16 +86,6 @@ impl Parser {
             dna_stream: dna.base_stream(offset),
             depth: 0,
             for_feeder: false,
-        }
-    }
-
-    pub fn feeder_new() -> Parser {
-        Parser {
-            icount: 0,
-            skipped: 0,
-            dna_stream: DNA::feeder().base_stream(0),
-            depth: 0,
-            for_feeder: true,
         }
     }
 

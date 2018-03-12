@@ -14,7 +14,6 @@ extern crate time;
 extern crate twox_hash;
 extern crate xz2;
 
-
 #[macro_use]
 mod util;
 
