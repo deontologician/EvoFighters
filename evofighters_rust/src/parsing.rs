@@ -16,7 +16,7 @@ pub enum Failure {
 
 #[derive(Debug, Clone)]
 pub struct Decision {
-    pub tree: Box<ast::Condition>,
+    pub tree: ast::Condition,
     pub offset: usize,
     pub icount: usize,
     pub skipped: usize,
@@ -43,7 +43,7 @@ pub enum Thought {
 impl Thought {
     fn feeder_decision() -> Thought {
         Thought::Dec(Decision {
-            tree: Box::new(ast::Condition::Always(ast::Action::Wait)),
+            tree: ast::Condition::Always(ast::Action::Wait),
             icount: 0,
             skipped: settings::MAX_THINKING_STEPS + 1,
             offset: 0,
@@ -236,7 +236,7 @@ impl Iterator for Parser {
             Ok(tree) => Thought::Dec(Decision {
                 icount: self.icount,
                 skipped: self.skipped,
-                tree: Box::new(tree),
+                tree: tree,
                 offset: self.current_offset(),
             }),
         });

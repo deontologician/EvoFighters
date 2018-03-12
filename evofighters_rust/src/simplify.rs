@@ -237,12 +237,10 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     }
     let mut new_iter = parsing::Parser::new(dna, 0);
     let mut thought: parsing::Decision;
-    let mut thought_tree: ast::Condition;
     let mut thoughts = Vec::new();
-    for i in 0..(mu + lam) {
+    for _ in 0..(mu + lam) {
         thought = new_iter.next().unwrap().into_result()?;
-        thought_tree = *thought.tree;
-        let simplified = simplify(thought_tree.clone());
+        let simplified = simplify(thought.tree);
         thoughts.push(simplified);
     }
     Ok(ThoughtCycle {

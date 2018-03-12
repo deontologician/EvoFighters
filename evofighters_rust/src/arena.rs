@@ -463,13 +463,13 @@ impl<'a> Encounter<'a> {
     fn both_decided(
         &mut self,
         Decision {
-            tree: box tree1,
+            tree: tree1,
             icount: i1,
             skipped: s1,
             ..
         }: Decision,
         Decision {
-            tree: box tree2,
+            tree: tree2,
             icount: i2,
             skipped: s2,
             ..
