@@ -203,6 +203,7 @@ impl Creature {
 
     pub fn survived_encounter(&mut self) {
         self.stats.survived += 1;
+        // Want to reset the action at the end of every encounter
         self.last_action = eval::PerformableAction::NoAction;
     }
 
@@ -259,6 +260,14 @@ impl Creature {
         self.energy = 0;
     }
 
+    pub fn has_eaten(&mut self) {
+        self.stats.eaten += 1;
+    }
+
+    pub fn has_killed(&mut self) {
+        self.stats.kills += 1;
+    }
+
     pub fn mate_with(
         &mut self,
         other: &mut Creature,
@@ -272,6 +281,10 @@ impl Creature {
             max(self.generation, other.generation) + 1, // generation
             (self.id, other.id),                        // parents
         );
+        if maybe_child.is_ok() {
+            self.stats.num_children += 1;
+            other.stats.num_children += 1;
+        }
         (maybe_child, stats)
     }
 

@@ -566,8 +566,6 @@ impl<'a> Encounter<'a> {
                     "{} and {} have a child named {}",
                     self.p1, self.p2, child
                 );
-                self.p1.stats.num_children += 1;
-                self.p2.stats.num_children += 1;
                 Some(child)
             }
         }
@@ -578,14 +576,14 @@ impl<'a> Encounter<'a> {
         self.p1.steal_from(&mut self.p2);
         if self.p2.is_feeder() {
             self.stats.feeders_eaten += 1;
-            self.p1.stats.eaten += 1;
+            self.p1.has_eaten();
             self.p1.gain_energy(self.rng.rand_range(0, 1));
             self.p1.last_action = eval::PerformableAction::Wait;
         } else {
             self.p1.gain_energy(
                 self.rng.rand_range(0, settings::WINNER_LIFE_BONUS),
             );
-            self.p1.stats.kills += 1;
+            self.p1.has_killed();
             self.stats.kills += 1;
             self.p1.survived_encounter();
         }
