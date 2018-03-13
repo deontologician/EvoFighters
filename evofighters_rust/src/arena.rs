@@ -1,6 +1,8 @@
 use std::cmp::max;
 use std::mem;
 use std::time::{Duration, Instant};
+use std::io;
+use std::io::Write;
 
 use creatures::{Creature, Creatures, IDGiver};
 use eval;
@@ -330,6 +332,7 @@ impl Arena {
                 err = self.rates.prediction_error * 100.0,
                 fps = self.rates.fps,
             );
+            io::stdout().flush();
             self.events_since_last_print = 0;
             Instant::now()
         } else {
