@@ -6,10 +6,9 @@ use std::io::Write;
 
 use creatures::{Creature, Creatures, IDGiver};
 use eval;
-use settings;
 use parsing::Decision;
 
-use saver::{OwnedCheckpoint, Saver};
+use saver::{OwnedCheckpoint, Saver, Settings};
 use stats::GlobalStatistics;
 use rng::RngState;
 
@@ -233,8 +232,13 @@ struct RateData {
 }
 
 impl RateData {
-    pub fn new(start_time: Instant, events_slept: u64) -> RateData {
-        let wanted_duration = settings::DISPLAY_FPS.recip();
+    const INITIAL_EVENTS_PER_SECOND_GUESS: u64 = 10_000;
+    pub fn new(
+        start_time: Instant,
+        events_slept: u64,
+        metric_fps: f64,
+    ) -> RateData {
+        let wanted_duration = metric_fps.recip();
         let actual_duration = RateData::duration_to_f64(start_time.elapsed());
         let events_per_second = (events_slept as f64) / actual_duration;
         RateData {
@@ -248,7 +252,7 @@ impl RateData {
     /// Just some garbage so we have an initial value for these things
     pub fn initial() -> RateData {
         RateData {
-            events_to_sleep: settings::INITIAL_EVENTS_PER_SECOND_GUESS,
+            events_to_sleep: RateData::INITIAL_EVENTS_PER_SECOND_GUESS,
             events_per_second: 0,
             prediction_error: 0.0,
             fps: 30.0,
@@ -267,6 +271,7 @@ impl RateData {
 pub struct Arena {
     rng: RngState,
     population: Creatures,
+    settings: Settings,
     stats: GlobalStatistics,
     total_events: u64,
     encounters: u64,
@@ -278,12 +283,15 @@ pub struct Arena {
 }
 
 impl Arena {
-    // TODO: Change input to new to be settings, instead of the entire
-    // creature array (make the Arena build that based on settings)
-    pub fn new(population: Creatures, filename: &str) -> Arena {
+    pub fn new(
+        population: Creatures,
+        filename: &str,
+        settings: Settings,
+    ) -> Arena {
         Arena {
             rng: RngState::default(),
             population,
+            settings,
             stats: GlobalStatistics::new(),
             total_events: 0,
             encounters: 0,
@@ -299,18 +307,23 @@ impl Arena {
         checkpoint: OwnedCheckpoint,
         filename: &str,
     ) -> Arena {
-        // TODO: actually use the settings
         let OwnedCheckpoint {
-            creatures, stats, ..
+            creatures,
+            stats,
+            settings,
         } = checkpoint;
-        let mut arena = Arena::new(creatures, filename);
+        let mut arena = Arena::new(creatures, filename, settings);
         arena.stats = stats;
         arena
     }
 
     fn maybe_print_status(&mut self, timestamp: Instant) -> Instant {
         if self.events_since_last_print == self.rates.events_to_sleep {
-            self.rates = RateData::new(timestamp, self.events_since_last_print);
+            self.rates = RateData::new(
+                timestamp,
+                self.events_since_last_print,
+                self.settings.metric_fps,
+            );
             print!(
                 "\rCreatures: {creatures}, \
                  Feeders: {feeders}, \
@@ -373,6 +386,7 @@ impl Arena {
             let mut enc = Encounter::new(
                 p1,
                 p2,
+                self.settings.mutation_rate,
                 &mut self.rng,
                 self.population.id_giver(),
             );
@@ -422,6 +436,7 @@ pub struct Encounter<'a> {
     id_giver: &'a mut IDGiver,
 
     max_rounds: usize,
+    mutation_rate: f64,
     p1_action: eval::PerformableAction,
     p2_action: eval::PerformableAction,
 }
@@ -430,6 +445,7 @@ impl<'a> Encounter<'a> {
     pub fn new(
         p1: Creature,
         p2: Creature,
+        mutation_rate: f64,
         rng: &'a mut RngState,
         id_giver: &'a mut IDGiver,
     ) -> Encounter<'a> {
@@ -442,6 +458,7 @@ impl<'a> Encounter<'a> {
             rng,
             id_giver,
             max_rounds,
+            mutation_rate,
             p1_action: eval::PerformableAction::NoAction,
             p2_action: eval::PerformableAction::NoAction,
         }
@@ -555,9 +572,12 @@ impl<'a> Encounter<'a> {
     }
 
     fn mate(&mut self) -> Option<Creature> {
-        let (maybe_child, stats) =
-            self.p1
-                .mate_with(&mut self.p2, &mut self.id_giver, &mut self.rng);
+        let (maybe_child, stats) = self.p1.mate_with(
+            &mut self.p2,
+            &mut self.id_giver,
+            &mut self.rng,
+            self.mutation_rate,
+        );
         self.stats.absorb(stats);
         match maybe_child {
             Err(_) => {
@@ -583,9 +603,7 @@ impl<'a> Encounter<'a> {
             self.p1.gain_energy(self.rng.rand_range(0, 1));
             self.p1.last_action = eval::PerformableAction::Wait;
         } else {
-            self.p1.gain_energy(
-                self.rng.rand_range(0, settings::WINNER_LIFE_BONUS),
-            );
+            self.p1.gain_winner_energy(&mut self.rng);
             self.p1.has_killed();
             self.stats.kills += 1;
             self.p1.survived_encounter();

@@ -6,7 +6,6 @@ use std::slice::Iter;
 
 use twox_hash::XxHash32;
 
-use settings;
 use stats::GlobalStatistics;
 use rng::RngState;
 
@@ -16,6 +15,7 @@ pub struct Gene([i8; 5]);
 impl Gene {
     pub const STOP_CODON: i8 = -1;
     pub const LENGTH: usize = 5;
+    pub const MAX_MEANINGFUL_VALUE: i8 = 8;
 
     /// Produces a gene full of all stop codons. Useful for allocation
     /// then overwriting
@@ -86,8 +86,10 @@ impl Gene {
             3 => {
                 // Create a new gene, and set one base in it to a random value
                 let index = rng.rand_range(0, Gene::LENGTH);
-                let val =
-                    rng.rand_range(Gene::STOP_CODON, settings::MAX_GENE_VALUE);
+                let val = rng.rand_range(
+                    Gene::STOP_CODON,
+                    Gene::MAX_MEANINGFUL_VALUE,
+                );
                 debug!(
                     "created a new gene with base {} at index {}",
                     val, index
@@ -102,7 +104,7 @@ impl Gene {
                 let inc = rng.rand_range(1, 3);
                 let index = rng.rand_range(0, Gene::LENGTH);
                 let new_base = (self.0[index] + 1 + inc)
-                    % (settings::MAX_GENE_VALUE + 2)
+                    % (Gene::MAX_MEANINGFUL_VALUE + 2)
                     - 1;
                 debug!(
                     "added {} to base at {} with val {} to get {}",
@@ -176,6 +178,7 @@ impl DNA {
         mother: &DNA,
         father: &DNA,
         rng: &mut RngState,
+        mutation_rate: f64,
     ) -> (DNA, GlobalStatistics) {
         let mut m_iter = mother.0.clone().into_iter();
         let mut f_iter = father.0.clone().into_iter();
@@ -191,15 +194,15 @@ impl DNA {
             }
             child_genes.push(if rng.rand() { gene1 } else { gene2 });
         }
-        if rng.rand_range(0.0, 1.0) < settings::MUTATION_RATE {
-            DNA::mutate(&mut child_genes, rng);
+        if rng.rand_range(0.0, 1.0) < mutation_rate {
+            DNA::mutate(&mut child_genes, rng, mutation_rate);
             stats.mutations += 1;
         }
         (DNA(child_genes), stats)
     }
 
-    fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState) {
-        if rng.rand_weighted_bool((10000.0 / settings::MUTATION_RATE) as u32) {
+    fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState, mutation_rate: f64) {
+        if rng.rand_weighted_bool((10000.0 / mutation_rate) as u32) {
             DNA::genome_level_mutation(genes, rng)
         } else {
             let index = rng.rand_range(0, genes.len());
@@ -348,7 +351,7 @@ pub mod lex {
             /// Do the specified action if the other fighter's last action is
             /// the specified value
             OtherLastAction,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 
@@ -364,7 +367,7 @@ pub mod lex {
             Me,
             /// An attribute from the opponent will be used as the value
             Other,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 
@@ -390,7 +393,7 @@ pub mod lex {
             Wait,
             /// Attempt to flee the encounter
             Flee,
-            // If adding an action, update settings::MAX_GENE_VALUE to match
+            // If adding an action, update Gene::MAX_MEANINGFUL_VALUE to match
         }
     }
 
@@ -414,7 +417,7 @@ pub mod lex {
             NumChildren,
             /// The value of the top item in the fighter's inventory
             TopItem,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 
@@ -441,7 +444,7 @@ pub mod lex {
             GoodFood,
             BetterFood,
             ExcellentFood,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 
@@ -456,7 +459,7 @@ pub mod lex {
             Purple,
             Orange,
             Green,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 
@@ -471,7 +474,7 @@ pub mod lex {
             Ice,
             /// Electricity damage
             Electricity,
-            // pay attention to settings::MAX_GENE_VALUE if adding items
+            // pay attention to Gene::MAX_MEANINGFUL_VALUE if adding items
         }
     }
 }

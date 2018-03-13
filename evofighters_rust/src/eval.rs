@@ -1,10 +1,9 @@
 use std::fmt;
 use std::cmp::{max, min, PartialEq, PartialOrd};
 
-use dna::{ast, lex};
+use dna::{ast, lex, Gene};
 use creatures::Creature;
 use rng::RngState;
-use settings;
 
 // PerformableAction is the result of evaluating a thought tree
 #[derive(Debug, Copy, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -156,7 +155,7 @@ fn eval_value(me: &Creature, other: &Creature, val: &ast::Value) -> usize {
     match *val {
         ast::Value::Literal(x) => x as usize,
         ast::Value::Random => RngState::from_creatures(me, other)
-            .rand_range(0, settings::MAX_GENE_VALUE as usize),
+            .rand_range(0, Gene::MAX_MEANINGFUL_VALUE as usize),
         ast::Value::Me(attr) => me.attr(attr),
         ast::Value::Other(attr) => other.attr(attr),
     }

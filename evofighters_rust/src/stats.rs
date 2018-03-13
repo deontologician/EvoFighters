@@ -21,7 +21,6 @@ impl GlobalStatistics {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct CreatureStats {
     pub kills: usize,

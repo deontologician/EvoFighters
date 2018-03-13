@@ -8,36 +8,25 @@ use xz2::read::XzDecoder;
 
 use creatures::{Creatures, DeserializableCreatures};
 use stats::GlobalStatistics;
-use settings;
 
-#[derive(Debug, Deserialize, Serialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, Builder)]
 pub struct Settings {
-    max_thinking_steps: usize,
-    max_tree_depth: usize,
-    max_inv_size: usize,
-    default_energy: usize,
-    mating_cost: usize,
-    mutation_rate: f64,
-    max_gene_value: i8,
-    winner_life_bonus: usize,
-    max_population_size: usize,
+    #[builder(default = "0.10")]
+    pub mutation_rate: f64,
+
+    #[builder(default = "120_000")]
+    pub max_population_size: usize,
+
+    #[builder(default = "30.0")]
+    pub metric_fps: f64,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings {
-            max_thinking_steps: settings::MAX_THINKING_STEPS,
-            max_tree_depth: settings::MAX_TREE_DEPTH,
-            max_inv_size: settings::MAX_INV_SIZE,
-            default_energy: settings::DEFAULT_ENERGY,
-            mating_cost: settings::MATING_COST,
-            mutation_rate: settings::MUTATION_RATE,
-            max_gene_value: settings::MAX_GENE_VALUE,
-            winner_life_bonus: settings::WINNER_LIFE_BONUS,
-            max_population_size: settings::MAX_POPULATION_SIZE,
-        }
+        SettingsBuilder::default().build().unwrap()
     }
 }
+
 #[derive(Debug)]
 pub struct Saver {
     filename: String,

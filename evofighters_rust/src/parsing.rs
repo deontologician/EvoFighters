@@ -4,7 +4,6 @@ use std::convert::From;
 use num::FromPrimitive;
 
 use dna::{ast, lex, DNAIter, DNA};
-use settings;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Failure {
@@ -44,7 +43,7 @@ impl Thought {
         Thought::Dec(Decision {
             tree: ast::Condition::Always(ast::Action::Wait),
             icount: 0,
-            skipped: settings::MAX_THINKING_STEPS + 1,
+            skipped: Parser::MAX_THINKING_STEPS + 1,
             offset: 0,
         })
     }
@@ -76,6 +75,9 @@ pub struct Parser {
 }
 
 impl Parser {
+    const MAX_THINKING_STEPS: usize = 100;
+    const MAX_TREE_DEPTH: usize = 20;
+
     /// Handles parsing from dna and returning a parse tree which
     /// represents a creature's thought process in making
     /// encounter decisions
@@ -101,7 +103,7 @@ impl Parser {
             next_i8 = self.dna_stream.next();
             next_val = next_i8.and_then(FromPrimitive::from_i8);
             self.skipped += 1;
-            if self.icount + self.skipped > settings::MAX_THINKING_STEPS {
+            if self.icount + self.skipped > Parser::MAX_THINKING_STEPS {
                 return Err(Failure::TookTooLong);
             }
         }
@@ -109,7 +111,7 @@ impl Parser {
     }
 
     fn parse_condition(&mut self) -> ParseResult<ast::Condition> {
-        if self.depth > settings::MAX_TREE_DEPTH {
+        if self.depth > Parser::MAX_TREE_DEPTH {
             return Err(Failure::ParseTreeTooDeep);
         }
         Ok(match self.next_valid(0)? {

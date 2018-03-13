@@ -7,9 +7,8 @@ use dna::lex;
 use eval;
 use parsing;
 use parsing::Decision;
-use settings;
 use arena;
-use stats::{GlobalStatistics, CreatureStats};
+use stats::{CreatureStats, GlobalStatistics};
 use rng::RngState;
 use simplify::{cycle_detect, ThoughtCycle};
 
@@ -58,17 +57,16 @@ impl IDGiver {
             "IDGiver::create must be called with size > 0"
         );
         let nt = num_threads as u64; // avoid a ton of casts
-        // next_id_to_give_out can never be zero, since that's the
-        // feeder id.
-        (1..(nt + 1))
-            .map(|i| IDGiver::new(i, nt))
-            .collect()
+                                     // next_id_to_give_out can never be zero, since that's the
+                                     // feeder id.
+        (1..(nt + 1)).map(|i| IDGiver::new(i, nt)).collect()
     }
 
     pub fn into_threads(self, num_threads: usize) -> Vec<IDGiver> {
+        assert!(self.modulus == 1);
         let IDGiver {
             next_id_to_give_out,
-            modulus,
+            ..
         } = self;
         let nt = num_threads as u64;
 
@@ -110,6 +108,11 @@ impl fmt::Display for Creature {
 }
 
 impl Creature {
+    const MAX_ENERGY: usize = 40;
+    const MAX_INV_SIZE: usize = 3;
+    const MATING_COST: usize = 3;
+    const WINNER_LIFE_BONUS: usize = 5;
+
     fn new(
         id: CreatureID,
         dna: dna::DNA,
@@ -119,8 +122,8 @@ impl Creature {
         let thought_cycle = cycle_detect(&dna)?;
         Ok(Creature {
             dna: dna,
-            inv: Vec::with_capacity(settings::MAX_INV_SIZE),
-            energy: settings::DEFAULT_ENERGY,
+            inv: Vec::with_capacity(Creature::MAX_INV_SIZE),
+            energy: Creature::MAX_ENERGY,
             thought_cycle,
             generation: generation,
             signal: None,
@@ -136,8 +139,8 @@ impl Creature {
         // We know the seed dna is valid, so unwrapping
         let thought_cycle = cycle_detect(&dna).unwrap();
         Creature {
-            inv: Vec::with_capacity(settings::MAX_INV_SIZE),
-            energy: settings::DEFAULT_ENERGY,
+            inv: Vec::with_capacity(Creature::MAX_INV_SIZE),
+            energy: Creature::MAX_ENERGY,
             thought_cycle,
             dna: dna,
             generation: 0,
@@ -203,7 +206,7 @@ impl Creature {
     }
 
     pub fn add_item(&mut self, item: dna::lex::Item) {
-        if self.inv.len() < settings::MAX_INV_SIZE {
+        if self.inv.len() < Creature::MAX_INV_SIZE {
             self.inv.push(item)
         } else {
             debug!("{} tries to add {:?} but has no more space", self, item);
@@ -262,7 +265,11 @@ impl Creature {
 
     pub fn gain_energy(&mut self, amount: usize) {
         self.energy += amount;
-        self.energy = min(settings::DEFAULT_ENERGY, self.energy);
+        self.energy = min(Creature::MAX_ENERGY, self.energy);
+    }
+
+    pub fn gain_winner_energy(&mut self, rng: &mut RngState) {
+        self.gain_energy(rng.rand_range(0, Creature::WINNER_LIFE_BONUS))
     }
 
     pub fn kill(&mut self) {
@@ -282,8 +289,10 @@ impl Creature {
         other: &mut Creature,
         id_giver: &mut IDGiver,
         rng: &mut RngState,
+        mutation_rate: f64,
     ) -> (Result<Creature, parsing::Failure>, GlobalStatistics) {
-        let (child_dna, stats) = dna::DNA::combine(&self.dna, &other.dna, rng);
+        let (child_dna, stats) =
+            dna::DNA::combine(&self.dna, &other.dna, rng, mutation_rate);
         let maybe_child = Creature::new(
             id_giver.next_creature_id(),                // id
             child_dna,                                  // dna
@@ -298,7 +307,7 @@ impl Creature {
     }
 
     pub fn pay_for_mating(&mut self, share: usize) -> bool {
-        let mut cost = (settings::MATING_COST as f64 * (share as f64 / 100.0))
+        let mut cost = (Creature::MATING_COST as f64 * (share as f64 / 100.0))
             .round() as isize;
         while cost > 0 {
             match self.pop_item() {
@@ -479,12 +488,9 @@ impl Creatures {
 
         IDGiver::per_thread(num_threads)
             .into_iter()
-            .map(|id_giver|
-                Creatures::from_pieces(
-                    id_giver,
-                    pop_per_thread,
-                    rng.spawn())
-            )
+            .map(|id_giver| {
+                Creatures::from_pieces(id_giver, pop_per_thread, rng.spawn())
+            })
             .collect()
     }
 
@@ -504,23 +510,27 @@ impl Creatures {
         let creat_div = creatures.len() / num_threads;
         let feed_rem = feeder_count % num_threads;
         let feed_div = feeder_count / num_threads;
-        id_giver.into_threads(num_threads)
+        id_giver
+            .into_threads(num_threads)
             .into_iter()
             .enumerate()
             .map(|(i, idg)| Creatures {
-                max_pop_size: if i >= pop_rem {pop_div} else {pop_div + 1},
-                feeder_count: if i >= feed_rem {feed_div} else {feed_div + 1},
+                max_pop_size: if i >= pop_rem { pop_div } else { pop_div + 1 },
+                feeder_count: if i >= feed_rem {
+                    feed_div
+                } else {
+                    feed_div + 1
+                },
                 rng: rng.spawn(),
                 id_giver: idg,
                 creatures: if i >= creat_rem {
                     creatures.drain(0..creat_div)
                 } else {
                     creatures.drain(0..(creat_div + 1))
-                }.collect()
+                }.collect(),
             })
             .collect()
     }
-
 
     pub fn id_giver(&mut self) -> &mut IDGiver {
         &mut self.id_giver
