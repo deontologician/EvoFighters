@@ -5,6 +5,7 @@ extern crate clap;
 #[macro_use]
 extern crate enum_primitive;
 extern crate num;
+extern crate num_cpus;
 extern crate rand;
 extern crate serde;
 #[macro_use]

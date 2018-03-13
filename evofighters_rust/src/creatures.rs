@@ -57,15 +57,24 @@ impl IDGiver {
             num_threads > 0,
             "IDGiver::create must be called with size > 0"
         );
-        let mut vec = Vec::with_capacity(num_threads);
         let nt = num_threads as u64; // avoid a ton of casts
-                                     // next_id_to_give_out can never be zero, since that's the
-                                     // feeder id.
-        vec.push(IDGiver::new(nt, nt));
-        for i in 1..(nt) {
-            vec.push(IDGiver::new(i, nt))
-        }
-        vec
+        // next_id_to_give_out can never be zero, since that's the
+        // feeder id.
+        (1..(nt + 1))
+            .map(|i| IDGiver::new(i, nt))
+            .collect()
+    }
+
+    pub fn into_threads(self, num_threads: usize) -> Vec<IDGiver> {
+        let IDGiver {
+            next_id_to_give_out,
+            modulus,
+        } = self;
+        let nt = num_threads as u64;
+
+        (0..nt)
+            .map(|i| IDGiver::new(i + next_id_to_give_out, nt))
+            .collect()
     }
 
     pub fn next_creature_id(&mut self) -> CreatureID {
@@ -456,6 +465,7 @@ impl Creatures {
         )
     }
 
+    /// Create a new population, one for each thread
     pub fn per_thread(
         num_threads: usize,
         max_pop_size: usize,
@@ -469,11 +479,48 @@ impl Creatures {
 
         IDGiver::per_thread(num_threads)
             .into_iter()
-            .map(|id_giver| {
-                Creatures::from_pieces(id_giver, pop_per_thread, rng.spawn())
+            .map(|id_giver|
+                Creatures::from_pieces(
+                    id_giver,
+                    pop_per_thread,
+                    rng.spawn())
+            )
+            .collect()
+    }
+
+    /// Split an existing population that's been loaded from disk into
+    /// the specified number of threads
+    pub fn split_by_thread(self, num_threads: usize) -> Vec<Creatures> {
+        let Creatures {
+            mut creatures,
+            max_pop_size,
+            feeder_count,
+            mut rng,
+            id_giver,
+        } = self;
+        let pop_rem = max_pop_size % num_threads;
+        let pop_div = max_pop_size / num_threads;
+        let creat_rem = creatures.len() % num_threads;
+        let creat_div = creatures.len() / num_threads;
+        let feed_rem = feeder_count % num_threads;
+        let feed_div = feeder_count / num_threads;
+        id_giver.into_threads(num_threads)
+            .into_iter()
+            .enumerate()
+            .map(|(i, idg)| Creatures {
+                max_pop_size: if i >= pop_rem {pop_div} else {pop_div + 1},
+                feeder_count: if i >= feed_rem {feed_div} else {feed_div + 1},
+                rng: rng.spawn(),
+                id_giver: idg,
+                creatures: if i >= creat_rem {
+                    creatures.drain(0..creat_div)
+                } else {
+                    creatures.drain(0..(creat_div + 1))
+                }.collect()
             })
             .collect()
     }
+
 
     pub fn id_giver(&mut self) -> &mut IDGiver {
         &mut self.id_giver
@@ -559,5 +606,59 @@ impl DeserializableCreatures {
             rng: RngState::default(),
             id_giver: IDGiver::new(max_id + 1, 1),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_by_thread_divides_evenly() {
+        let id_giver = IDGiver::new(14, 1);
+        let creats = Creatures {
+            id_giver,
+            rng: RngState::default(),
+            feeder_count: 3,
+            max_pop_size: 10,
+            creatures: vec![
+                Creature::seed_creature(CreatureID(1)),
+                Creature::seed_creature(CreatureID(3)),
+                Creature::seed_creature(CreatureID(5)),
+                Creature::seed_creature(CreatureID(7)),
+                Creature::seed_creature(CreatureID(9)),
+                Creature::seed_creature(CreatureID(11)),
+                Creature::seed_creature(CreatureID(13)),
+            ],
+        };
+        let mut res = creats.split_by_thread(3);
+        assert_eq!(res.len(), 3);
+        let one = res.remove(0);
+        let two = res.remove(0);
+        let three = res.remove(0);
+        assert_eq!(one.creatures.len(), 3);
+        assert_eq!(one.creatures[0].id, CreatureID(1));
+        assert_eq!(one.creatures[1].id, CreatureID(3));
+        assert_eq!(one.creatures[2].id, CreatureID(5));
+        assert_eq!(one.max_pop_size, 4);
+        assert_eq!(one.feeder_count, 1);
+        assert_eq!(one.id_giver.next_id_to_give_out, 14);
+        assert_eq!(one.id_giver.modulus, 3);
+
+        assert_eq!(two.creatures.len(), 2);
+        assert_eq!(two.creatures[0].id, CreatureID(7));
+        assert_eq!(two.creatures[1].id, CreatureID(9));
+        assert_eq!(two.max_pop_size, 3);
+        assert_eq!(two.feeder_count, 1);
+        assert_eq!(two.id_giver.next_id_to_give_out, 15);
+        assert_eq!(two.id_giver.modulus, 3);
+
+        assert_eq!(three.creatures.len(), 2);
+        assert_eq!(three.creatures[0].id, CreatureID(11));
+        assert_eq!(three.creatures[1].id, CreatureID(13));
+        assert_eq!(three.max_pop_size, 3);
+        assert_eq!(three.feeder_count, 1);
+        assert_eq!(three.id_giver.next_id_to_give_out, 16);
+        assert_eq!(three.id_giver.modulus, 3);
     }
 }
