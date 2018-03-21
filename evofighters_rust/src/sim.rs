@@ -1,9 +1,10 @@
 use std::thread;
-use std::sync::mpsc::channel;
+use std::thread::JoinHandle;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use num_cpus;
 
 use arena::Arena;
-use saver::{Saver, Settings};
+use saver::{Settings, SettingsBuilder};
 use creatures::Creatures;
 use saver::OwnedCheckpoint;
 use stats::GlobalStatistics;
@@ -28,58 +29,24 @@ use stats::GlobalStatistics;
 ///   * `worker_in` - a `Vec<Receiver>` with channels to receive completed work
 ///   * `metrics` - a `Sender` channel to send metrics through
 ///   * `should_exit` - a `Sender` to send graceful shutdown messages
-pub struct Simulation {
+pub struct SingleThreadedSimulation {
     filename: String,
     arena: Arena,
     settings: Settings,
 }
 
-impl Simulation {
-    pub fn new(filename: &str, settings: Settings) -> Simulation {
-        let arena = match Saver::load(filename) {
-            Ok(checkpoint) => {
-                println!("Loading from file {}", filename);
-                Arena::from_checkpoint(checkpoint, filename)
-            }
-            Err(_) => {
-                println!("Creating initial population");
-                let population: Creatures =
-                    Creatures::new(settings.max_population_size);
-                println!("Created {} creatures", settings.max_population_size);
-                Arena::new(population, filename, settings)
-            }
-        };
+impl SingleThreadedSimulation {
+    pub fn new(
+        filename: &str,
+        mut settings_builder: SettingsBuilder,
+    ) -> SingleThreadedSimulation {
+        let checkpoint = OwnedCheckpoint::new(filename, &mut settings_builder);
+        let arena = Arena::from_checkpoint(checkpoint, filename);
 
-        Simulation {
+        SingleThreadedSimulation {
             filename: filename.to_owned(),
-            settings,
+            settings: settings_builder.build().unwrap(),
             arena,
-        }
-    }
-
-    pub fn load_or_create(&mut self) -> OwnedCheckpoint {
-        println!("Attempting to load checkpoint from {}...", self.filename);
-        match Saver::load(&self.filename) {
-            Ok(checkpoint) => {
-                println!(
-                    "Success. {} creatures loaded.",
-                    checkpoint.creatures.len()
-                );
-                checkpoint
-            }
-            Err(_) => {
-                let creatures =
-                    Creatures::new(self.settings.max_population_size);
-                println!(
-                    "Created {} creatures.",
-                    self.settings.max_population_size
-                );
-                OwnedCheckpoint {
-                    creatures,
-                    settings: self.settings,
-                    stats: GlobalStatistics::default(),
-                }
-            }
         }
     }
 
@@ -87,7 +54,85 @@ impl Simulation {
         self.arena.simulate()
     }
 
-    pub fn full_simulate(&mut self) {
-        let physical_cores = num_cpus::get_physical();
+}
+
+pub struct MultiThreadedSimulation {
+    filename: String,
+    arena: Arena,
+    settings: Settings,
+}
+
+impl MultiThreadedSimulation {
+    pub fn simulate(&mut self) {
+        let num_cores = num_cpus::get_physical();
+        let (tx_metrics, rx_metrics) = channel();
+        let (tx_checkpoint, rx_checkpoint) = channel::<OwnedCheckpoint>();
+        let mut unspawned_workers = Vec::new();
+
+        for worker_id in 0..num_cores {
+            let (tx_inbox, rx_inbox) = channel();
+            let (tx_outbox, rx_outbox) = channel();
+            let (tx_exit, rx_exit) = channel();
+            unspawned_workers.push(UnspawnedWorkerRecord {
+                id: worker_id,
+                inbox: tx_inbox,
+                outbox: rx_outbox,
+                should_exit: tx_exit,
+                worker_state: WorkerState {
+                    id: worker_id,
+                    inbox: rx_inbox,
+                    outbox: tx_outbox,
+                    metrics: tx_metrics.clone(),
+                    should_exit: rx_exit,
+                },
+            });
+        }
+    }
+}
+pub struct WorkerState {
+    pub id: usize,
+    pub inbox: Receiver<Creatures>,
+    pub outbox: Sender<Creatures>,
+    pub metrics: Sender<GlobalStatistics>,
+    pub should_exit: Receiver<bool>,
+}
+
+pub struct UnspawnedWorkerRecord {
+    pub id: usize,
+    pub inbox: Sender<Creatures>,
+    pub outbox: Receiver<Creatures>,
+    pub should_exit: Sender<bool>,
+    pub worker_state: WorkerState,
+}
+
+pub struct WorkerRecord {
+    id: usize,
+    inbox: Sender<Creatures>,
+    outbox: Receiver<Creatures>,
+    should_exit: Sender<bool>,
+    join_handle: JoinHandle<()>,
+}
+
+impl UnspawnedWorkerRecord {
+    pub fn spawn<F>(self) -> WorkerRecord
+    where
+        F: FnOnce() -> (),
+        F: Send + 'static,
+    {
+        let UnspawnedWorkerRecord {
+            id,
+            inbox,
+            outbox,
+            should_exit,
+            worker_state,
+        } = self;
+        let join_handle = thread::spawn(move || {worker_state;});
+        WorkerRecord {
+            id,
+            inbox,
+            outbox,
+            should_exit,
+            join_handle,
+        }
     }
 }

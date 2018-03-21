@@ -1,6 +1,5 @@
 use std::fmt;
 use std::cmp::{max, min};
-use std::rc::Rc;
 
 use dna;
 use dna::lex;
@@ -8,6 +7,7 @@ use eval;
 use parsing;
 use parsing::Decision;
 use arena;
+use saver::Settings;
 use stats::{CreatureStats, GlobalStatistics};
 use rng::RngState;
 use simplify::{cycle_detect, ThoughtCycle};
@@ -157,7 +157,7 @@ impl Creature {
             .seeded_hash(CreatureID::parents_to_u32(self.parents))
     }
 
-    pub fn next_decision(&mut self) -> Rc<Decision> {
+    pub fn next_decision(&mut self) -> Decision {
         self.thought_cycle.next()
     }
 
@@ -472,6 +472,10 @@ impl Creatures {
             max_pop_size,
             RngState::default(),
         )
+    }
+
+    pub fn update_with_settings(&mut self, settings: &Settings) {
+        self.max_pop_size = settings.max_population_size;
     }
 
     /// Create a new population, one for each thread

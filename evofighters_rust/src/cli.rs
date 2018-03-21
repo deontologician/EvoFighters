@@ -82,16 +82,21 @@ pub fn run_simulation(app: &clap::ArgMatches) {
     let filename = app.value_of("savefile").unwrap();
     let mut sb = SettingsBuilder::default();
     if let Some(mr) = app.value_of("mutation_rate") {
-        sb.mutation_rate(mr.parse().unwrap());
+        let mut_rate = mr.parse().unwrap();
+        info!("Mutation rate set by user to {}", mut_rate);
+        sb.mutation_rate(mut_rate);
     }
     if let Some(pop_size) = app.value_of("max_population_size") {
-        sb.max_population_size(pop_size.parse().unwrap());
+        let pop = pop_size.parse().unwrap();
+        info!("Population size set by user to {}", pop);
+        sb.max_population_size(pop);
     }
     if let Some(metric_fps) = app.value_of("metric_fps") {
-        sb.metric_fps(metric_fps.parse().unwrap());
+        let fps = metric_fps.parse().unwrap();
+        info!("FPS set by user to {}", fps);
+        sb.metric_fps(fps);
     }
-    let settings = sb.build().unwrap();
-    sim::Simulation::new(filename, settings).simulate();
+    sim::SingleThreadedSimulation::new(filename, sb).simulate();
 }
 
 pub fn cycle_check(bases: clap::Values) {

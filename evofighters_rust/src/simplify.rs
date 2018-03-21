@@ -1,7 +1,6 @@
 // For simplifying thought trees
 
 use std::cmp::{max, min, PartialEq, PartialOrd};
-use std::rc::Rc;
 
 use dna::{ast, DNA};
 use parsing;
@@ -218,12 +217,12 @@ fn erc_action(act: ast::Action) -> ast::Action {
 
 #[derive(Debug, Clone)]
 pub struct ThoughtCycle {
-    thoughts: Vec<Rc<parsing::Decision>>,
+    thoughts: Vec<parsing::Decision>,
     cycle_offset: usize,
 }
 
 impl ThoughtCycle {
-    pub fn next(&mut self) -> Rc<Decision> {
+    pub fn next(&mut self) -> Decision {
         let t = self.thoughts[self.cycle_offset].clone();
         self.cycle_offset = (self.cycle_offset + 1) % self.thoughts.len();
         t
@@ -263,7 +262,7 @@ pub fn cycle_detect(dna: &DNA) -> Result<ThoughtCycle, parsing::Failure> {
     let mut thoughts = Vec::new();
     for _ in 0..(mu + lam) {
         thought = new_iter.next().unwrap().into_result()?;
-        thoughts.push(Rc::new(simplify(thought)));
+        thoughts.push(simplify(thought));
     }
     Ok(ThoughtCycle {
         thoughts: thoughts,

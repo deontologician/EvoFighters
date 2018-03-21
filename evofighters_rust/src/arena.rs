@@ -345,7 +345,7 @@ impl Arena {
                 err = self.rates.prediction_error * 100.0,
                 fps = self.rates.fps,
             );
-            io::stdout().flush();
+            io::stdout().flush().unwrap_or(());
             self.events_since_last_print = 0;
             Instant::now()
         } else {

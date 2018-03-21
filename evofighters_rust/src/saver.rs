@@ -27,6 +27,17 @@ impl Default for Settings {
     }
 }
 
+impl SettingsBuilder {
+    pub fn build_with_defaults(&mut self, other: Settings) -> Settings {
+        Settings {
+            mutation_rate: self.mutation_rate.unwrap_or(other.mutation_rate),
+            max_population_size: self.max_population_size
+                .unwrap_or(other.max_population_size),
+            metric_fps: self.metric_fps.unwrap_or(other.metric_fps),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Saver {
     filename: String,
@@ -90,6 +101,34 @@ pub struct OwnedCheckpoint {
     pub creatures: Creatures,
     pub stats: GlobalStatistics,
     pub settings: Settings,
+}
+
+impl OwnedCheckpoint {
+    pub fn new(filename: &str, sb: &mut SettingsBuilder) -> OwnedCheckpoint {
+        println!("Attempting to load checkpoint from {}...", filename);
+        match Saver::load(filename) {
+            Ok(mut checkpoint) => {
+                println!(
+                    "Success. {} creatures loaded.",
+                    checkpoint.creatures.len()
+                );
+                let settings = sb.build_with_defaults(checkpoint.settings);
+                checkpoint.creatures.update_with_settings(&settings);
+                checkpoint.settings = settings;
+                checkpoint
+            }
+            Err(_) => {
+                let settings = sb.build().unwrap();
+                let creatures = Creatures::new(settings.max_population_size);
+                println!("Created {} creatures.", settings.max_population_size);
+                OwnedCheckpoint {
+                    creatures,
+                    settings: settings,
+                    stats: GlobalStatistics::default(),
+                }
+            }
+        }
+    }
 }
 
 /// This checkpoint is what's deserialized from disk. Several of the
