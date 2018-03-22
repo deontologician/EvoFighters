@@ -330,7 +330,7 @@ impl Arena {
                 "\rCreatures: {creatures}, \
                  Feeders: {feeders}, \
                  F/C: {feeder_creature:.3}, \
-                 Mutations: {mutations}, Events: {events}, \
+                 Events: {events}, \
                  Born: {born}, Eaten: {eaten}, kills: {kills}, \
                  eps: {eps}, err: {err:.1}%, \
                  FPS: {fps:.1}       ",
@@ -338,7 +338,6 @@ impl Arena {
                 feeders = self.population.feeder_count(),
                 feeder_creature = self.population.feeder_count() as f64
                     / self.population.len() as f64,
-                mutations = self.stats.mutations,
                 events = self.total_events,
                 born = self.stats.children_born,
                 eaten = self.stats.feeders_eaten,
@@ -385,25 +384,16 @@ impl Arena {
             if !p1.is_feeder() && !p2.is_feeder() {
                 self.encounters += 1;
             }
-            let mut enc = Encounter::new(
+            let mut encounter = Encounter::new(
                 p1,
                 p2,
                 self.settings.mutation_rate,
                 &mut self.rng,
                 self.population.id_giver(),
             );
-            enc.encounter();
-            let Encounter {
-                children,
-                p1,
-                p2,
-                stats: enc_stats,
-                ..
-            } = enc;
-            self.stats.absorb(enc_stats);
-            self.population.absorb_all(children);
-            self.population.absorb(p1);
-            self.population.absorb(p2);
+            let EncounterResult { survivors, stats } = encounter.run();
+            self.stats.absorb(stats);
+            self.population.absorb_all(survivors);
 
             self.total_events += 1;
             self.events_since_last_save += 1;
@@ -429,14 +419,19 @@ impl Arena {
     }
 }
 
+pub struct EncounterResult {
+    pub survivors: Vec<Creature>,
+    pub stats: GlobalStatistics,
+}
+
 pub struct Encounter<'a> {
     pub p1: Creature,
     pub p2: Creature,
     pub stats: GlobalStatistics,
     pub children: Vec<Creature>,
+
     rng: &'a mut RngState,
     id_giver: &'a mut IDGiver,
-
     max_rounds: usize,
     mutation_rate: f64,
     p1_action: Cell<PerformableAction>,
@@ -481,8 +476,10 @@ impl<'a> Encounter<'a> {
         } = self.p2.next_decision();
         debug!("{} thinks {:?}", self.p1, tree1);
         debug!("{} thinks {:?}", self.p2, tree2);
-        self.p1_action.set(eval::evaluate(&self.p1, &self.p2, tree1));
-        self.p2_action.set(eval::evaluate(&self.p2, &self.p1, tree2));
+        self.p1_action
+            .set(eval::evaluate(&self.p1, &self.p2, tree1));
+        self.p2_action
+            .set(eval::evaluate(&self.p2, &self.p1, tree2));
         (i1 + s1, i2 + s2)
     }
 
@@ -504,30 +501,62 @@ impl<'a> Encounter<'a> {
         }
     }
 
-    pub fn encounter(&mut self) {
+    pub fn run(mut self) -> EncounterResult {
         info!("Max rounds: {}", self.max_rounds);
         // combine thought tree iterators, limit rounds
         for round in 0..self.max_rounds {
             debug!("Round {}", round);
             self.stats.rounds += 1;
             let (p1_cost, p2_cost) = self.decide_and_eval();
-            let fight_status = self.execute_round(p1_cost, p2_cost);
-            if let FightStatus::End = fight_status {
+            if let FightStatus::End = self.execute_round(p1_cost, p2_cost) {
                 break;
             }
             self.p1.last_action = self.p1_action.get();
             self.p2.last_action = self.p2_action.get();
         }
-        if self.p1.alive() && self.p2.dead() {
-            self.victory();
-        } else if self.p1.dead() && self.p2.alive() {
-            self.swap_players();
-            self.victory();
-        } else if self.p1.dead() && self.p2.dead() {
-            info!("Both {} and {} have died.", self.p1, self.p2)
+        let Encounter {
+            mut p1,
+            mut p2,
+            children: mut survivors,
+            mut stats,
+            mut rng,
+            ..
+        } = self;
+        if p1.alive() && p2.dead() {
+            Encounter::victory(&mut p1, &mut p2, &mut stats, rng);
+            survivors.push(p1);
+        } else if p1.dead() && p2.alive() {
+            Encounter::victory(&mut p2, &mut p1, &mut stats, rng);
+            survivors.push(p2);
+        } else if p1.dead() && p2.dead() {
+            info!("Both {} and {} have died.", p1, p2)
         } else {
-            self.p1.survived_encounter();
-            self.p2.survived_encounter();
+            p1.survived_encounter();
+            p2.survived_encounter();
+            survivors.push(p1);
+            survivors.push(p2);
+        }
+        EncounterResult { survivors, stats }
+    }
+
+    fn victory(
+        p1: &mut Creature,
+        p2: &mut Creature,
+        stats: &mut GlobalStatistics,
+        rng: &mut RngState,
+    ) {
+        info!("{} has killed {}", p1, p2);
+        p1.steal_from(p2);
+        if p2.is_feeder() {
+            stats.feeders_eaten += 1;
+            p1.has_eaten();
+            p1.gain_energy(rng.rand_range(0, 1));
+            p1.last_action = PerformableAction::Wait;
+        } else {
+            p1.gain_winner_energy(rng);
+            p1.has_killed();
+            stats.kills += 1;
+            p1.survived_encounter();
         }
     }
 
@@ -566,13 +595,12 @@ impl<'a> Encounter<'a> {
     }
 
     fn mate(&mut self) -> Option<Creature> {
-        let (maybe_child, stats) = self.p1.mate_with(
+        let maybe_child = self.p1.mate_with(
             &mut self.p2,
             &mut self.id_giver,
             &mut self.rng,
             self.mutation_rate,
         );
-        self.stats.absorb(stats);
         match maybe_child {
             Err(_) => {
                 info!("Child didn't live since it had invalid dna.");
@@ -585,22 +613,6 @@ impl<'a> Encounter<'a> {
                 );
                 Some(child)
             }
-        }
-    }
-
-    fn victory(&mut self) {
-        info!("{} has killed {}", self.p1, self.p2);
-        self.p1.steal_from(&mut self.p2);
-        if self.p2.is_feeder() {
-            self.stats.feeders_eaten += 1;
-            self.p1.has_eaten();
-            self.p1.gain_energy(self.rng.rand_range(0, 1));
-            self.p1.last_action = PerformableAction::Wait;
-        } else {
-            self.p1.gain_winner_energy(&mut self.rng);
-            self.p1.has_killed();
-            self.stats.kills += 1;
-            self.p1.survived_encounter();
         }
     }
 

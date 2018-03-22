@@ -8,7 +8,7 @@ use parsing;
 use parsing::Decision;
 use arena;
 use saver::Settings;
-use stats::{CreatureStats, GlobalStatistics};
+use stats::CreatureStats;
 use rng::RngState;
 use simplify::{cycle_detect, ThoughtCycle};
 
@@ -183,6 +183,10 @@ impl Creature {
         self.id.is_feeder()
     }
 
+    pub fn is_mutant(&self) -> bool {
+        self.dna.is_mutated()
+    }
+
     pub fn attr(&self, attr: lex::Attribute) -> usize {
         match attr {
             lex::Attribute::Energy => self.energy(),
@@ -290,9 +294,8 @@ impl Creature {
         id_giver: &mut IDGiver,
         rng: &mut RngState,
         mutation_rate: f64,
-    ) -> (Result<Creature, parsing::Failure>, GlobalStatistics) {
-        let (child_dna, stats) =
-            dna::DNA::combine(&self.dna, &other.dna, rng, mutation_rate);
+    ) -> Result<Creature, parsing::Failure> {
+        let child_dna = dna::DNA::combine(&self.dna, &other.dna, rng, mutation_rate);
         let maybe_child = Creature::new(
             id_giver.next_creature_id(),                // id
             child_dna,                                  // dna
@@ -303,7 +306,7 @@ impl Creature {
             self.stats.num_children += 1;
             other.stats.num_children += 1;
         }
-        (maybe_child, stats)
+        maybe_child
     }
 
     pub fn pay_for_mating(&mut self, share: usize) -> bool {

@@ -6,7 +6,6 @@ use std::slice::Iter;
 
 use twox_hash::XxHash32;
 
-use stats::GlobalStatistics;
 use rng::RngState;
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
@@ -148,22 +147,25 @@ impl IndexMut<usize> for Gene {
 
 /// Core DNA data structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DNA(Vec<Gene>);
+pub struct DNA {
+    genes: Vec<Gene>,
+    is_mutated: bool,
+}
 
 impl DNA {
     /// Produce feeder DNA, which is just stop codons
     pub fn feeder() -> DNA {
-        DNA(vec![Gene::always_wait()])
+        DNA { genes: vec![Gene::always_wait()], is_mutated: false }
     }
 
     /// Produce the default seed DNA, which evaluates to "always mate,
     /// always flee"
     pub fn seed() -> DNA {
-        DNA(vec![Gene::mate_then_flee()])
+        DNA { genes: vec![Gene::mate_then_flee()], is_mutated: false}
     }
 
     pub fn len(&self) -> usize {
-        self.0.len() * Gene::LENGTH
+        self.genes.len() * Gene::LENGTH
     }
 
     pub fn base_stream(&self, offset: usize) -> DNAIter {
@@ -171,7 +173,11 @@ impl DNA {
     }
 
     pub fn valid(&self) -> bool {
-        !self.0.is_empty() && self.0.iter().all(|&gene| gene.valid())
+        !self.genes.is_empty() && self.genes.iter().all(|&gene| gene.valid())
+    }
+
+    pub fn is_mutated(&self) -> bool {
+        self.is_mutated
     }
 
     pub fn combine(
@@ -179,11 +185,10 @@ impl DNA {
         father: &DNA,
         rng: &mut RngState,
         mutation_rate: f64,
-    ) -> (DNA, GlobalStatistics) {
-        let mut m_iter = mother.0.clone().into_iter();
-        let mut f_iter = father.0.clone().into_iter();
+    ) -> DNA {
+        let mut m_iter = mother.genes.clone().into_iter();
+        let mut f_iter = father.genes.clone().into_iter();
         let mut child_genes = Vec::new();
-        let mut stats = GlobalStatistics::new();
         // TODO: This code is lousy with unnecessary allocations,
         // clean this up a bit, use more copies / references if possible
         loop {
@@ -196,9 +201,10 @@ impl DNA {
         }
         if rng.rand_range(0.0, 1.0) < mutation_rate {
             DNA::mutate(&mut child_genes, rng, mutation_rate);
-            stats.mutations += 1;
+            DNA { genes: child_genes, is_mutated: true }
+        } else {
+            DNA { genes: child_genes, is_mutated: false }
         }
-        (DNA(child_genes), stats)
     }
 
     fn mutate(genes: &mut Vec<Gene>, rng: &mut RngState, mutation_rate: f64) {
@@ -249,7 +255,7 @@ impl DNA {
 
     pub fn seeded_hash(&self, seed: u32) -> u32 {
         let mut hasher = XxHash32::with_seed(seed);
-        for gene in &self.0 {
+        for gene in &self.genes {
             for base in gene.iter() {
                 hasher.write_i8(*base)
             }
@@ -278,7 +284,7 @@ impl From<Vec<i8>> for DNA {
             current_index += 1;
         }
         newvec.push(current_gene);
-        DNA(newvec)
+        DNA { genes: newvec, is_mutated: false }
     }
 }
 
@@ -293,7 +299,7 @@ impl DNAIter {
     fn new(dna: DNA, offset: usize) -> DNAIter {
         let len = dna.len();
         DNAIter {
-            dna: dna.0,
+            dna: dna.genes,
             offset: offset % len,
             dna_len: len,
         }
