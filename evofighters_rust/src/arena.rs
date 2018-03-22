@@ -3,9 +3,11 @@ use std::mem;
 use std::time::{Duration, Instant};
 use std::io;
 use std::io::Write;
+use std::cell::Cell;
 
 use creatures::{Creature, Creatures, IDGiver};
 use eval;
+use eval::PerformableAction;
 use parsing::Decision;
 
 use saver::{OwnedCheckpoint, Saver, Settings};
@@ -42,10 +44,10 @@ struct Chances {
 }
 
 fn damage_matrix(
-    p1_act: eval::PerformableAction,
-    p2_act: eval::PerformableAction,
+    p1_act: PerformableAction,
+    p2_act: PerformableAction,
 ) -> Chances {
-    use eval::PerformableAction::{Attack, Defend, Mate};
+    use self::PerformableAction::{Attack, Defend, Mate};
     // TODO: take into account damage type
     match (p1_act, p2_act) {
         (Attack(..), Attack(..)) => Chances {
@@ -207,8 +209,8 @@ fn damage_matrix(
     }
 }
 
-fn not_attack_mate_defend(act: eval::PerformableAction) -> bool {
-    use eval::PerformableAction::{Eat, Flee, Signal, Take, Wait};
+fn not_attack_mate_defend(act: PerformableAction) -> bool {
+    use self::PerformableAction::{Eat, Flee, Signal, Take, Wait};
     match act {
         Signal(..) | Eat | Take | Wait | Flee => true,
         _ => false,
@@ -437,8 +439,8 @@ pub struct Encounter<'a> {
 
     max_rounds: usize,
     mutation_rate: f64,
-    p1_action: eval::PerformableAction,
-    p2_action: eval::PerformableAction,
+    p1_action: Cell<PerformableAction>,
+    p2_action: Cell<PerformableAction>,
 }
 
 impl<'a> Encounter<'a> {
@@ -459,12 +461,12 @@ impl<'a> Encounter<'a> {
             id_giver,
             max_rounds,
             mutation_rate,
-            p1_action: eval::PerformableAction::NoAction,
-            p2_action: eval::PerformableAction::NoAction,
+            p1_action: Cell::new(PerformableAction::NoAction),
+            p2_action: Cell::new(PerformableAction::NoAction),
         }
     }
 
-    fn decide_and_eval(&mut self) -> FightStatus {
+    fn decide_and_eval(&self) -> (usize, usize) {
         let &Decision {
             tree: ref tree1,
             icount: i1,
@@ -479,16 +481,19 @@ impl<'a> Encounter<'a> {
         } = self.p2.next_decision();
         debug!("{} thinks {:?}", self.p1, tree1);
         debug!("{} thinks {:?}", self.p2, tree2);
-        self.p1_action = eval::evaluate(&self.p1, &self.p2, tree1);
-        self.p2_action = eval::evaluate(&self.p2, &self.p1, tree2);
-        let (p1_cost, p2_cost) = (i1 + s1, i2 + s2);
+        self.p1_action.set(eval::evaluate(&self.p1, &self.p2, tree1));
+        self.p2_action.set(eval::evaluate(&self.p2, &self.p1, tree2));
+        (i1 + s1, i2 + s2)
+    }
+
+    fn execute_round(&mut self, p1_cost: usize, p2_cost: usize) -> FightStatus {
         if p1_cost < p2_cost {
             trace!("{} is going first", self.p1);
-            trace!("{} intends to {}", self.p1, self.p1_action);
+            trace!("{} intends to {}", self.p1, self.p1_action.get());
             self.do_round()
         } else if p2_cost > p1_cost {
             trace!("{} is going first", self.p2);
-            trace!("{} intends to {}", self.p2, self.p2_action);
+            trace!("{} intends to {}", self.p2, self.p2_action.get());
             self.do_swapped_round()
         } else if self.rng.rand() {
             trace!("{} is going first", self.p1);
@@ -505,12 +510,13 @@ impl<'a> Encounter<'a> {
         for round in 0..self.max_rounds {
             debug!("Round {}", round);
             self.stats.rounds += 1;
-            let fight_status = self.decide_and_eval();
+            let (p1_cost, p2_cost) = self.decide_and_eval();
+            let fight_status = self.execute_round(p1_cost, p2_cost);
             if let FightStatus::End = fight_status {
                 break;
             }
-            self.p1.last_action = self.p1_action;
-            self.p2.last_action = self.p2_action;
+            self.p1.last_action = self.p1_action.get();
+            self.p2.last_action = self.p2_action.get();
         }
         if self.p1.alive() && self.p2.dead() {
             self.victory();
@@ -589,7 +595,7 @@ impl<'a> Encounter<'a> {
             self.stats.feeders_eaten += 1;
             self.p1.has_eaten();
             self.p1.gain_energy(self.rng.rand_range(0, 1));
-            self.p1.last_action = eval::PerformableAction::Wait;
+            self.p1.last_action = PerformableAction::Wait;
         } else {
             self.p1.gain_winner_energy(&mut self.rng);
             self.p1.has_killed();
@@ -601,7 +607,7 @@ impl<'a> Encounter<'a> {
     //swap the players in this encounter, some things are dependent on order
     fn swap_players(&mut self) {
         mem::swap(&mut self.p1, &mut self.p2);
-        mem::swap(&mut self.p1_action, &mut self.p2_action);
+        self.p1_action.swap(&self.p2_action);
     }
 
     fn do_swapped_round(&mut self) -> FightStatus {
@@ -612,7 +618,7 @@ impl<'a> Encounter<'a> {
     }
 
     fn do_round(&mut self) -> FightStatus {
-        let chances = damage_matrix(self.p1_action, self.p2_action);
+        let chances = damage_matrix(self.p1_action.get(), self.p2_action.get());
         let p1_dmg = chances.p1.damage(&mut self.rng);
         let p2_dmg = chances.p2.damage(&mut self.rng);
         if p1_dmg > 0 {
@@ -639,16 +645,16 @@ impl<'a> Encounter<'a> {
             self.stats.children_born += 1;
         };
 
-        if not_attack_mate_defend(self.p1_action) {
+        if not_attack_mate_defend(self.p1_action.get()) {
             if let FightStatus::End =
-                self.p1.carryout(&mut self.p2, self.p1_action)
+                self.p1.carryout(&mut self.p2, self.p1_action.get())
             {
                 return FightStatus::End;
             }
         }
-        if not_attack_mate_defend(self.p2_action) {
+        if not_attack_mate_defend(self.p2_action.get()) {
             if let FightStatus::End =
-                self.p2.carryout(&mut self.p1, self.p2_action)
+                self.p2.carryout(&mut self.p1, self.p2_action.get())
             {
                 return FightStatus::End;
             }
