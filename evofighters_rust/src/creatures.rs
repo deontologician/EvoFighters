@@ -157,7 +157,7 @@ impl Creature {
             .seeded_hash(CreatureID::parents_to_u32(self.parents))
     }
 
-    pub fn next_decision(&mut self) -> Decision {
+    pub fn next_decision(&self) -> &Decision {
         self.thought_cycle.next()
     }
 

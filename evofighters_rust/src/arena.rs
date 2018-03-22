@@ -464,21 +464,19 @@ impl<'a> Encounter<'a> {
         }
     }
 
-    fn both_decided(
-        &mut self,
-        &Decision {
+    fn decide_and_eval(&mut self) -> FightStatus {
+        let &Decision {
             tree: ref tree1,
             icount: i1,
             skipped: s1,
             ..
-        }: &Decision,
-        &Decision {
+        } = self.p1.next_decision();
+        let &Decision {
             tree: ref tree2,
             icount: i2,
             skipped: s2,
             ..
-        }: &Decision,
-    ) -> FightStatus {
+        } = self.p2.next_decision();
         debug!("{} thinks {:?}", self.p1, tree1);
         debug!("{} thinks {:?}", self.p2, tree2);
         self.p1_action = eval::evaluate(&self.p1, &self.p2, tree1);
@@ -504,25 +502,15 @@ impl<'a> Encounter<'a> {
     pub fn encounter(&mut self) {
         info!("Max rounds: {}", self.max_rounds);
         // combine thought tree iterators, limit rounds
-        let mut fight_timed_out = true;
         for round in 0..self.max_rounds {
             debug!("Round {}", round);
-            let p1_decision = self.p1.next_decision();
-            let p2_decision = self.p2.next_decision();
             self.stats.rounds += 1;
-            let fight_status = self.both_decided(&p1_decision, &p2_decision);
+            let fight_status = self.decide_and_eval();
             if let FightStatus::End = fight_status {
-                fight_timed_out = false;
                 break;
             }
             self.p1.last_action = self.p1_action;
             self.p2.last_action = self.p2_action;
-        }
-        if fight_timed_out {
-            let penalty = self.rng.rand_range(1, 7);
-            info!("Time is up! both combatants take {} damage", penalty);
-            self.p1.lose_energy(penalty);
-            self.p2.lose_energy(penalty);
         }
         if self.p1.alive() && self.p2.dead() {
             self.victory();
