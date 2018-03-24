@@ -1,6 +1,5 @@
 use std::cmp::max;
 use std::mem;
-use std::time::{Duration, Instant};
 use std::io;
 use std::io::Write;
 use std::cell::Cell;
@@ -11,7 +10,7 @@ use eval::PerformableAction;
 use parsing::Decision;
 
 use saver::{OwnedCheckpoint, Saver, Settings};
-use stats::GlobalStatistics;
+use stats::{GlobalStatistics, TimeKeeper, EncounterStats};
 use rng::RngState;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -223,53 +222,6 @@ enum SimStatus {
     NotEnoughCreatures,
 }
 
-/// Given an instant and how many events the thread slept for, will
-/// return how many events the thread should sleep for next time, and
-/// a percentage error in the last prediction
-struct RateData {
-    pub events_per_second: u64,
-    pub events_to_sleep: u64,
-    pub prediction_error: f64,
-    pub fps: f64,
-}
-
-impl RateData {
-    const INITIAL_EVENTS_PER_SECOND_GUESS: u64 = 10_000;
-    pub fn new(
-        start_time: Instant,
-        events_slept: u64,
-        metric_fps: f64,
-    ) -> RateData {
-        let wanted_duration = metric_fps.recip();
-        let actual_duration = RateData::duration_to_f64(start_time.elapsed());
-        let events_per_second = (events_slept as f64) / actual_duration;
-        RateData {
-            events_to_sleep: (wanted_duration * events_per_second) as u64,
-            events_per_second: events_per_second as u64,
-            prediction_error: 1.0 - (actual_duration / wanted_duration),
-            fps: actual_duration.recip(),
-        }
-    }
-
-    /// Just some garbage so we have an initial value for these things
-    pub fn initial() -> RateData {
-        RateData {
-            events_to_sleep: RateData::INITIAL_EVENTS_PER_SECOND_GUESS,
-            events_per_second: 0,
-            prediction_error: 0.0,
-            fps: 30.0,
-        }
-    }
-
-    /// Takes a standard duration and returns an f64 representing
-    /// seconds
-    fn duration_to_f64(dur: Duration) -> f64 {
-        let seconds = dur.as_secs() as f64;
-        let subseconds = f64::from(dur.subsec_nanos()) / 1_000_000_000.0;
-        seconds + subseconds
-    }
-}
-
 pub struct Arena {
     rng: RngState,
     population: Creatures,
@@ -332,7 +284,7 @@ impl Arena {
                  F/C: {feeder_creature:.3}, \
                  Events: {events}, \
                  Born: {born}, Eaten: {eaten}, kills: {kills}, \
-                 eps: {eps}, err: {err:.1}%, \
+                 eps: {eps}, \
                  FPS: {fps:.1}       ",
                 creatures = self.population.len(),
                 feeders = self.population.feeder_count(),
@@ -343,7 +295,6 @@ impl Arena {
                 eaten = self.stats.feeders_eaten,
                 kills = self.stats.kills,
                 eps = self.rates.events_per_second,
-                err = self.rates.prediction_error * 100.0,
                 fps = self.rates.fps,
             );
             io::stdout().flush().unwrap_or(());
@@ -421,13 +372,13 @@ impl Arena {
 
 pub struct EncounterResult {
     pub survivors: Vec<Creature>,
-    pub stats: GlobalStatistics,
+    pub stats: EncounterStats,
 }
 
 pub struct Encounter<'a> {
     pub p1: Creature,
     pub p2: Creature,
-    pub stats: GlobalStatistics,
+    pub stats: EncounterStats,
     pub children: Vec<Creature>,
 
     rng: &'a mut RngState,
@@ -450,7 +401,7 @@ impl<'a> Encounter<'a> {
         Encounter {
             p1,
             p2,
-            stats: GlobalStatistics::new(),
+            stats: EncounterStats::default(),
             children: Vec::new(),
             rng,
             id_giver,
@@ -542,7 +493,7 @@ impl<'a> Encounter<'a> {
     fn victory(
         p1: &mut Creature,
         p2: &mut Creature,
-        stats: &mut GlobalStatistics,
+        stats: &mut EncounterStats,
         rng: &mut RngState,
     ) {
         info!("{} has killed {}", p1, p2);

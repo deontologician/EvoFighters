@@ -7,7 +7,7 @@ use arena::{Arena,Encounter,EncounterResult};
 use saver::{Settings, SettingsBuilder};
 use creatures::{Creature, IDGiver};
 use saver::OwnedCheckpoint;
-use stats::GlobalStatistics;
+use stats::{GlobalStatistics, WorkerStats, EncounterStats};
 use rng::RngState;
 
 type EncounterJob = Vec<(Creature, Creature)>;
@@ -97,13 +97,14 @@ pub struct Worker {
     pub settings: Settings,
     pub inbox: Receiver<EncounterJob>,
     pub outbox: Sender<Vec<Creature>>,
-    pub metrics: Sender<GlobalStatistics>,
+    pub metrics: Sender<EncounterStats>,
 }
 
 impl Worker {
     pub fn worker_loop(mut self) {
         println!("Worker {} starting up", self.id);
         let id = self.id;
+        let mut worker_stats = WorkerStats::default();
         for encounter_job in self.inbox {
             for (p1, p2) in encounter_job {
                 let encounter = Encounter::new(
